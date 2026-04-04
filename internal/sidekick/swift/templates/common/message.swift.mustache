@@ -31,6 +31,6 @@ public struct {{Codec.Name}}: Codable, Equatable {
   {{#Codec.DocLines}}
   /// {{{.}}}
   {{/Codec.DocLines}}
-  public let {{Codec.Name}}: String
+  public let {{Codec.Name}}: {{Codec.FieldType}}
   {{/Fields}}
 }
