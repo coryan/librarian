@@ -18,9 +18,19 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
 )
+
+// newTestCodec creates a simple codec for the tests.
+func newTestCodec(t *testing.T, model *api.API, options map[string]string) *codec {
+	t.Helper()
+	cfg := &parser.ModelConfig{
+		Codec: options,
+	}
+	return newCodec(model, cfg, nil, ".")
+}
 
 func TestParseOptions(t *testing.T) {
 	cfg := &parser.ModelConfig{
@@ -31,23 +41,45 @@ func TestParseOptions(t *testing.T) {
 		},
 	}
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
-	got := newCodec(model, cfg, nil)
+	got := newCodec(model, cfg, nil, ".")
 	want := &codec{
-		GenerationYear: "2038",
-		PackageName:    "GoogleCloudBigtable",
-		RootName:       "test-root",
-		Model:          model,
+		GenerationYear:     "2038",
+		PackageName:        "GoogleCloudBigtable",
+		PathToMonorepoRoot: ".",
+		RootName:           "test-root",
+		Model:              model,
+		ApiPackages:        map[string]*Dependency{},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("mismatch in codec (-want, +got)\n:%s", diff)
 	}
 }
 
-// newTestCodec creates a simple codec for the tests.
-func newTestCodec(t *testing.T, model *api.API, options map[string]string) *codec {
-	t.Helper()
-	cfg := &parser.ModelConfig{
-		Codec: options,
+func TestNewCodec_WithSwiftCfg(t *testing.T) {
+	swiftCfg := &config.SwiftPackage{
+		SwiftDefault: config.SwiftDefault{
+			Dependencies: []config.SwiftDependency{
+				{Name: "gax", Path: "packages/gax"},
+				{Name: "google-cloud-location", Path: "generated/google-cloud-location", ApiPackage: "google.cloud.location"},
+			},
+		},
 	}
-	return newCodec(model, cfg, nil)
+	cfg := &parser.ModelConfig{}
+	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
+	got := newCodec(model, cfg, swiftCfg, ".")
+
+	wantDeps := []*Dependency{
+		{swiftCfg.Dependencies[0]},
+		{swiftCfg.Dependencies[1]},
+	}
+	if diff := cmp.Diff(wantDeps, got.Dependencies); diff != "" {
+		t.Errorf("mismatch in Dependencies (-want +got):\n%s", diff)
+	}
+
+	wantApiPackages := map[string]*Dependency{
+		"google.cloud.location": {swiftCfg.Dependencies[1]},
+	}
+	if diff := cmp.Diff(wantApiPackages, got.ApiPackages); diff != "" {
+		t.Errorf("mismatch in ApiPackages (-want +got):\n%s", diff)
+	}
 }

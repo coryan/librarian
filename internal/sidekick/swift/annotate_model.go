@@ -15,20 +15,43 @@
 package swift
 
 import (
+	"maps"
+	"slices"
+	"strings"
+
 	"github.com/googleapis/librarian/internal/license"
 )
 
 type modelAnnotations struct {
-	CopyrightYear string
-	BoilerPlate   []string
-	PackageName   string
+	CopyrightYear      string
+	BoilerPlate        []string
+	PackageName        string
+	PathToMonorepoRoot string
+	DependsOn          map[string]*Dependency
+}
+
+// HasDependencies returns true if the package has dependencies on other packages.
+//
+// The mustache templates use this to omit code that goes unused when the package has no
+// dependencies.
+func (ann *modelAnnotations) HasDependencies() bool {
+	return len(ann.DependsOn) != 0
+}
+
+// Dependencies returns the list of dependencies for this package.
+func (ann *modelAnnotations) Dependencies() []*Dependency {
+	deps := slices.Collect(maps.Values(ann.DependsOn))
+	slices.SortFunc(deps, func(a, b *Dependency) int { return strings.Compare(a.Name, b.Name) })
+	return deps
 }
 
 func (codec *codec) annotateModel() error {
 	annotations := &modelAnnotations{
-		CopyrightYear: codec.GenerationYear,
-		BoilerPlate:   license.HeaderBulk(),
-		PackageName:   codec.PackageName,
+		CopyrightYear:      codec.GenerationYear,
+		BoilerPlate:        license.HeaderBulk(),
+		PackageName:        codec.PackageName,
+		PathToMonorepoRoot: codec.PathToMonorepoRoot,
+		DependsOn:          map[string]*Dependency{},
 	}
 	codec.Model.Codec = annotations
 	for _, message := range codec.Model.Messages {
@@ -38,6 +61,13 @@ func (codec *codec) annotateModel() error {
 	}
 	for _, service := range codec.Model.Services {
 		codec.annotateService(service, annotations)
+	}
+	if len(codec.Model.Services) != 0 {
+		for _, p := range codec.Dependencies {
+			if p.RequiredByServices {
+				annotations.DependsOn[p.Name] = p
+			}
+		}
 	}
 	return nil
 }

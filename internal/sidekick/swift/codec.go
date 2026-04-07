@@ -16,6 +16,7 @@ package swift
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/googleapis/librarian/internal/config"
@@ -31,25 +32,41 @@ import (
 // generated. That lends naturally into a single object that carries all the
 // information needed to generate the library.
 type codec struct {
-	GenerationYear string
-	PackageName    string
+	GenerationYear     string
+	PackageName        string
+	PathToMonorepoRoot string
 	// Most libraries are generated from `googleapis`. Rarely, we use protobuf,
 	// gapic-showcase, or a different root.
 	RootName     string
 	Model        *api.API
-	Dependencies []config.SwiftDependency
+	Dependencies []*Dependency
+	ApiPackages  map[string]*Dependency
 }
 
-func newCodec(model *api.API, cfg *parser.ModelConfig, swiftCfg *config.SwiftPackage) *codec {
+func newCodec(model *api.API, cfg *parser.ModelConfig, swiftCfg *config.SwiftPackage, outdir string) *codec {
 	year, _, _ := time.Now().Date()
+	absOutdir, _ := filepath.Abs(outdir)
+	absRoot, _ := filepath.Abs(".")
+	rel, err := filepath.Rel(absOutdir, absRoot)
+	if err != nil {
+		rel = "."
+	}
 	result := &codec{
-		GenerationYear: fmt.Sprintf("%04d", year),
-		PackageName:    PackageName(model),
-		RootName:       "googleapis",
-		Model:          model,
+		GenerationYear:     fmt.Sprintf("%04d", year),
+		PackageName:        PackageName(model),
+		PathToMonorepoRoot: rel,
+		RootName:           "googleapis",
+		Model:              model,
+		ApiPackages:        map[string]*Dependency{},
 	}
 	if swiftCfg != nil {
-		result.Dependencies = swiftCfg.Dependencies
+		for _, d := range swiftCfg.Dependencies {
+			dependency := Dependency{d}
+			result.Dependencies = append(result.Dependencies, &dependency)
+			if d.ApiPackage != "" {
+				result.ApiPackages[d.ApiPackage] = &dependency
+			}
+		}
 	}
 	for key, definition := range cfg.Codec {
 		switch key {
