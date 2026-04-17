@@ -350,7 +350,7 @@ func TestFieldTypeName_ExternalMessage(t *testing.T) {
 			"google.cloud.external.v1": {
 				SwiftDependency: config.SwiftDependency{
 					ApiPackage: "google.cloud.external.v1",
-					Name:       "external-package",
+					Name:       "ExternalPackage",
 				},
 			},
 		},
@@ -360,7 +360,7 @@ func TestFieldTypeName_ExternalMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "GoogleCloudExternalV1.ExternalMessage"
+	want := "ExternalPackage.ExternalMessage"
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
@@ -386,7 +386,7 @@ func TestFieldTypeName_ExternalEnum(t *testing.T) {
 			"google.cloud.external.v1": {
 				SwiftDependency: config.SwiftDependency{
 					ApiPackage: "google.cloud.external.v1",
-					Name:       "external-package",
+					Name:       "ExternalPackage",
 				},
 			},
 		},
@@ -396,7 +396,7 @@ func TestFieldTypeName_ExternalEnum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "GoogleCloudExternalV1.ExternalEnum"
+	want := "ExternalPackage.ExternalEnum"
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
@@ -428,7 +428,7 @@ func TestFieldTypeName_ExternalNestedMessage(t *testing.T) {
 			"google.cloud.external.v1": {
 				SwiftDependency: config.SwiftDependency{
 					ApiPackage: "google.cloud.external.v1",
-					Name:       "external-package",
+					Name:       "ExternalPackage",
 				},
 			},
 		},
@@ -438,7 +438,7 @@ func TestFieldTypeName_ExternalNestedMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "GoogleCloudExternalV1.OuterMessage.NestedMessage"
+	want := "ExternalPackage.OuterMessage.NestedMessage"
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
