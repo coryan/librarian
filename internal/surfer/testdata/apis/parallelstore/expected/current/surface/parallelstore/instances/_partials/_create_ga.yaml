@@ -84,6 +84,7 @@
           [VPC network](https://cloud.google.com/vpc/docs/vpc) to which the
           instance is connected.
         is_positional: false
+        is_primary_resource: false
         resource_spec:
           attributes:
             - attribute_name: project
@@ -107,6 +108,7 @@
           network](https://cloud.google.com/parallelstore/docs/vpc#create_and_configure_the_vpc).
           If no ID is provided, all ranges are considered.
         is_positional: false
+        is_primary_resource: false
         resource_spec:
           attributes:
             - attribute_name: project

@@ -95,6 +95,7 @@
           If unspecified, the Parallelstore service agent is used:
           `service-<PROJECT_NUMBER>@gcp-sa-parallelstore.iam.gserviceaccount.com`
         is_positional: false
+        is_primary_resource: false
         resource_spec:
           attributes:
             - attribute_name: project

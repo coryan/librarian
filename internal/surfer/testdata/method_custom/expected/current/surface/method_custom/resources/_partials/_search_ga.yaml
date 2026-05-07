@@ -64,6 +64,7 @@
       - arg_name: service-account
         help_text: The service account to use for the request.
         is_positional: false
+        is_primary_resource: false
         resource_spec:
           attributes:
             - attribute_name: project

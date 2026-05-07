@@ -240,15 +240,13 @@ func TestMapCommandToYAML(t *testing.T) {
 			Format: "table",
 		},
 		Arguments: declarative.Arguments{
-			Params: []declarative.Argument{
-				{
+			Params: []any{
+				declarative.ResourceArg{
 					ArgName: "arg",
 					Spec: []declarative.ArgSpec{
 						{APIField: "s"},
 					},
-					Choices: []declarative.Choice{
-						{ArgValue: "av", EnumValue: "ev", HelpText: "ch"},
-					},
+					IsPrimaryResource: false,
 					ResourceSpec: &declarative.ResourceSpec{
 						Name:       "resourceName",
 						PluralName: "resourcePlural",
@@ -259,18 +257,19 @@ func TestMapCommandToYAML(t *testing.T) {
 						DisableAutoCompleters: true,
 					},
 				},
-				{
+				declarative.Argument{
 					ArgName: "bool-arg",
 					Type:    "bool",
 					Action:  "store_true",
 					Default: declarative.Default{Value: &nilVal},
 				},
-				{
+				declarative.Argument{
 					ArgName:  "arg-with-apifield",
 					APIField: "part1.part2",
 				},
-				{
-					ArgName: "arg-with-apifield-and-resource",
+				declarative.ResourceArg{
+					ArgName:           "arg-with-apifield-and-resource",
+					IsPrimaryResource: false,
 					ResourceSpec: &declarative.ResourceSpec{
 						Name: "nestedResource",
 					},
