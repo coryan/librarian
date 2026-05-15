@@ -124,7 +124,7 @@ func TestPascalCase(t *testing.T) {
 	}
 }
 
-// The stubs are named by appending some names to the result of `PascalCaseNoManging`.
+// The stubs are named by appending some names to the result of `PascalCaseNoMangling`.
 // Verify these do not conflict with a mangled name.
 func TestStubSuffixes(t *testing.T) {
 	for _, test := range []struct {
