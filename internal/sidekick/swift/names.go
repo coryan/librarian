@@ -173,7 +173,7 @@ func pascalCase(s string) string {
 	return escapeKeyword(pascalCaseNoMangling(s))
 }
 
-// pascalCase converts an identifier to PascalCase (note the leading uppercase).
+// pascalCaseNoMangling converts an identifier to PascalCase (note the leading uppercase).
 func pascalCaseNoMangling(s string) string {
 	// In Swift, it is conventional to preserve ALL CAPS names:
 	//     https://www.swift.org/documentation/api-design-guidelines/#conventions
