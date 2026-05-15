@@ -137,7 +137,7 @@ func TestStubSuffixes(t *testing.T) {
 		{suffix: "ClientSignals"},
 		{suffix: "TransportSignals"},
 	} {
-		for keyword, _ := range keywords {
+		for keyword := range keywords {
 			t.Run(fmt.Sprintf("%s : %s", test.suffix, keyword), func(t *testing.T) {
 				if strings.HasPrefix(keyword, "#") || keyword == "_" {
 					// These keywords are not relevant.
