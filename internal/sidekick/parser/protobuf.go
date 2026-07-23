@@ -30,6 +30,7 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/parser/svcconfig"
 	"github.com/googleapis/librarian/internal/sidekick/protobuf"
 	"github.com/googleapis/librarian/internal/sources"
+	"github.com/iancoleman/strcase"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
@@ -322,11 +323,25 @@ func makeAPIForProtobuf(serviceConfig *serviceconfig.Service, req *pluginpb.Code
 		return strings.Compare(a.Type, b.Type)
 	})
 
+	// Collect all the PackageNamePascalCase values implied by the file options.
+	namespaceVariants := make(map[string]struct{})
+	collectNamespaceVariants := func(names map[string]struct{}, file *descriptorpb.FileDescriptorProto) {
+		for _, option := range []string{file.Options.GetCsharpNamespace(), file.Options.GetPhpNamespace(), file.Options.GetRubyPackage()} {
+			if option == "" {
+				continue
+			}
+			normalized := strings.ReplaceAll(option, "\\", ".")
+			normalized = strings.ReplaceAll(normalized, "::", ".")
+			names[normalized] = struct{}{}
+		}
+	}
+
 	// Then we need to add the messages, enums and services to the list of
 	// elements to be generated.
 	for _, f := range req.GetSourceFileDescriptors() {
 		var fileServices []*api.Service
 		fFQN := "." + f.GetPackage()
+		collectNamespaceVariants(namespaceVariants, f)
 
 		// Messages
 		for _, m := range f.MessageType {
@@ -394,6 +409,16 @@ func makeAPIForProtobuf(serviceConfig *serviceconfig.Service, req *pluginpb.Code
 			}
 		}
 		result.Services = append(result.Services, fileServices...)
+	}
+	packageNamesPascalCase := slices.Collect(maps.Keys(namespaceVariants))
+	if len(packageNamesPascalCase) == 1 {
+		result.PackageNamePascalCase = packageNamesPascalCase[0]
+	} else {
+		parts := strings.Split(result.PackageName, ".")
+		for i, p := range parts {
+			parts[i] = strcase.ToCamel(p)
+		}
+		result.PackageNamePascalCase = strings.Join(parts, ".")
 	}
 
 	// Add the mixin methods to the existing services.

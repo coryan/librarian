@@ -23,9 +23,18 @@ import (
 type API struct {
 	// Name of the API (e.g. secretmanager).
 	Name string
-	// Name of the package name in the source specification format. For Protobuf
+	// The package name in the source specification format. For Protobuf
 	// this may be `google.cloud.secretmanager.v1`.
 	PackageName string
+	// The package name with PascalCase words.
+	//
+	// For something like `google.cloud.secretmanager.v1` this should be
+	// `Google.Cloud.SecretManager.V1`. Note the upppercase `M` in the
+	// `SecretManager` component. A simple application of `ToCamel` from the
+	// Protobuf package produces `Secretmanager` with a lowercase `m`. Sidekick
+	// uses the PHP, Ruby, and C# namespace options to infer a better
+	// conversion.
+	PackageNamePascalCase string
 	// The API Title (e.g. "Secret Manager API" or "Cloud Spanner API").
 	Title string
 	// The API Description.
