@@ -17,45 +17,58 @@ package swift
 import (
 	"testing"
 
+	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
 func TestLibraryName(t *testing.T) {
 	for _, test := range []struct {
-		name  string
-		input string
-		want  string
+		name   string
+		input  string
+		config *config.SwiftPackage
+		want   string
 	}{
 		{
-			name:  "cloud storage v2",
-			input: "google.cloud.storage.v2",
-			want:  "GoogleCloudStorageV2",
+			name:   "cloud storage v2",
+			input:  "google.cloud.storage.v2",
+			config: nil,
+			want:   "GoogleCloudStorageV2",
 		},
 		{
-			name:  "iam v1",
-			input: "google.iam.v1",
-			want:  "GoogleIamV1",
+			name:   "iam v1",
+			input:  "google.iam.v1",
+			config: nil,
+			want:   "GoogleIamV1",
 		},
 		{
-			name:  "cloud location",
-			input: "google.cloud.location",
-			want:  "GoogleCloudLocation",
+			name:   "cloud location",
+			input:  "google.cloud.location",
+			config: nil,
+			want:   "GoogleCloudLocation",
 		},
 		{
-			name:  "api",
-			input: "google.api",
-			want:  "GoogleApi",
+			name:   "api",
+			input:  "google.api",
+			config: nil,
+			want:   "GoogleApi",
 		},
 		{
-			name:  "grafeas v1",
-			input: "grafeas.v1",
-			want:  "GoogleGrafeasV1",
+			name:   "grafeas v1",
+			input:  "grafeas.v1",
+			config: nil,
+			want:   "GrafeasV1",
+		},
+		{
+			name:   "grafeas v1",
+			input:  "grafeas.v1",
+			config: &config.SwiftPackage{LibraryNameOverride: "GoogleGrafeasV1"},
+			want:   "GoogleGrafeasV1",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			model := api.NewTestAPI(nil, nil, nil)
 			model.PackageName = test.input
-			got := LibraryName(model, nil)
+			got := LibraryName(model, test.config)
 			if got != test.want {
 				t.Errorf("mismatch got = %q, want %q", got, test.want)
 			}

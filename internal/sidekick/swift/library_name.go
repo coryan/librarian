@@ -24,15 +24,14 @@ import (
 
 // LibraryName returns the Swift library (and module) name for the API.
 func LibraryName(api *api.API, swiftCfg *config.SwiftPackage) string {
+	if swiftCfg != nil && swiftCfg.LibraryNameOverride != "" {
+		return swiftCfg.LibraryNameOverride
+	}
 	// TODO(https://github.com/googleapis/librarian/issues/6229) - use
-	// a better default.
+	// the api.PackageNamePascalCase
 	parts := strings.Split(api.PackageName, ".")
 	for i, p := range parts {
 		parts[i] = strcase.ToCamel(p)
 	}
-	result := strings.Join(parts, "")
-	if strings.HasPrefix(result, "Google") {
-		return result
-	}
-	return "Google" + result
+	return strings.Join(parts, "")
 }
