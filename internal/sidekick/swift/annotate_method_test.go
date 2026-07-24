@@ -263,7 +263,7 @@ func TestAnnotateMethod_WithExternalMessages(t *testing.T) {
 		Methods: []*api.Method{method},
 	}
 	model := api.NewTestAPI([]*api.Message{}, nil, []*api.Service{service})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	model.AddMessage(inputMessage)
 	model.AddMessage(outputMessage)
 	if err := api.CrossReference(model); err != nil {
@@ -342,7 +342,7 @@ func TestAnnotateMethod_Pagination(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType, itemType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	if err := api.CrossReference(model); err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +453,7 @@ func TestAnnotateMethod_LRO(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType, lroResponseType, lroMetadataType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	if err := api.CrossReference(model); err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +524,7 @@ func TestAnnotateMethod_LRO_Empty(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType, lroMetadataType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	if err := api.CrossReference(model); err != nil {
 		t.Fatal(err)
 	}

@@ -439,7 +439,7 @@ func TestAnnotateMessage_Pagination(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType, secretType}, nil, []*api.Service{iam})
-	model.PackageName = "google.cloud.secretmanager.v1"
+	model.WithPackageNames("google.cloud.secretmanager.v1", "")
 
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {
@@ -516,7 +516,7 @@ func TestAnnotateMessage_RecursiveNested(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{outerMessage, secretType}, nil, nil)
-	model.PackageName = "google.cloud.secretmanager.v1"
+	model.WithPackageNames("google.cloud.secretmanager.v1", "")
 
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {

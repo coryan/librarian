@@ -356,7 +356,7 @@ func TestFieldTypeName_Map(t *testing.T) {
 	}
 
 	model := api.NewTestAPI(nil, nil, nil)
-	model.PackageName = mapEntry.Package
+	model.WithPackageNames(mapEntry.Package, "")
 	model.AddMessage(mapEntry)
 	c := newTestCodec(t, model, map[string]string{})
 
@@ -389,7 +389,7 @@ func TestFieldTypeName_ExternalMessage(t *testing.T) {
 	}
 
 	model := api.NewTestAPI(nil, nil, nil)
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	model.AddMessage(externalMessage)
 	c := newTestCodec(t, model, nil)
 	ann := &modelAnnotations{DependsOn: map[string]*Dependency{}}
@@ -423,7 +423,7 @@ func TestFieldTypeName_ExternalEnum(t *testing.T) {
 	}
 
 	model := api.NewTestAPI(nil, nil, nil)
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	model.AddEnum(externalEnum)
 	c := newTestCodec(t, model, nil)
 	ann := &modelAnnotations{DependsOn: map[string]*Dependency{}}
@@ -464,7 +464,7 @@ func TestFieldTypeName_ExternalNestedMessage(t *testing.T) {
 	externalOuter.Messages = append(externalOuter.Messages, externalNested)
 
 	model := api.NewTestAPI(nil, nil, nil)
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	model.AddMessage(externalNested)
 	model.AddMessage(externalOuter)
 	c := newTestCodec(t, model, nil)

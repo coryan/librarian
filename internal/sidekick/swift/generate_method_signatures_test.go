@@ -281,7 +281,7 @@ func newModelWithSignatures(t *testing.T) *api.API {
 		requestType, responseType, itemType, paginationResponseType,
 		operationType, lroResultType, lroMetadataType,
 	}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	model.AddMessage(getOperationInputType)
 	model.AddMessage(operationType)
 	return model

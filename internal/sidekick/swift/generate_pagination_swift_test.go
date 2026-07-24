@@ -116,7 +116,7 @@ func TestGenerateService_MapPagination(t *testing.T) {
 			}
 
 			model := api.NewTestAPI([]*api.Message{inputType, outputType, secretType, mapEntryType}, nil, []*api.Service{iam})
-			model.PackageName = "google.cloud.secretmanager.v1"
+			model.WithPackageNames("google.cloud.secretmanager.v1", "")
 
 			cfg := &parser.ModelConfig{
 				Codec: map[string]string{

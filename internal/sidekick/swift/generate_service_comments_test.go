@@ -78,7 +78,7 @@ func TestGenerateService_DocComments(t *testing.T) {
 	method.Service = service
 
 	model := api.NewTestAPI([]*api.Message{req, res}, []*api.Enum{}, []*api.Service{service})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	cfg := &parser.ModelConfig{}
 
 	if err := Generate(t.Context(), model, outDir, cfg, swiftConfig(t, nil)); err != nil {

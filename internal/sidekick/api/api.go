@@ -17,6 +17,9 @@ package api
 import (
 	"iter"
 	"maps"
+	"strings"
+
+	"github.com/iancoleman/strcase"
 )
 
 // API represents an API surface.
@@ -183,4 +186,17 @@ func (a *API) AddResource(r *Resource) {
 		a.resourceByType = make(map[string]*Resource)
 	}
 	a.resourceByType[r.Type] = r
+}
+
+// WithPackageNames sets the package names for an API.
+func (a *API) WithPackageNames(packageName, packageNamePascalCase string) {
+	a.PackageName = packageName
+	a.PackageNamePascalCase = packageNamePascalCase
+	if a.PackageNamePascalCase == "" {
+		parts := strings.Split(packageName, ".")
+		for i, p := range parts {
+			parts[i] = strcase.ToCamel(p)
+		}
+		a.PackageNamePascalCase = strings.Join(parts, ".")
+	}
 }

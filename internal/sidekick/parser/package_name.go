@@ -14,20 +14,58 @@
 
 package parser
 
-import "github.com/googleapis/librarian/internal/sidekick/api"
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
-// updatePackageName() sets the PackageName field if it is not set. This happens
+	"github.com/googleapis/librarian/internal/serviceconfig"
+	"github.com/googleapis/librarian/internal/sidekick/api"
+	"github.com/googleapis/librarian/internal/sidekick/parser/svcconfig"
+	"google.golang.org/protobuf/types/pluginpb"
+)
+
+// updatePackageNames sets the PackageName field.
+//
+// This happens
 // often with protobuf libraries that lack a service config YAML file, typically
 // type-only libraries.
-func updatePackageName(model *api.API) {
-	if model.PackageName != "" {
-		return
+func updatePackageNames(model *api.API, serviceConfig *serviceconfig.Service, req *pluginpb.CodeGeneratorRequest) error {
+	packageName := ""
+	packageNamePascalCase := ""
+	// If Ruby, PHP, and C# agree on how the package name should be capitalized,
+	// we use that capitalization for the "PascalCase" version of the package
+	// name.
+	csharpNamespaces := make(map[string]struct{})
+	phpNamespaces := make(map[string]struct{})
+	rubyPackages := make(map[string]struct{})
+
+	for _, file := range req.GetSourceFileDescriptors() {
+		pkg := file.GetPackage()
+		if packageName != "" && pkg != packageName {
+			return fmt.Errorf("inconsistent package names, file %s has %s, expected %s", file.GetName(), pkg, packageName)
+		}
+		packageName = pkg
+		// Normalize the namespaces / packages.
+		csharpNamespaces[file.Options.GetCsharpNamespace()] = struct{}{}
+		phpNamespaces[file.Options.GetPhpNamespace()] = struct{}{}
+		rubyPackages[file.Options.GetRubyPackage()] = struct{}{}
 	}
-	if len(model.Services) > 0 {
-		model.PackageName = model.Services[0].Package
-	} else if len(model.Messages) > 0 {
-		model.PackageName = model.Messages[0].Package
-	} else if len(model.Enums) > 0 {
-		model.PackageName = model.Enums[0].Package
+	normalizedNamespaces := make(map[string]struct{})
+	maps.Copy(normalizedNamespaces, csharpNamespaces)
+	for name, v := range phpNamespaces {
+		normalizedNamespaces[strings.ReplaceAll(name, "\\", ".")] = v
 	}
+	for name, v := range rubyPackages {
+		normalizedNamespaces[strings.ReplaceAll(name, "::", ".")] = v
+	}
+	if names := slices.Collect(maps.Keys(normalizedNamespaces)); len(names) == 1 {
+		packageNamePascalCase = names[0]
+	}
+	if overrides := svcconfig.ExtractPackageName(serviceConfig); overrides != nil {
+		packageName = overrides.PackageName
+	}
+	model.WithPackageNames(packageName, packageNamePascalCase)
+	return nil
 }

@@ -35,19 +35,20 @@ func NewTestAPI(messages []*Message, enums []*Enum, services []*Service) *API {
 		resourceByType: make(map[string]*Resource),
 	}
 
+	packageName := ""
 	for _, m := range messages {
-		model.PackageName = m.Package
+		packageName = m.Package
 		model.messageByID[m.ID] = m
 		if m.Resource != nil {
 			model.resourceByType[m.Resource.Type] = m.Resource
 		}
 	}
 	for _, e := range enums {
-		model.PackageName = e.Package
+		packageName = e.Package
 		model.enumByID[e.ID] = e
 	}
 	for _, s := range services {
-		model.PackageName = s.Package
+		packageName = s.Package
 		model.serviceByID[s.ID] = s
 		for _, m := range s.Methods {
 			model.methodByID[m.ID] = m
@@ -73,6 +74,7 @@ func NewTestAPI(messages []*Message, enums []*Enum, services []*Service) *API {
 	}
 
 	model.LoadWellKnownTypes()
+	model.WithPackageNames(packageName, "")
 	return model
 }
 

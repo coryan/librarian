@@ -70,11 +70,12 @@ func TestServiceConfigOverridesInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &api.API{
-		Name:        sc.Name,
-		Title:       sc.Title,
-		Description: sc.Documentation.Summary,
-		Revision:    "20250810",
-		PackageName: "google.cloud.secretmanager.v1",
+		Name:                  sc.Name,
+		Title:                 sc.Title,
+		Description:           sc.Documentation.Summary,
+		Revision:              "20250810",
+		PackageName:           "google.cloud.secretmanager.v1",
+		PackageNamePascalCase: "Google.Cloud.Secretmanager.V1",
 	}
 	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(api.API{}, "Services", "Messages", "Enums"), cmpopts.IgnoreUnexported(api.API{})); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)

@@ -19,7 +19,6 @@ import (
 
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
-	"github.com/iancoleman/strcase"
 )
 
 // LibraryName returns the Swift library (and module) name for the API.
@@ -27,11 +26,5 @@ func LibraryName(api *api.API, swiftCfg *config.SwiftPackage) string {
 	if swiftCfg != nil && swiftCfg.LibraryNameOverride != "" {
 		return swiftCfg.LibraryNameOverride
 	}
-	// TODO(https://github.com/googleapis/librarian/issues/6229) - use
-	// the api.PackageNamePascalCase
-	parts := strings.Split(api.PackageName, ".")
-	for i, p := range parts {
-		parts[i] = strcase.ToCamel(p)
-	}
-	return strings.Join(parts, "")
+	return strings.ReplaceAll(api.PackageNamePascalCase, ".", "")
 }

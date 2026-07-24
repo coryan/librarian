@@ -83,7 +83,7 @@ func TestGenerateOneOf(t *testing.T) {
 	oneof.Fields = []*api.Field{outer.Fields[0], outer.Fields[1]}
 
 	model := api.NewTestAPI([]*api.Message{outer, inner}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	cfg := &parser.ModelConfig{}
 	if err := Generate(t.Context(), model, outDir, cfg, swiftConfig(t, nil)); err != nil {
 		t.Fatal(err)
@@ -250,7 +250,7 @@ func TestGenerateOneOfWithKeyword(t *testing.T) {
 	oneof.Fields = jwtLocation.Fields
 
 	model := api.NewTestAPI([]*api.Message{jwtLocation}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.api"
+	model.WithPackageNames("google.api", "")
 	cfg := &parser.ModelConfig{}
 	if err := Generate(t.Context(), model, outDir, cfg, swiftConfig(t, nil)); err != nil {
 		t.Fatal(err)

@@ -57,7 +57,7 @@ func TestGenerateService_Telemetry(t *testing.T) {
 		WithMethods(method)
 
 	model := api.NewTestAPI([]*api.Message{req, res}, []*api.Enum{}, []*api.Service{service})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
 			"version": "1.2.3-preview",

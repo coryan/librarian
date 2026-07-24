@@ -37,7 +37,7 @@ func TestGeneratePackageSwift_WithDependencies(t *testing.T) {
 
 	service := &api.Service{Name: "Workflows", Package: "google.cloud.workflows.v1"}
 	model := api.NewTestAPI(nil, nil, []*api.Service{service})
-	model.PackageName = "google.cloud.workflows.v1"
+	model.WithPackageNames("google.cloud.workflows.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{

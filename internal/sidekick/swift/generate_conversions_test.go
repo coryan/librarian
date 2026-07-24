@@ -28,7 +28,7 @@ import (
 func TestGenerateConversions_MissingModulePath(t *testing.T) {
 	outDir := t.TempDir()
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 
 	cfg := &parser.ModelConfig{}
 
@@ -73,7 +73,7 @@ func TestGenerateConversions_Message(t *testing.T) {
 	field3.Parent = folder
 
 	model := api.NewTestAPI([]*api.Message{folder}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.storage.control.v2"
+	model.WithPackageNames("google.storage.control.v2", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{

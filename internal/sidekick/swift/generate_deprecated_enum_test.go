@@ -83,7 +83,7 @@ func TestGenerateEnum_Deprecated(t *testing.T) {
 			enum.UniqueNumberValues = enum.Values
 
 			model := api.NewTestAPI(nil, []*api.Enum{enum}, nil)
-			model.PackageName = "google.cloud.test.v1"
+			model.WithPackageNames("google.cloud.test.v1", "")
 			cfg := &parser.ModelConfig{}
 			if err := Generate(t.Context(), model, outDir, cfg, nil); err != nil {
 				t.Fatal(err)

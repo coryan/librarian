@@ -276,7 +276,7 @@ func TestAnnotateField_PackageName(t *testing.T) {
 	}
 	field.Parent = msg
 	model := api.NewTestAPI([]*api.Message{msg, referencedMsg}, nil, nil)
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	codec := newTestCodec(t, model, map[string]string{})
 	codec.withExtraDependencies(t, []config.SwiftDependency{
 		{

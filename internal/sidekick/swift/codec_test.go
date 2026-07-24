@@ -206,7 +206,7 @@ func makeGatedTestModel() *api.API {
 		[]*api.Enum{sharedEnum, s1Enum, s2Enum, unusedEnum},
 		[]*api.Service{s1, s2},
 	)
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	api.CrossReference(model)
 	return model
 }

@@ -89,7 +89,7 @@ func TestGenerateOneOf_Deprecated(t *testing.T) {
 			oneof.Fields = []*api.Field{field}
 
 			model := api.NewTestAPI([]*api.Message{msg, inner}, nil, nil)
-			model.PackageName = "google.cloud.test.v1"
+			model.WithPackageNames("google.cloud.test.v1", "")
 			cfg := &parser.ModelConfig{}
 			if err := Generate(t.Context(), model, outDir, cfg, nil); err != nil {
 				t.Fatal(err)

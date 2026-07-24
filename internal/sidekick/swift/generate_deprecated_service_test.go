@@ -55,7 +55,7 @@ func TestGenerateService_Deprecated(t *testing.T) {
 			}
 
 			model := api.NewTestAPI(nil, nil, []*api.Service{service})
-			model.PackageName = "test"
+			model.WithPackageNames("test", "")
 			cfg := &parser.ModelConfig{}
 			if err := Generate(t.Context(), model, outDir, cfg, swiftConfig(t, nil)); err != nil {
 				t.Fatal(err)

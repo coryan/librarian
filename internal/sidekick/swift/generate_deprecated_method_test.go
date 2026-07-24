@@ -186,7 +186,7 @@ func TestGenerateService_DeprecatedMethods(t *testing.T) {
 				requestType, responseType, itemType, paginationResponseType,
 				operationType, lroResultType, lroMetadataType, getOperationInputType,
 			}, nil, []*api.Service{service})
-			model.PackageName = "test"
+			model.WithPackageNames("test", "")
 
 			cfg := &parser.ModelConfig{
 				Codec: map[string]string{

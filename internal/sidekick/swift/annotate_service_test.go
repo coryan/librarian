@@ -77,7 +77,7 @@ func TestAnnotateService(t *testing.T) {
 				Documentation: test.doc,
 			}
 			model := api.NewTestAPI(nil, nil, []*api.Service{s})
-			model.PackageName = "test"
+			model.WithPackageNames("test", "")
 			codec := newTestCodec(t, model, nil)
 
 			if err := codec.annotateModel(); err != nil {
@@ -330,7 +330,7 @@ func TestAnnotateService_LRO(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType, lroResponseType, lroMetadataType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	if err := api.CrossReference(model); err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func TestAnnotateService_Pagination(t *testing.T) {
 	service := api.NewTestService("TestService").WithMethods(list)
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	model.AddMessage(itemType)
 	if err := api.CrossReference(model); err != nil {
 		t.Fatal(err)
@@ -438,7 +438,7 @@ func TestAnnotateService_MapPagination(t *testing.T) {
 	service := api.NewTestService("TestService").WithMethods(list)
 
 	model := api.NewTestAPI([]*api.Message{inputType, outputType}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 	model.AddMessage(itemType)
 	model.AddMessage(mapType)
 	if err := api.CrossReference(model); err != nil {
@@ -503,7 +503,7 @@ func TestAnnotateService_MethodSignatures(t *testing.T) {
 				WithPathTemplate((&api.PathTemplate{}).WithLiteral("v1").WithLiteral("things"))
 			service := api.NewTestService("TestService").WithMethods(create)
 			model := api.NewTestAPI([]*api.Message{inputType, outputType}, nil, []*api.Service{service})
-			model.PackageName = "test"
+			model.WithPackageNames("test", "")
 			model.AddMessage(thing)
 			if err := api.CrossReference(model); err != nil {
 				t.Fatal(err)

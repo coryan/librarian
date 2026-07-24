@@ -115,7 +115,7 @@ func TestGenerateSnippets(t *testing.T) {
 				WithPathTemplate((&api.PathTemplate{}).WithLiteral("v1").WithLiteral("one"))
 			testService := api.NewTestService("TestService").WithMethods(getThing)
 			model := api.NewTestAPI([]*api.Message{thing, getThingRequest}, nil, []*api.Service{testService})
-			model.PackageName = "test"
+			model.WithPackageNames("test", "")
 			model.AddResource(thingResource)
 			if err := api.CrossReference(model); err != nil {
 				t.Fatal(err)

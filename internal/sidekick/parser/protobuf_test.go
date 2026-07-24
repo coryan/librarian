@@ -63,10 +63,11 @@ func TestProtobuf_PartialInfo(t *testing.T) {
 		t.Fatalf("Failed to make API for Protobuf %v", err)
 	}
 	want := &api.API{
-		Name:        "secretmanager",
-		PackageName: "test",
-		Title:       "Secret Manager API",
-		Description: "",
+		Name:                  "secretmanager",
+		PackageName:           "test",
+		PackageNamePascalCase: "Test",
+		Title:                 "Secret Manager API",
+		Description:           "",
 	}
 	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(api.API{}, "Services", "Messages", "Enums"), cmpopts.IgnoreUnexported(api.API{})); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)

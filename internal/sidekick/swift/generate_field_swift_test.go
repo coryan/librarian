@@ -54,7 +54,7 @@ func TestGenerateField_InitFromDecoder(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -122,7 +122,7 @@ func TestGenerateField_DocComments(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	cfg := &parser.ModelConfig{}
 
 	if err := Generate(t.Context(), model, outDir, cfg, nil); err != nil {

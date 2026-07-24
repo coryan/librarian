@@ -39,7 +39,7 @@ func TestGenerateService_Files(t *testing.T) {
 	clash1 := &api.Service{Name: "instanceSettings", Package: "test", ID: ".test.instanceSettings"}
 
 	model := api.NewTestAPI([]*api.Message{clash0}, nil, []*api.Service{iam, secretManager, clash1})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -80,7 +80,7 @@ func TestGenerateServiceSwift_SnippetReference(t *testing.T) {
 	service := &api.Service{Name: "Protocol"}
 
 	model := api.NewTestAPI(nil, nil, []*api.Service{service})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -146,7 +146,7 @@ func TestGenerateService_Delegation(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{request, response}, nil, []*api.Service{iam})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -213,7 +213,7 @@ func TestGenerateService_SnippetFiles(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{dummyMessage}, nil, []*api.Service{iam, secretManager})
-	model.PackageName = packageName
+	model.WithPackageNames(packageName, "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -277,7 +277,7 @@ func TestGenerateService_WithImports(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputMessage}, nil, []*api.Service{iam})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 	model.AddMessage(externalMessage)
 
 	cfg := &parser.ModelConfig{
@@ -431,7 +431,7 @@ func TestGenerateService_PathParameters(t *testing.T) {
 			}
 
 			model := api.NewTestAPI([]*api.Message{requestMessage, secretMessage}, nil, []*api.Service{iam})
-			model.PackageName = "google.cloud.secretmanager.v1"
+			model.WithPackageNames("google.cloud.secretmanager.v1", "")
 
 			cfg := &parser.ModelConfig{
 				Codec: map[string]string{
@@ -536,7 +536,7 @@ func TestGenerateService_Pagination(t *testing.T) {
 			}
 
 			model := api.NewTestAPI([]*api.Message{inputType, outputType, secretType}, nil, []*api.Service{iam})
-			model.PackageName = "google.cloud.secretmanager.v1"
+			model.WithPackageNames("google.cloud.secretmanager.v1", "")
 
 			cfg := &parser.ModelConfig{
 				Codec: map[string]string{
@@ -733,7 +733,7 @@ func TestGenerateService_LRO(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, workflowType, metadataType, operationType, getOperationInputType}, nil, []*api.Service{workflows})
-	model.PackageName = "google.cloud.workflows.v1"
+	model.WithPackageNames("google.cloud.workflows.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -850,7 +850,7 @@ func TestGenerateService_LRO_Empty(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{inputType, metadataType, operationType, getOperationInputType}, nil, []*api.Service{workflows})
-	model.PackageName = "google.cloud.workflows.v1"
+	model.WithPackageNames("google.cloud.workflows.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{

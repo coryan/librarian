@@ -45,7 +45,7 @@ func TestProtoMessageAndEnumTypeName(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{parentMsg, nestedMsg}, []*api.Enum{topEnum, nestedEnum}, []*api.Service{})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 
 	t.Run("with empty ModulePath", func(t *testing.T) {
 		codec := newTestCodec(t, model, map[string]string{})

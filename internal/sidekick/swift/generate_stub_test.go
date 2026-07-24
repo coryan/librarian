@@ -58,7 +58,7 @@ func TestGenerateService_StubStructure(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{request, response}, nil, []*api.Service{service})
-	model.PackageName = "google.cloud.test.v1"
+	model.WithPackageNames("google.cloud.test.v1", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
@@ -177,7 +177,7 @@ func TestGenerateService_QueryParameters(t *testing.T) {
 	}
 
 	model := api.NewTestAPI([]*api.Message{request, response}, nil, []*api.Service{service})
-	model.PackageName = "test"
+	model.WithPackageNames("test", "")
 
 	cfg := &parser.ModelConfig{
 		Codec: map[string]string{
