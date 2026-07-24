@@ -58,7 +58,8 @@ func NewAPI(serviceConfig *serviceconfig.Service, contents []byte, discoveryConf
 			result.Description = serviceConfig.Documentation.Summary
 		}
 		if names := svcconfig.ExtractPackageName(serviceConfig); names != nil {
-			result.WithPackageNames(names.PackageName, "")
+			packageName = names.PackageName
+			result.WithPackageNames(packageName, "")
 		}
 	}
 

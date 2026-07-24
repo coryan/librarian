@@ -42,10 +42,9 @@ const (
 
 // API returns a sample API.
 func API() *api.API {
-	return &api.API{
+	result := &api.API{
 		Name:        APIName,
 		Title:       APITitle,
-		PackageName: APIPackageName,
 		Description: APIDescription,
 		Services:    []*api.Service{Service()},
 		Messages: []*api.Message{
@@ -54,6 +53,8 @@ func API() *api.API {
 		},
 		Enums: []*api.Enum{EnumState()},
 	}
+	result.WithPackageNames(APIPackageName, "")
+	return result
 }
 
 // Service returns a sample service.

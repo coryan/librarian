@@ -88,10 +88,9 @@ func makeAPIForOpenAPI(serviceConfig *serviceconfig.Service, model *libopenapi.D
 	// one. In tests, the service config is typically `nil`.
 	serviceName := "Service"
 	packageName := ""
-	names := svcconfig.ExtractPackageName(serviceConfig)
-	if names != nil {
+	if names := svcconfig.ExtractPackageName(serviceConfig); names != nil {
 		serviceName, packageName = names.ServiceName, names.PackageName
-		result.PackageName = packageName
+		result.WithPackageNames(packageName, "")
 	}
 
 	for name, msg := range model.Model.Components.Schemas.FromOldest() {
