@@ -28,6 +28,9 @@ flowchart LR
 | **Development & Test Workflow** | **Librarian-contained first** | Protos and reference golden outputs are housed inside `librarian/internal/sidekick/cpp/testdata` so `go test` runs hermetically in Librarian CI before touching `google-cloud-cpp`. |
 | **Implementation Sequencing** | **gRPC end-to-end first, then REST** | Complete all files for gRPC services (public APIs, internal stubs, decorators, mocks, sources, forwarding headers) before implementing REST transports. |
 | **Tooling Dependencies** | **System `clang-format` with optional configuration** | Finds `clang-format` on `$PATH` by default, with optional path/version configuration in `librarian.yaml` under `tools:`. |
+| **Annotation Model Design** | **Package-private structs with method-derived fields** | Keep annotations private (`serviceAnnotations`, etc.). Use methods for values derivable in a few lines. Use typed fields only (no `vars`/dictionaries). |
+| **Test Assertion Strategy** | **Block extraction (`extractBlock`)** | Prefer `extractBlock()` over whole-file diffs or loose `strings.Contains()` in unit tests, isolating specific methods/classes for robust assertions. |
+| **Source & Dependency Isolation** | **Dynamic SHA resolution, no `$HOME` paths** | Use googleapis commit SHA from C++ build files, configure via `librarian.yaml` in `testdata/`, isolate network I/O in integration tests. |
 | **Review & Commit Protocol** | **Always use `review-pr` from Librarian repository** | Review every phase using the local `review-pr` skill from `.agents/skills/review-pr/SKILL.md` with the consistency prompt, then commit with a very brief comment. |
 
 ---
@@ -142,7 +145,49 @@ internal/sidekick/cpp/
 
 ---
 
-## 4. Milestone 1 Implementation Roadmap
+## 4. Code & Testing Design Guidelines
+
+To maintain code quality, maintainability, and architectural consistency with Librarian and Sidekick standards (such as `internal/sidekick/swift`), all C++ generator code and tests must adhere to the following rules:
+
+### 4.1. Annotation Fields as Functions for Derived Values
+- If an annotation value can be derived from another annotation field in a couple of lines, it **must be implemented as a function/method** on the struct rather than an eagerly stored field.
+- Eagerly storing derived fields bloats annotation data structures and risks stale data or initialization order bugs.
+- *Examples*:
+  - Methods on service annotations: `ClientHeaderIncludeGuard()`, `ConnectionHeaderIncludeGuard()`, `OptionsGroupName()`, `HasExplicitOptions()`.
+  - Methods on method annotations: `HasMethodSignatureOverloads()`, `IsStreaming()`.
+  - Methods on field annotations: `CppType()`, `IsRepeated()`, `IsMap()`.
+
+### 4.2. Package-Private Annotations
+- All annotation types in `internal/sidekick/cpp/` must be **private to the package** by default:
+  - `ServiceAnnotations` -> `serviceAnnotations`
+  - `MethodAnnotations` -> `methodAnnotations`
+  - `FieldAnnotations` -> `fieldAnnotations`
+  - `CommentAnnotations` -> `commentAnnotations`
+  - `OptionsAnnotations` -> `optionsAnnotations`
+  - Any helper/nested annotation types must likewise be unexported (e.g. `endpointEnvVars`, `methodSignatureOverload`).
+- If any annotation type or struct must remain exported, it must include an explicit doc comment explaining why public visibility is required.
+
+### 4.3. Strongly-Typed Fields Only (No "vars" or Dictionaries)
+- **Do not use "vars" or untyped dictionaries** (`map[string]any`, `map[string]string`) for annotations or template data contexts.
+- Every value required by templates or downstream processing must have a **dedicated, strongly-typed field or method** on the annotation struct.
+- This guarantees compile-time type safety, IDE discoverability, and clear template contracts.
+
+### 4.4. Test Assertions via `extractBlock()`
+- When testing generated output in unit tests, **prefer the `extractBlock()` approach** (as used throughout `internal/sidekick/swift/` tests) over full-file exact matches or loose `strings.Contains()` checks.
+- `extractBlock(t *testing.T, content, startStr, endStr string) string` isolates a discrete section of the generated code (e.g., a specific method declaration, class definition, or constructor overload), which is then verified using `cmp.Diff`.
+- This ensures unit tests test specific generator behaviors in isolation and remain resilient against unrelated changes (e.g., copyright year or distant comments).
+
+### 4.5. Dynamic Googleapis Commit & Hermetic Integration Testing (No Hardcoded `$HOME` Paths)
+- **Never use hardcoded paths to `$HOME`** (e.g. `/usr/local/google/home/...`) in tests or code.
+- Dynamic dependency resolution:
+  - Integration/pilot tests should reference the googleapis commit SHA aligned with `google-cloud-cpp` (e.g. `46403a9acec0719c130b33eb38b2ee62a45f9f6c` as declared in `google-cloud-cpp/cmake/GoogleapisConfig.cmake` and `MODULE.bazel`).
+  - Use a dedicated `librarian.yaml` configuration in `testdata/` (or generated dynamically in temporary directories) to drive library generation using Librarian's native source management.
+- Integration test separation:
+  - Tests performing network I/O or fetching remote sources (like downloading googleapis or external repos) must be separated into integration tests (e.g. tagged with `//go:build integration` or conditional on non-short test flags) so hermetic unit tests (`go test ./...`) remain fast, deterministic, and runnable without network access or sandbox elevation.
+
+---
+
+## 5. Milestone 1 Implementation Roadmap
 
 ### Phase 1A: Setup & Infrastructure
 1. **Config Schema**: Add `Cpp *CppLibrary` to `internal/config/config.go`.
@@ -212,7 +257,7 @@ internal/sidekick/cpp/
 
 ---
 
-## 5. Subsequent Phases (Phases 2 & 3)
+## 6. Milestone 2 Implementation Roadmap (Phase 2 - Completed)
 
 ### Phase 2: Configuration Migration & Scaffolding (Completed)
 1. **Automated Converter & CLI**:
@@ -223,17 +268,30 @@ internal/sidekick/cpp/
    - Implemented `Scaffold()` in `internal/sidekick/cpp/scaffold.go`.
    - Integrated with `librarian add` in `internal/librarian/cpp/add.go`.
 3. **Production Pilot (`google/cloud/secretmanager/v1`)**:
-   - Implemented integration test in `internal/librarian/cpp/pilot_test.go` generating Secret Manager v1 from googleapis protos.
+   - Implemented pilot test in `internal/librarian/cpp/pilot_test.go` generating Secret Manager v1 from googleapis protos.
    - Achieved 100% byte-for-byte identity across all 28 C++ headers and sources against production `google-cloud-cpp`.
+   - *Follow-up refactor*: Per guideline 4.5, replace hardcoded `$HOME` paths with dynamic commit resolution and a hermetic integration test driven by `testdata/librarian.yaml`.
 4. **Phase Review & Commit**:
    - Reviewed according to `review-pr` skill with consistency and naming checks.
    - Tested and lint-clean (`go test`, `golangci-lint` 0 issues).
 
 ---
 
-## 6. Phase 3: Discovery Documents & Full Deprecation
+## 7. Phase 3: Discovery Documents, Code Modernization & Full Deprecation
 
-### Phase 3: Discovery Documents & Full Deprecation
-- Support Discovery-based APIs (e.g. Compute Engine) using Sidekick's discovery parser or proto generation pipeline.
-- Deprecate and remove `google-cloud-cpp/generator`.
+### Phase 3 Scope:
+1. **Apply Code Guidelines to C++ Sidekick Engine**:
+   - Make annotation types private (`serviceAnnotations`, `methodAnnotations`, `fieldAnnotations`, `commentAnnotations`, `optionsAnnotations`).
+   - Refactor derived annotation fields to functions/methods.
+   - Eliminate any `vars` or untyped dictionaries; use strongly-typed fields only.
+   - Update tests to use `extractBlock()` for focused assertions.
+   - Refactor pilot tests to use dynamic googleapis SHA without hardcoded `$HOME` paths, driven by `testdata/librarian.yaml`.
+2. **Discovery Documents & Compute Engine**:
+   - Support nested product path namespace flattening (e.g. `compute/addresses/v1` -> `google::cloud::compute_addresses_v1`).
+   - Support map-based pagination (`StreamRange<std::pair<std::string, T>>`).
+   - Support Compute LRO operations (`(google.cloud.operation_service)` -> `future<StatusOr<Operation>>`).
+   - Validate 100% byte-for-byte parity on `google/cloud/compute/addresses/v1`.
+3. **Deprecate and Remove `google-cloud-cpp/generator`**:
+   - Document replacement steps and CI workflow updates.
+
 
