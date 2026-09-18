@@ -25,6 +25,19 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.RoundRobinDecoratorClassName}}::{{Codec.RoundRobinDecoratorClassName}}(
+    std::vector<std::shared_ptr<{{Codec.StubClassName}}>> children)
+    : children_(std::move(children)) {}
+
+std::shared_ptr<{{Codec.StubClassName}}>
+{{Codec.RoundRobinDecoratorClassName}}::Child() {
+  std::unique_lock<std::mutex> lk(mu_);
+  auto const current = current_;
+  if (++current_ == children_.size()) current_ = 0;
+  lk.unlock();
+  return children_[current];
+}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

@@ -37,6 +37,93 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+/// The retry policy for `{{Codec.ConnectionClassName}}`.
+class {{Codec.RetryPolicyClassName}} : public ::google::cloud::RetryPolicy {
+ public:
+  /// Creates a new instance of the policy, reset to the initial state.
+  virtual std::unique_ptr<{{Codec.RetryPolicyClassName}}> clone() const = 0;
+};
+
+class {{Codec.LimitedErrorCountRetryPolicyClassName}} : public {{Codec.RetryPolicyClassName}} {
+ public:
+  explicit {{Codec.LimitedErrorCountRetryPolicyClassName}}(int maximum_failures)
+    : impl_(maximum_failures) {}
+
+  {{Codec.LimitedErrorCountRetryPolicyClassName}}(
+      {{Codec.LimitedErrorCountRetryPolicyClassName}}&& rhs) noexcept
+    : {{Codec.LimitedErrorCountRetryPolicyClassName}}(rhs.maximum_failures()) {}
+  {{Codec.LimitedErrorCountRetryPolicyClassName}}(
+      {{Codec.LimitedErrorCountRetryPolicyClassName}} const& rhs) noexcept
+    : {{Codec.LimitedErrorCountRetryPolicyClassName}}(rhs.maximum_failures()) {}
+
+  int maximum_failures() const { return impl_.maximum_failures(); }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<{{Codec.RetryPolicyClassName}}> clone() const override {
+    return std::make_unique<{{Codec.LimitedErrorCountRetryPolicyClassName}}>(
+        maximum_failures());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = {{Codec.RetryPolicyClassName}};
+
+ private:
+  google::cloud::internal::LimitedErrorCountRetryPolicy<{{Codec.InternalNamespace}}::{{Codec.RetryTraitsClassName}}> impl_;
+};
+
+class {{Codec.LimitedTimeRetryPolicyClassName}} : public {{Codec.RetryPolicyClassName}} {
+ public:
+  template <typename DurationRep, typename DurationPeriod>
+  explicit {{Codec.LimitedTimeRetryPolicyClassName}}(
+      std::chrono::duration<DurationRep, DurationPeriod> maximum_duration)
+    : impl_(maximum_duration) {}
+
+  {{Codec.LimitedTimeRetryPolicyClassName}}({{Codec.LimitedTimeRetryPolicyClassName}}&& rhs) noexcept
+    : {{Codec.LimitedTimeRetryPolicyClassName}}(rhs.maximum_duration()) {}
+  {{Codec.LimitedTimeRetryPolicyClassName}}({{Codec.LimitedTimeRetryPolicyClassName}} const& rhs) noexcept
+    : {{Codec.LimitedTimeRetryPolicyClassName}}(rhs.maximum_duration()) {}
+
+  std::chrono::milliseconds maximum_duration() const {
+    return impl_.maximum_duration();
+  }
+
+  bool OnFailure(Status const& status) override {
+    return impl_.OnFailure(status);
+  }
+  bool IsExhausted() const override { return impl_.IsExhausted(); }
+  bool IsPermanentFailure(Status const& status) const override {
+    return impl_.IsPermanentFailure(status);
+  }
+  std::unique_ptr<{{Codec.RetryPolicyClassName}}> clone() const override {
+    return std::make_unique<{{Codec.LimitedTimeRetryPolicyClassName}}>(
+        maximum_duration());
+  }
+
+  // This is provided only for backwards compatibility.
+  using BaseType = {{Codec.RetryPolicyClassName}};
+
+ private:
+  google::cloud::internal::LimitedTimeRetryPolicy<{{Codec.InternalNamespace}}::{{Codec.RetryTraitsClassName}}> impl_;
+};
+
+class {{Codec.ConnectionClassName}} {
+ public:
+  virtual ~{{Codec.ConnectionClassName}}() = 0;
+
+  virtual Options options() { return Options{}; }
+};
+
+{{#Codec.HasGrpc}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeConnectionFunctionName}}(
+    Options options = {});
+{{/Codec.HasGrpc}}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

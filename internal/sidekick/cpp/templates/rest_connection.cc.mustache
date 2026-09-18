@@ -33,6 +33,48 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{#Codec.HasEndpointLocation}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeRestConnectionFunctionName}}(
+    std::string const& location, Options options) {
+  internal::CheckExpectedOptions<CommonOptionList, RestOptionList,
+      UnifiedCredentialsOptionList, rest_internal::TargetApiVersionOption,
+      {{Codec.PolicyOptionListClassName}}>(options, __func__);
+  options = {{Codec.InternalNamespace}}::{{Codec.DefaultOptionsFunctionName}}(
+      location, std::move(options));
+  auto background = std::make_unique<
+      rest_internal::AutomaticallyCreatedRestBackgroundThreads>();
+  auto stub = {{Codec.InternalNamespace}}::{{Codec.MakeRestStubFunctionName}}(
+      options);
+  return {{Codec.InternalNamespace}}::{{Codec.MakeTracingConnectionFunctionName}}(
+      std::make_shared<
+          {{Codec.InternalNamespace}}::{{Codec.RestConnectionImplClassName}}>(
+          std::move(background), std::move(stub), std::move(options)));
+}
+
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeRestConnectionFunctionName}}(
+    Options options) {
+  return {{Codec.MakeRestConnectionFunctionName}}(std::string{}, std::move(options));
+}
+{{/Codec.HasEndpointLocation}}
+{{^Codec.HasEndpointLocation}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeRestConnectionFunctionName}}(
+    Options options) {
+  internal::CheckExpectedOptions<CommonOptionList, RestOptionList,
+      UnifiedCredentialsOptionList, rest_internal::TargetApiVersionOption,
+      {{Codec.PolicyOptionListClassName}}>(options, __func__);
+  options = {{Codec.InternalNamespace}}::{{Codec.DefaultOptionsFunctionName}}(
+      std::move(options));
+  auto background = std::make_unique<
+      rest_internal::AutomaticallyCreatedRestBackgroundThreads>();
+  auto stub = {{Codec.InternalNamespace}}::{{Codec.MakeRestStubFunctionName}}(
+      options);
+  return {{Codec.InternalNamespace}}::{{Codec.MakeTracingConnectionFunctionName}}(
+      std::make_shared<
+          {{Codec.InternalNamespace}}::{{Codec.RestConnectionImplClassName}}>(
+          std::move(background), std::move(stub), std::move(options)));
+}
+{{/Codec.HasEndpointLocation}}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

@@ -43,6 +43,26 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.ConnectionClassName}}::~{{Codec.ConnectionClassName}}() = default;
+
+{{#Codec.HasGrpc}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeConnectionFunctionName}}(
+    Options options) {
+  internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
+      UnifiedCredentialsOptionList,
+      {{Codec.PolicyOptionListClassName}}>(options, __func__);
+  options = {{Codec.InternalNamespace}}::{{Codec.DefaultOptionsFunctionName}}(
+      std::move(options));
+  auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
+  auto stub = {{Codec.InternalNamespace}}::{{Codec.StubFactoryFunctionName}}(
+    std::move(auth), options);
+  return {{Codec.InternalNamespace}}::{{Codec.MakeTracingConnectionFunctionName}}(
+      std::make_shared<{{Codec.InternalNamespace}}::{{Codec.ConnectionImplClassName}}>(
+      std::move(background), std::move(stub), std::move(options)));
+}
+{{/Codec.HasGrpc}}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

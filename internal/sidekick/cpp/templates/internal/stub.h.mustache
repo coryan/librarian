@@ -36,6 +36,21 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+class {{Codec.StubClassName}} {
+ public:
+  virtual ~{{Codec.StubClassName}}() = 0;
+};
+
+class {{Codec.DefaultStubClassName}} : public {{Codec.StubClassName}} {
+ public:
+  explicit {{Codec.DefaultStubClassName}}(
+      std::unique_ptr<{{Codec.GrpcStubType}}::StubInterface> grpc_stub)
+      : grpc_stub_(std::move(grpc_stub)) {}
+
+ private:
+  std::unique_ptr<{{Codec.GrpcStubType}}::StubInterface> grpc_stub_;
+};
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

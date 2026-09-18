@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/googleapis/librarian/internal/config"
@@ -87,6 +88,25 @@ func (c *codec) hasRetryTraits() bool {
 		return false
 	}
 	return len(c.Cpp.RetryableStatusCodes) > 0
+}
+
+func (c *codec) retryableStatusCodesForService(serviceName string) []string {
+	if c.Cpp == nil {
+		return nil
+	}
+	var codes []string
+	for _, raw := range c.Cpp.RetryableStatusCodes {
+		if strings.Contains(raw, ".") {
+			parts := strings.SplitN(raw, ".", 2)
+			if parts[0] == serviceName {
+				codes = append(codes, parts[1])
+			}
+		} else {
+			codes = append(codes, raw)
+		}
+	}
+	slices.Sort(codes)
+	return slices.Compact(codes)
 }
 
 func (c *codec) isOmittedService(service *api.Service) bool {

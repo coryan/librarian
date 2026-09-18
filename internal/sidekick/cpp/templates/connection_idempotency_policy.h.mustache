@@ -27,6 +27,17 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+class {{Codec.IdempotencyPolicyClassName}} {
+ public:
+  virtual ~{{Codec.IdempotencyPolicyClassName}}();
+
+  /// Create a new copy of this object.
+  virtual std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}> clone() const;
+};
+
+std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>
+    {{Codec.MakeDefaultIdempotencyPolicyFunctionName}}();
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

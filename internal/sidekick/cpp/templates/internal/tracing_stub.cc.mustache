@@ -30,6 +30,23 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+
+{{Codec.TracingStubClassName}}::{{Codec.TracingStubClassName}}(
+    std::shared_ptr<{{Codec.StubClassName}}> child)
+    : child_(std::move(child)), propagator_(internal::MakePropagator()) {}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+
+std::shared_ptr<{{Codec.StubClassName}}> {{Codec.MakeTracingStubFunctionName}}(
+    std::shared_ptr<{{Codec.StubClassName}}> stub) {
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+  return std::make_shared<{{Codec.TracingStubClassName}}>(std::move(stub));
+#else
+  return stub;
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

@@ -28,6 +28,21 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+namespace {
+auto constexpr kBackoffScaling = 2.0;
+}  // namespace
+
+{{#Codec.HasEndpointLocation}}
+Options {{Codec.DefaultOptionsFunctionName}}(std::string const& location, Options options) {
+  return options;
+}
+{{/Codec.HasEndpointLocation}}
+{{^Codec.HasEndpointLocation}}
+Options {{Codec.DefaultOptionsFunctionName}}(Options options) {
+  return options;
+}
+{{/Codec.HasEndpointLocation}}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

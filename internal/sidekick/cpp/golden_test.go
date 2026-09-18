@@ -865,3 +865,427 @@ func TestGoldenServices_Layer33_Namespaces(t *testing.T) {
 		}
 	})
 }
+
+func TestGoldenServices_Layer34_ClassSkeletons(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	// 1. GoldenKitchenSink and GoldenThingAdmin (Library 0: golden)
+	sinkModel, err := loadTestModel(t, protosDir, googleapisDir, "test.yaml", "test.proto", "backup.proto", "common.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test.proto: %v", err)
+	}
+	if err := Generate(ctx, sinkModel, outdir, cfg.Libraries[0]); err != nil {
+		t.Fatalf("Generate(lib0) failed: %v", err)
+	}
+
+	// 2. GoldenRestOnly (Library 1: golden-test2)
+	restModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test2.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test2.proto: %v", err)
+	}
+	if err := Generate(ctx, restModel, outdir, cfg.Libraries[1]); err != nil {
+		t.Fatalf("Generate(lib1) failed: %v", err)
+	}
+
+	// 3. RequestIdService (Library 2: test-request-id)
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	// 4. DeprecatedService (Library 3: test-deprecated)
+	depModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test_deprecated.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_deprecated.proto: %v", err)
+	}
+	if err := Generate(ctx, depModel, outdir, cfg.Libraries[3]); err != nil {
+		t.Fatalf("Generate(lib3) failed: %v", err)
+	}
+
+	readFile := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", path, err)
+		}
+		return string(data)
+	}
+
+	goldenDir := filepath.Join("testdata", "golden")
+
+	compareBlock := func(t *testing.T, rel, startStr, endStr string) {
+		t.Helper()
+		gotContent := readFile(filepath.Join(goldenRoot, rel))
+		wantContent := readFile(filepath.Join(goldenDir, rel))
+
+		gotBlock := extractBlock(t, gotContent, startStr, endStr)
+		wantBlock := extractBlock(t, wantContent, startStr, endStr)
+		if diff := cmp.Diff(wantBlock, gotBlock); diff != "" {
+			t.Errorf("%s block [%q ... %q] mismatch (-want +got):\n%s", rel, startStr, endStr, diff)
+		}
+	}
+
+	t.Run("Client Skeletons", func(t *testing.T) {
+		// GoldenKitchenSink Client class declaration and copy/move/equality operators
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_client.h"),
+			"class GoldenKitchenSinkClient {\n",
+			"  ///@}\n")
+		// GoldenKitchenSink Client private members
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_client.h"),
+			" private:\n  std::shared_ptr<GoldenKitchenSinkConnection> connection_;\n",
+			"  Options options_;\n};\n")
+		// GoldenKitchenSink Client CC constructor and destructor
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_client.cc"),
+			"GoldenKitchenSinkClient::GoldenKitchenSinkClient(\n",
+			"GoldenKitchenSinkClient::~GoldenKitchenSinkClient() = default;\n")
+
+		// GoldenThingAdmin Client constructor
+		compareBlock(t, filepath.Join("v1", "golden_thing_admin_client.h"),
+			"class GoldenThingAdminClient {\n",
+			"  explicit GoldenThingAdminClient(std::shared_ptr<GoldenThingAdminConnection> connection, Options opts = {});\n")
+
+		// GoldenRestOnly Client constructor
+		compareBlock(t, filepath.Join("v1", "golden_rest_only_client.h"),
+			"class GoldenRestOnlyClient {\n",
+			"  explicit GoldenRestOnlyClient(std::shared_ptr<GoldenRestOnlyConnection> connection, Options opts = {});\n")
+
+		// RequestIdService Client constructor
+		compareBlock(t, filepath.Join("v1", "request_id_client.h"),
+			"class RequestIdServiceClient {\n",
+			"  explicit RequestIdServiceClient(std::shared_ptr<RequestIdServiceConnection> connection, Options opts = {});\n")
+
+		// DeprecatedService Client deprecation annotation
+		compareBlock(t, filepath.Join("v1", "deprecated_client.h"),
+			"class\n GOOGLE_CLOUD_CPP_DEPRECATED(\n",
+			"DeprecatedServiceClient {\n")
+	})
+
+	t.Run("Connection Skeletons", func(t *testing.T) {
+		// RetryPolicy interface
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"class GoldenKitchenSinkRetryPolicy : public ::google::cloud::RetryPolicy {\n",
+			"  virtual std::unique_ptr<GoldenKitchenSinkRetryPolicy> clone() const = 0;\n};\n")
+
+		// LimitedErrorCountRetryPolicy class, constructor, BaseType, impl
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"class GoldenKitchenSinkLimitedErrorCountRetryPolicy : public GoldenKitchenSinkRetryPolicy {\n",
+			"class GoldenKitchenSinkLimitedErrorCountRetryPolicy : public GoldenKitchenSinkRetryPolicy {\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  explicit GoldenKitchenSinkLimitedErrorCountRetryPolicy(int maximum_failures)\n",
+			"    : impl_(maximum_failures) {}\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  using BaseType = GoldenKitchenSinkRetryPolicy;\n",
+			"  using BaseType = GoldenKitchenSinkRetryPolicy;\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  google::cloud::internal::LimitedErrorCountRetryPolicy<golden_v1_internal::GoldenKitchenSinkRetryTraits> impl_;\n",
+			"  google::cloud::internal::LimitedErrorCountRetryPolicy<golden_v1_internal::GoldenKitchenSinkRetryTraits> impl_;\n")
+
+		// LimitedTimeRetryPolicy class, constructor, BaseType, impl
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"class GoldenKitchenSinkLimitedTimeRetryPolicy : public GoldenKitchenSinkRetryPolicy {\n",
+			"class GoldenKitchenSinkLimitedTimeRetryPolicy : public GoldenKitchenSinkRetryPolicy {\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  template <typename DurationRep, typename DurationPeriod>\n  explicit GoldenKitchenSinkLimitedTimeRetryPolicy(\n",
+			"    : impl_(maximum_duration) {}\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  using BaseType = GoldenKitchenSinkRetryPolicy;\n",
+			"  using BaseType = GoldenKitchenSinkRetryPolicy;\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"  google::cloud::internal::LimitedTimeRetryPolicy<golden_v1_internal::GoldenKitchenSinkRetryTraits> impl_;\n",
+			"  google::cloud::internal::LimitedTimeRetryPolicy<golden_v1_internal::GoldenKitchenSinkRetryTraits> impl_;\n")
+
+		// Connection class pure virtual dtor and options
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"class GoldenKitchenSinkConnection {\n public:\n",
+			"  virtual Options options() { return Options{}; }\n")
+
+		// MakeConnection factory declaration
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			"std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnection(\n",
+			"    Options options = {});\n")
+
+		// Connection CC dtor and MakeConnection factory definition
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.cc"),
+			"GoldenKitchenSinkConnection::~GoldenKitchenSinkConnection() = default;\n",
+			"GoldenKitchenSinkConnection::~GoldenKitchenSinkConnection() = default;\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.cc"),
+			"std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnection(\n",
+			"      std::move(background), std::move(stub), std::move(options)));\n}\n")
+	})
+
+	t.Run("Connection Idempotency Policy Skeletons", func(t *testing.T) {
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.h"),
+			"class GoldenKitchenSinkConnectionIdempotencyPolicy {\n public:\n",
+			"  virtual std::unique_ptr<GoldenKitchenSinkConnectionIdempotencyPolicy> clone() const;\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.h"),
+			"std::unique_ptr<GoldenKitchenSinkConnectionIdempotencyPolicy>\n",
+			"    MakeDefaultGoldenKitchenSinkConnectionIdempotencyPolicy();\n")
+
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.cc"),
+			"GoldenKitchenSinkConnectionIdempotencyPolicy::~GoldenKitchenSinkConnectionIdempotencyPolicy() = default;\n",
+			"  return std::make_unique<GoldenKitchenSinkConnectionIdempotencyPolicy>(*this);\n}\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.cc"),
+			"std::unique_ptr<GoldenKitchenSinkConnectionIdempotencyPolicy>\n    MakeDefaultGoldenKitchenSinkConnectionIdempotencyPolicy() {\n",
+			"  return std::make_unique<GoldenKitchenSinkConnectionIdempotencyPolicy>();\n}\n")
+	})
+
+	t.Run("Options Skeletons", func(t *testing.T) {
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_options.h"),
+			"struct GoldenKitchenSinkRetryPolicyOption {\n",
+			"  using Type = std::shared_ptr<GoldenKitchenSinkRetryPolicy>;\n};\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_options.h"),
+			"struct GoldenKitchenSinkBackoffPolicyOption {\n",
+			"  using Type = std::shared_ptr<BackoffPolicy>;\n};\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_options.h"),
+			"struct GoldenKitchenSinkConnectionIdempotencyPolicyOption {\n",
+			"  using Type = std::shared_ptr<GoldenKitchenSinkConnectionIdempotencyPolicy>;\n};\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_options.h"),
+			"using GoldenKitchenSinkPolicyOptionList =\n",
+			"               GoldenKitchenSinkConnectionIdempotencyPolicyOption>;\n")
+	})
+
+	t.Run("Mock Skeletons", func(t *testing.T) {
+		compareBlock(t, filepath.Join("v1", "mocks", "mock_golden_kitchen_sink_connection.h"),
+			"class MockGoldenKitchenSinkConnection : public golden_v1::GoldenKitchenSinkConnection {\n",
+			"  MOCK_METHOD(Options, options, (), (override));\n")
+
+		compareBlock(t, filepath.Join("v1", "mocks", "mock_golden_thing_admin_connection.h"),
+			"class MockGoldenThingAdminConnection : public golden_v1::GoldenThingAdminConnection {\n",
+			"  MOCK_METHOD(Options, options, (), (override));\n")
+	})
+
+	t.Run("Internal Decorators and Stubs (gRPC)", func(t *testing.T) {
+		// RetryTraits
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_retry_traits.h"),
+			"struct GoldenKitchenSinkRetryTraits {\n",
+			"  }\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_retry_traits.h"),
+			"struct GoldenThingAdminRetryTraits {\n",
+			"  }\n};\n")
+
+		// Stub & DefaultStub
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub.h"),
+			"class GoldenKitchenSinkStub {\n public:\n",
+			"  virtual ~GoldenKitchenSinkStub() = 0;\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub.h"),
+			"class DefaultGoldenKitchenSinkStub : public GoldenKitchenSinkStub {\n",
+			"class DefaultGoldenKitchenSinkStub : public GoldenKitchenSinkStub {\n")
+		compareBlock(t, filepath.Join("v1", "internal", "deprecated_stub.h"),
+			"class DefaultDeprecatedServiceStub : public DeprecatedServiceStub {\n",
+			": grpc_stub_(std::move(grpc_stub)) {}\n")
+		compareBlock(t, filepath.Join("v1", "internal", "deprecated_stub.h"),
+			" private:\n  std::unique_ptr<google::test::deprecated::v1::DeprecatedService::StubInterface> grpc_stub_;\n};\n",
+			" private:\n  std::unique_ptr<google::test::deprecated::v1::DeprecatedService::StubInterface> grpc_stub_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub.cc"),
+			"GoldenKitchenSinkStub::~GoldenKitchenSinkStub() = default;\n",
+			"GoldenKitchenSinkStub::~GoldenKitchenSinkStub() = default;\n")
+
+		// Auth decorator
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.h"),
+			"class GoldenKitchenSinkAuth : public GoldenKitchenSinkStub {\n",
+			"      std::shared_ptr<GoldenKitchenSinkStub> child);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.h"),
+			" private:\n  std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth_;\n",
+			"  std::shared_ptr<GoldenKitchenSinkStub> child_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.cc"),
+			"GoldenKitchenSinkAuth::GoldenKitchenSinkAuth(\n",
+			": auth_(std::move(auth)), child_(std::move(child)) {}\n")
+
+		// Logging decorator
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.h"),
+			"class GoldenKitchenSinkLogging : public GoldenKitchenSinkStub {\n",
+			"                       std::set<std::string> const& components);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.h"),
+			" private:\n  std::shared_ptr<GoldenKitchenSinkStub> child_;\n",
+			"  bool stream_logging_;\n};  // GoldenKitchenSinkLogging\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.cc"),
+			"GoldenKitchenSinkLogging::GoldenKitchenSinkLogging(\n",
+			"stream_logging_(components.find(\"rpc-streams\") != components.end()) {}\n")
+
+		// Metadata decorator
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.h"),
+			"class GoldenKitchenSinkMetadata : public GoldenKitchenSinkStub {\n",
+			"      std::string api_client_header = \"\");\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.h"),
+			" private:\n  void SetMetadata(grpc::ClientContext& context,\n",
+			"  std::string api_client_header_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.cc"),
+			"GoldenKitchenSinkMetadata::GoldenKitchenSinkMetadata(\n",
+			"              : std::move(api_client_header)) {}\n")
+
+		// Round robin decorator
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.h"),
+			"class GoldenKitchenSinkRoundRobin : public GoldenKitchenSinkStub {\n",
+			"      std::vector<std::shared_ptr<GoldenKitchenSinkStub>> children);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.h"),
+			"  std::vector<std::shared_ptr<GoldenKitchenSinkStub>> const children_;\n",
+			"  std::size_t current_ = 0;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.cc"),
+			"GoldenKitchenSinkRoundRobin::GoldenKitchenSinkRoundRobin(\n",
+			": children_(std::move(children)) {}\n")
+
+		// Tracing stub
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.h"),
+			"class GoldenKitchenSinkTracingStub : public GoldenKitchenSinkStub {\n",
+			"  explicit GoldenKitchenSinkTracingStub(std::shared_ptr<GoldenKitchenSinkStub> child);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.h"),
+			" private:\n  std::shared_ptr<GoldenKitchenSinkStub> child_;\n",
+			"  std::shared_ptr<opentelemetry::context::propagation::TextMapPropagator> propagator_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.h"),
+			"std::shared_ptr<GoldenKitchenSinkStub> MakeGoldenKitchenSinkTracingStub(\n",
+			"    std::shared_ptr<GoldenKitchenSinkStub> stub);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.cc"),
+			"GoldenKitchenSinkTracingStub::GoldenKitchenSinkTracingStub(\n",
+			": child_(std::move(child)), propagator_(internal::MakePropagator()) {}\n")
+
+		// Connection Impl
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.h"),
+			"class GoldenKitchenSinkConnectionImpl\n",
+			"    Options options);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.h"),
+			"  Options options() override { return options_; }\n",
+			"  Options options() override { return options_; }\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.h"),
+			" private:\n  std::unique_ptr<google::cloud::BackgroundThreads> background_;\n",
+			"  Options options_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.cc"),
+			"GoldenKitchenSinkConnectionImpl::GoldenKitchenSinkConnectionImpl(\n",
+			"        GoldenKitchenSinkConnection::options())) {}\n")
+
+		// Tracing Connection
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.h"),
+			"class GoldenKitchenSinkTracingConnection\n",
+			"  Options options() override { return child_->options(); }\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.h"),
+			" private:\n  std::shared_ptr<golden_v1::GoldenKitchenSinkConnection> child_;\n",
+			"  std::shared_ptr<golden_v1::GoldenKitchenSinkConnection> child_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.cc"),
+			"GoldenKitchenSinkTracingConnection::GoldenKitchenSinkTracingConnection(\n",
+			": child_(std::move(child)) {}\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.cc"),
+			"std::shared_ptr<golden_v1::GoldenKitchenSinkConnection>\nMakeGoldenKitchenSinkTracingConnection(\n",
+			"  return conn;\n}\n")
+
+		// Option Defaults & Stub Factory
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_option_defaults.h"),
+			"Options GoldenKitchenSinkDefaultOptions(Options options);\n",
+			"Options GoldenKitchenSinkDefaultOptions(Options options);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub_factory.h"),
+			"std::shared_ptr<GoldenKitchenSinkStub> CreateDefaultGoldenKitchenSinkStub(\n",
+			"    Options const& options);\n")
+	})
+
+	t.Run("REST Skeletons", func(t *testing.T) {
+		// REST Connection Class in golden_rest_only_connection.h
+		compareBlock(t, filepath.Join("v1", "golden_rest_only_connection.h"),
+			"class GoldenRestOnlyConnection {\n public:\n",
+			"  virtual Options options() { return Options{}; }\n")
+
+		// REST Connection Factory in golden_kitchen_sink_rest_connection.h & golden_kitchen_sink_rest_connection.cc
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_rest_connection.h"),
+			"std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnectionRest(\n",
+			"    Options options = {});\n")
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_rest_connection.cc"),
+			"std::shared_ptr<GoldenKitchenSinkConnection> MakeGoldenKitchenSinkConnectionRest(\n",
+			"      std::move(background), std::move(stub), std::move(options)));\n}\n")
+
+		// REST Stub & DefaultRESTStub
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub.h"),
+			"class GoldenRestOnlyRestStub {\n public:\n",
+			"  virtual ~GoldenRestOnlyRestStub() = default;\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub.h"),
+			"class DefaultGoldenRestOnlyRestStub : public GoldenRestOnlyRestStub {\n",
+			"      Options options);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub.h"),
+			" private:\n  std::shared_ptr<rest_internal::RestClient> service_;\n",
+			"  Options options_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub.cc"),
+			"DefaultGoldenRestOnlyRestStub::DefaultGoldenRestOnlyRestStub(Options options)\n",
+			"      options_(std::move(options)) {}\n")
+
+		// REST Logging
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_logging_decorator.h"),
+			"class GoldenRestOnlyRestLogging : public GoldenRestOnlyRestStub {\n",
+			"                       std::set<std::string> components);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_logging_decorator.h"),
+			" private:\n  std::shared_ptr<GoldenRestOnlyRestStub> child_;\n",
+			"  std::set<std::string> components_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_logging_decorator.cc"),
+			"GoldenRestOnlyRestLogging::GoldenRestOnlyRestLogging(\n",
+			"      components_(std::move(components)) {}\n")
+
+		// REST Metadata
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_metadata_decorator.h"),
+			"class GoldenRestOnlyRestMetadata : public GoldenRestOnlyRestStub {\n",
+			"      std::string api_client_header = \"\");\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_metadata_decorator.h"),
+			" private:\n  void SetMetadata(rest_internal::RestContext& rest_context,\n",
+			"  std::string api_client_header_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_metadata_decorator.cc"),
+			"GoldenRestOnlyRestMetadata::GoldenRestOnlyRestMetadata(\n",
+			": std::move(api_client_header)) {}\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_metadata_decorator.cc"),
+			"void GoldenRestOnlyRestMetadata::SetMetadata(\n",
+			"api_client_header_);\n}\n")
+
+		// REST Connection Impl
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_connection_impl.h"),
+			"class GoldenRestOnlyRestConnectionImpl\n",
+			"  Options options() override { return options_; }\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_connection_impl.h"),
+			" private:\n  static std::unique_ptr<golden_v1::GoldenRestOnlyRetryPolicy>\n  retry_policy(Options const& options) {\n",
+			"  Options options_;\n};\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_connection_impl.cc"),
+			"GoldenRestOnlyRestConnectionImpl::GoldenRestOnlyRestConnectionImpl(\n",
+			"        GoldenRestOnlyConnection::options())) {}\n")
+
+		// REST Stub Factory
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub_factory.h"),
+			"std::shared_ptr<GoldenRestOnlyRestStub> CreateDefaultGoldenRestOnlyRestStub(\n",
+			"    Options const& options);\n")
+		compareBlock(t, filepath.Join("v1", "internal", "golden_rest_only_rest_stub_factory.cc"),
+			"std::shared_ptr<GoldenRestOnlyRestStub>\nCreateDefaultGoldenRestOnlyRestStub(Options const& options) {\n",
+			"  return stub;\n}\n")
+	})
+
+	t.Run("Forwarding Headers", func(t *testing.T) {
+		compareBlock(t, "golden_kitchen_sink_client.h",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkClient;\n",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkClient;\n")
+		compareBlock(t, "golden_kitchen_sink_connection.h",
+			"using ::google::cloud::golden_v1::MakeGoldenKitchenSinkConnection;\n",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkRetryPolicy;\n")
+		compareBlock(t, "golden_kitchen_sink_connection_idempotency_policy.h",
+			"using ::google::cloud::golden_v1::MakeDefaultGoldenKitchenSinkConnectionIdempotencyPolicy;\n",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkConnectionIdempotencyPolicy;\n")
+		compareBlock(t, "golden_kitchen_sink_options.h",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkBackoffPolicyOption;\n",
+			"using ::google::cloud::golden_v1::GoldenKitchenSinkRetryPolicyOption;\n")
+		compareBlock(t, filepath.Join("mocks", "mock_golden_kitchen_sink_connection.h"),
+			"using ::google::cloud::golden_v1_mocks::MockGoldenKitchenSinkConnection;\n",
+			"using ::google::cloud::golden_v1_mocks::MockGoldenKitchenSinkConnection;\n")
+	})
+}

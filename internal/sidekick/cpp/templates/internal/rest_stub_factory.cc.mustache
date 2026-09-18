@@ -34,6 +34,23 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+std::shared_ptr<{{Codec.RestStubClassName}}>
+{{Codec.MakeRestStubFunctionName}}(Options const& options) {
+  auto opts = internal::PopulateRestOptions(options);
+  std::shared_ptr<{{Codec.RestStubClassName}}> stub =
+      std::make_shared<{{Codec.DefaultRestStubClassName}}>(std::move(opts));
+  stub = std::make_shared<{{Codec.RestMetadataDecoratorClassName}}>(std::move(stub));
+  if (internal::Contains(
+      options.get<LoggingComponentsOption>(), "rpc")) {
+    GCP_LOG(INFO) << "Enabled logging for REST rpc calls";
+    stub = std::make_shared<{{Codec.RestLoggingDecoratorClassName}}>(
+        std::move(stub),
+        options.get<RestTracingOptionsOption>(),
+        options.get<LoggingComponentsOption>());
+  }
+  return stub;
+}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

@@ -28,6 +28,11 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.AuthDecoratorClassName}}::{{Codec.AuthDecoratorClassName}}(
+    std::shared_ptr<google::cloud::internal::GrpcAuthenticationStrategy> auth,
+    std::shared_ptr<{{Codec.StubClassName}}> child)
+    : auth_(std::move(auth)), child_(std::move(child)) {}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

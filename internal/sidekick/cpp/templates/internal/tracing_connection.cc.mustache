@@ -26,6 +26,25 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+
+{{Codec.TracingConnectionClassName}}::{{Codec.TracingConnectionClassName}}(
+    std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> child)
+    : child_(std::move(child)) {}
+
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+
+std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}>
+{{Codec.MakeTracingConnectionFunctionName}}(
+    std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> conn) {
+#ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+  if (internal::TracingEnabled(conn->options())) {
+    conn = std::make_shared<{{Codec.TracingConnectionClassName}}>(std::move(conn));
+  }
+#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
+  return conn;
+}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

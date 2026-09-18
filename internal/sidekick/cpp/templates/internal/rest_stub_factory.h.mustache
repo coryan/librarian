@@ -28,6 +28,9 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+std::shared_ptr<{{Codec.RestStubClassName}}> {{Codec.MakeRestStubFunctionName}}(
+    Options const& options);
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

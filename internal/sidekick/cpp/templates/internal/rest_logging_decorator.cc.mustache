@@ -26,6 +26,13 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.RestLoggingDecoratorClassName}}::{{Codec.RestLoggingDecoratorClassName}}(
+    std::shared_ptr<{{Codec.RestStubClassName}}> child,
+    TracingOptions tracing_options,
+    std::set<std::string> components)
+    : child_(std::move(child)), tracing_options_(std::move(tracing_options)),
+      components_(std::move(components)) {}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

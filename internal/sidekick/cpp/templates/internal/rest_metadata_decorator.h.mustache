@@ -30,6 +30,22 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+class {{Codec.RestMetadataDecoratorClassName}} : public {{Codec.RestStubClassName}} {
+ public:
+  ~{{Codec.RestMetadataDecoratorClassName}}() override = default;
+  explicit {{Codec.RestMetadataDecoratorClassName}}(
+      std::shared_ptr<{{Codec.RestStubClassName}}> child,
+      std::string api_client_header = "");
+
+ private:
+  void SetMetadata(rest_internal::RestContext& rest_context,
+                   Options const& options,
+                   std::vector<std::string> const& params = {});
+
+  std::shared_ptr<{{Codec.RestStubClassName}}> child_;
+  std::string api_client_header_;
+};
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

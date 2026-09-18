@@ -27,6 +27,23 @@ namespace cloud {
 namespace {{Codec.ForwardingNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{#Codec.HasLRO}}
+/// @deprecated Use {{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}} directly.
+using ::google::cloud::{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}};
+
+{{/Codec.HasLRO}}
+/// @deprecated Use {{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}} directly.
+using ::google::cloud::{{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}};
+
+/// @deprecated Use {{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}} directly.
+using ::google::cloud::{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}};
+
+/// @deprecated Use {{Codec.PackageNamespace}}::{{Codec.PolicyOptionListClassName}} directly.
+using ::google::cloud::{{Codec.PackageNamespace}}::{{Codec.PolicyOptionListClassName}};
+
+/// @deprecated Use {{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}} directly.
+using ::google::cloud::{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}};
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.ForwardingNamespace}}
 }  // namespace cloud

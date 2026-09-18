@@ -23,6 +23,20 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+using ::google::cloud::Idempotency;
+
+{{Codec.IdempotencyPolicyClassName}}::~{{Codec.IdempotencyPolicyClassName}}() = default;
+
+std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>
+{{Codec.IdempotencyPolicyClassName}}::clone() const {
+  return std::make_unique<{{Codec.IdempotencyPolicyClassName}}>(*this);
+}
+
+std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>
+    {{Codec.MakeDefaultIdempotencyPolicyFunctionName}}() {
+  return std::make_unique<{{Codec.IdempotencyPolicyClassName}}>();
+}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

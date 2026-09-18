@@ -31,6 +31,15 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.RestConnectionImplClassName}}::{{Codec.RestConnectionImplClassName}}(
+    std::unique_ptr<google::cloud::BackgroundThreads> background,
+    std::shared_ptr<{{Codec.InternalNamespace}}::{{Codec.RestStubClassName}}> stub,
+    Options options)
+  : background_(std::move(background)), stub_(std::move(stub)),
+    options_(internal::MergeOptions(
+        std::move(options),
+        {{Codec.ConnectionClassName}}::options())) {}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

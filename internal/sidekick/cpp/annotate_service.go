@@ -23,19 +23,36 @@ import (
 )
 
 type serviceAnnotations struct {
-	Name            string
-	BaseFileName    string
-	ProductPath     string
-	ForwardingPath  string
-	HasGrpc         bool
-	HasRest         bool
-	HasRoundRobin   bool
-	HasRetryTraits  bool
-	OmitClient      bool
-	OmitConnection  bool
-	OmitStubFactory bool
-	CopyrightYear   string
-	Service         *api.Service
+	Name                  string
+	BaseFileName          string
+	ProductPath           string
+	ForwardingPath        string
+	HasGrpc               bool
+	HasRest               bool
+	HasRoundRobin         bool
+	HasRetryTraits        bool
+	RetryableStatusCodes  []string
+	EndpointLocationStyle string
+	OmitClient            bool
+	OmitConnection        bool
+	OmitStubFactory       bool
+	CopyrightYear         string
+	Service               *api.Service
+}
+
+// HasEndpointLocation returns true if the service uses location-dependent endpoints.
+func (ann *serviceAnnotations) HasEndpointLocation() bool {
+	return ann.EndpointLocationStyle != ""
+}
+
+// HasLRO returns true if the service contains any methods returning long-running operations.
+func (ann *serviceAnnotations) HasLRO() bool {
+	if ann.Service == nil {
+		return false
+	}
+	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
+		return m.OperationInfo != nil
+	})
 }
 
 func (ann *serviceAnnotations) ClientHeader() string {
@@ -381,20 +398,27 @@ func (ann *serviceAnnotations) generatedFiles(forwardingRelDir string) []languag
 }
 
 func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
+	codes := c.retryableStatusCodesForService(service.Name)
+	var endpointLocationStyle string
+	if c.Cpp != nil {
+		endpointLocationStyle = c.Cpp.EndpointLocationStyle
+	}
 	ann := &serviceAnnotations{
-		Name:            service.Name,
-		BaseFileName:    serviceNameToFileName(service.Name),
-		ProductPath:     c.Cpp.ProductPath,
-		ForwardingPath:  c.Cpp.ForwardingProductPath,
-		HasGrpc:         c.hasGrpc(),
-		HasRest:         c.hasRest(),
-		HasRoundRobin:   c.hasRoundRobin(),
-		HasRetryTraits:  c.hasRetryTraits(),
-		OmitClient:      c.Cpp.OmitClient,
-		OmitConnection:  c.Cpp.OmitConnection,
-		OmitStubFactory: c.Cpp.OmitStubFactory,
-		CopyrightYear:   c.copyrightYear(),
-		Service:         service,
+		Name:                  service.Name,
+		BaseFileName:          serviceNameToFileName(service.Name),
+		ProductPath:           c.Cpp.ProductPath,
+		ForwardingPath:        c.Cpp.ForwardingProductPath,
+		HasGrpc:               c.hasGrpc(),
+		HasRest:               c.hasRest(),
+		HasRoundRobin:         c.hasRoundRobin(),
+		HasRetryTraits:        len(codes) > 0,
+		RetryableStatusCodes:  codes,
+		EndpointLocationStyle: endpointLocationStyle,
+		OmitClient:            c.Cpp.OmitClient,
+		OmitConnection:        c.Cpp.OmitConnection,
+		OmitStubFactory:       c.Cpp.OmitStubFactory,
+		CopyrightYear:         c.copyrightYear(),
+		Service:               service,
 	}
 	service.Codec = ann
 	return ann

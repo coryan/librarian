@@ -21,6 +21,9 @@
 #include "{{Codec.ConnectionHeaderPath}}"
 #include "{{Codec.IdempotencyPolicyHeaderPath}}"
 #include "google/cloud/backoff_policy.h"
+{{#Codec.HasLRO}}
+#include "google/cloud/polling_policy.h"
+{{/Codec.HasLRO}}
 #include "google/cloud/options.h"
 #include "google/cloud/version.h"
 #include <memory>
@@ -29,6 +32,32 @@ namespace google {
 namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+
+struct {{Codec.RetryPolicyOptionClassName}} {
+  using Type = std::shared_ptr<{{Codec.RetryPolicyClassName}}>;
+};
+
+struct {{Codec.BackoffPolicyOptionClassName}} {
+  using Type = std::shared_ptr<BackoffPolicy>;
+};
+
+struct {{Codec.ConnectionIdempotencyPolicyOptionClassName}} {
+  using Type = std::shared_ptr<{{Codec.IdempotencyPolicyClassName}}>;
+};
+{{#Codec.HasLRO}}
+
+struct {{Codec.PollingPolicyOptionClassName}} {
+  using Type = std::shared_ptr<PollingPolicy>;
+};
+{{/Codec.HasLRO}}
+
+using {{Codec.PolicyOptionListClassName}} =
+    OptionList<{{Codec.RetryPolicyOptionClassName}},
+               {{Codec.BackoffPolicyOptionClassName}},
+{{#Codec.HasLRO}}
+               {{Codec.PollingPolicyOptionClassName}},
+{{/Codec.HasLRO}}
+               {{Codec.ConnectionIdempotencyPolicyOptionClassName}}>;
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}

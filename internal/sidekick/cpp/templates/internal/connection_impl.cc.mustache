@@ -32,6 +32,40 @@ namespace google {
 namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+namespace {
+
+std::unique_ptr<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyClassName}}>
+retry_policy(Options const& options) {
+  return options.get<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>()->clone();
+}
+
+std::unique_ptr<BackoffPolicy>
+backoff_policy(Options const& options) {
+  return options.get<{{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}}>()->clone();
+}
+
+{{#Codec.HasLRO}}
+std::unique_ptr<PollingPolicy>
+polling_policy(Options const& options) {
+  return options.get<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>()->clone();
+}
+
+{{/Codec.HasLRO}}
+std::unique_ptr<{{Codec.PackageNamespace}}::{{Codec.IdempotencyPolicyClassName}}>
+idempotency_policy(Options const& options) {
+  return options.get<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>()->clone();
+}
+
+} // namespace
+
+{{Codec.ConnectionImplClassName}}::{{Codec.ConnectionImplClassName}}(
+    std::unique_ptr<google::cloud::BackgroundThreads> background,
+    std::shared_ptr<{{Codec.InternalNamespace}}::{{Codec.StubClassName}}> stub,
+    Options options)
+  : background_(std::move(background)), stub_(std::move(stub)),
+    options_(internal::MergeOptions(
+        std::move(options),
+        {{Codec.ConnectionClassName}}::options())) {}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

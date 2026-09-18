@@ -33,6 +33,14 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{Codec.LoggingDecoratorClassName}}::{{Codec.LoggingDecoratorClassName}}(
+    std::shared_ptr<{{Codec.StubClassName}}> child,
+    TracingOptions tracing_options,
+    std::set<std::string> const& components)
+    : child_(std::move(child)),
+      tracing_options_(std::move(tracing_options)),
+      stream_logging_(components.find("rpc-streams") != components.end()) {}
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud

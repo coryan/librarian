@@ -28,6 +28,14 @@ namespace cloud {
 namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{#Codec.HasEndpointLocation}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeRestConnectionFunctionName}}(
+    std::string const& location, Options options = {});
+
+{{/Codec.HasEndpointLocation}}
+std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeRestConnectionFunctionName}}(
+    Options options = {});
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.PackageNamespace}}
 }  // namespace cloud

@@ -26,6 +26,13 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+/// Define the gRPC status code semantics for retrying requests.
+struct {{Codec.RetryTraitsClassName}} {
+  static bool IsPermanentFailure(google::cloud::Status const& status) {
+    return {{{Codec.RetryTraitsExpression}}};
+  }
+};
+
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
 }  // namespace cloud
