@@ -48,7 +48,7 @@ func TestGenerate_EmitsCMakeLists(t *testing.T) {
 	}
 }
 
-func TestGenerate_EmitsServiceEmptyShells(t *testing.T) {
+func TestGenerate_EmitsServiceFiles(t *testing.T) {
 	outdir := t.TempDir()
 	svc := api.NewTestService("ExampleService")
 	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
@@ -104,8 +104,8 @@ func TestGenerate_EmitsServiceEmptyShells(t *testing.T) {
 			t.Errorf("expected file %s to exist: %v", rel, err)
 			continue
 		}
-		if info.Size() != 0 {
-			t.Errorf("expected empty shell (0 bytes) for %s, got %d bytes", rel, info.Size())
+		if info.Size() == 0 {
+			t.Errorf("expected non-empty file for %s, got 0 bytes", rel)
 		}
 	}
 }

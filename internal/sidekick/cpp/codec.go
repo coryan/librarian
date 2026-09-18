@@ -17,6 +17,8 @@ package cpp
 import (
 	"path/filepath"
 	"slices"
+	"strconv"
+	"time"
 
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
@@ -92,6 +94,16 @@ func (c *codec) isOmittedService(service *api.Service) bool {
 		return false
 	}
 	return slices.Contains(c.Cpp.OmittedServices, service.Name)
+}
+
+func (c *codec) copyrightYear() string {
+	if c.Cpp != nil && c.Cpp.InitialCopyrightYear != "" {
+		return c.Cpp.InitialCopyrightYear
+	}
+	if c.Library != nil && c.Library.CopyrightYear != "" {
+		return c.Library.CopyrightYear
+	}
+	return strconv.Itoa(time.Now().Year())
 }
 
 func (c *codec) forwardingRelDir() string {

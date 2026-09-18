@@ -15,7 +15,9 @@
 package cpp
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
@@ -90,5 +92,35 @@ func TestCodec_ForwardingRelDir(t *testing.T) {
 				t.Errorf("forwardingRelDir() mismatch: want %q, got %q", test.wantRelDir, got)
 			}
 		})
+	}
+}
+
+func TestCodec_CopyrightYear(t *testing.T) {
+	model := api.NewTestAPI(nil, nil, nil)
+
+	// 1. InitialCopyrightYear from CppLibrary takes highest precedence.
+	c1 := newCodec(model, "out", &config.Library{
+		CopyrightYear: "2020",
+		Cpp: &config.CppLibrary{
+			InitialCopyrightYear: "2022",
+		},
+	})
+	if got := c1.copyrightYear(); got != "2022" {
+		t.Errorf("copyrightYear() with InitialCopyrightYear: want 2022, got %q", got)
+	}
+
+	// 2. Falls back to Library.CopyrightYear if InitialCopyrightYear is empty.
+	c2 := newCodec(model, "out", &config.Library{
+		CopyrightYear: "2023",
+	})
+	if got := c2.copyrightYear(); got != "2023" {
+		t.Errorf("copyrightYear() with Library.CopyrightYear: want 2023, got %q", got)
+	}
+
+	// 3. Defaults to current year if neither is specified.
+	c3 := newCodec(model, "out", nil)
+	wantYear := strconv.Itoa(time.Now().Year())
+	if got := c3.copyrightYear(); got != wantYear {
+		t.Errorf("copyrightYear() default: want %q, got %q", wantYear, got)
 	}
 }

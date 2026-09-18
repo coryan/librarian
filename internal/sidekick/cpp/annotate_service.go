@@ -16,6 +16,7 @@ package cpp
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/language"
@@ -205,6 +206,57 @@ func (ann *serviceAnnotations) RestStubFactorySource() string {
 	return filepath.Join("internal", ann.BaseFileName+"_rest_stub_factory.cc")
 }
 
+func (ann *serviceAnnotations) SourceCcIncludes() []string {
+	var includes []string
+	if !ann.OmitClient {
+		includes = append(includes, filepath.ToSlash(filepath.Join(ann.ProductPath, ann.ClientSource())))
+	}
+	if !ann.OmitConnection {
+		includes = append(includes,
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.ConnectionSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.IdempotencyPolicySource())),
+		)
+	}
+	if ann.HasRest {
+		includes = append(includes, filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestConnectionSource())))
+	}
+	if !ann.OmitConnection {
+		includes = append(includes,
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.OptionDefaultsSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.TracingConnectionSource())),
+		)
+	}
+	if ann.HasGrpc {
+		if !ann.OmitConnection {
+			includes = append(includes, filepath.ToSlash(filepath.Join(ann.ProductPath, ann.ConnectionImplSource())))
+		}
+		if !ann.OmitStubFactory {
+			includes = append(includes, filepath.ToSlash(filepath.Join(ann.ProductPath, ann.StubFactorySource())))
+		}
+		includes = append(includes,
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.AuthDecoratorSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.LoggingDecoratorSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.MetadataDecoratorSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.StubSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.TracingStubSource())),
+		)
+		if ann.HasRoundRobin {
+			includes = append(includes, filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RoundRobinDecoratorSource())))
+		}
+	}
+	if ann.HasRest {
+		includes = append(includes,
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestConnectionImplSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestLoggingDecoratorSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestMetadataDecoratorSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestStubSource())),
+			filepath.ToSlash(filepath.Join(ann.ProductPath, ann.RestStubFactorySource())),
+		)
+	}
+	slices.Sort(includes)
+	return includes
+}
+
 func (ann *serviceAnnotations) generatedFiles(forwardingRelDir string) []language.GeneratedFile {
 	var files []language.GeneratedFile
 
@@ -341,7 +393,7 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 		OmitClient:      c.Cpp.OmitClient,
 		OmitConnection:  c.Cpp.OmitConnection,
 		OmitStubFactory: c.Cpp.OmitStubFactory,
-		CopyrightYear:   c.Cpp.InitialCopyrightYear,
+		CopyrightYear:   c.copyrightYear(),
 		Service:         service,
 	}
 	service.Codec = ann
