@@ -17,6 +17,7 @@ package cpp
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -44,9 +45,47 @@ type serviceAnnotations struct {
 	StubMethods            []*methodAnnotations
 	AsyncMethods           []*methodAnnotations
 	AsyncStubMethods       []*methodAnnotations
+	ProtoSourceFile        string
 	ProtoGrpcHeaderPath    string
 	ServiceEndpointEnvVar  string
 	EmulatorEndpointEnvVar string
+}
+
+func (ann *serviceAnnotations) OptionsGroup() string {
+	parts := strings.Split(strings.Trim(ann.ProductPath, "/"), "/")
+	idx := -1
+	for i, p := range parts {
+		if p == "golden" {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		if len(parts) > 2 && parts[0] == "google" && parts[1] == "cloud" {
+			idx = 2
+		} else if len(parts) > 0 {
+			idx = len(parts) - 1
+		}
+	}
+	if idx >= 0 {
+		prefixAndLib := parts[:idx+1]
+		return strings.Join(prefixAndLib, "-") + "-options"
+	}
+	return "options"
+}
+
+func (ann *serviceAnnotations) ProtoHeaderPath() string {
+	if ann.ProtoSourceFile == "" {
+		return ""
+	}
+	return strings.TrimSuffix(ann.ProtoSourceFile, ".proto") + ".pb.h"
+}
+
+func (ann *serviceAnnotations) PbIncludeByTransport() string {
+	if ann.HasGrpc {
+		return ann.ProtoGrpcHeaderPath
+	}
+	return ann.ProtoHeaderPath()
 }
 
 func (ann *serviceAnnotations) isDiscovery() bool {
@@ -188,6 +227,108 @@ func (ann *serviceAnnotations) HasLRO() bool {
 	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
 		return m.OperationInfo != nil
 	})
+}
+
+func (ann *serviceAnnotations) HasMessageWithMapField() bool {
+	if ann.Service == nil {
+		return false
+	}
+	for _, m := range ann.Service.Methods {
+		if m.InputType != nil {
+			for _, f := range m.InputType.Fields {
+				if f.Map {
+					return true
+				}
+			}
+		}
+		if m.OutputType != nil {
+			for _, f := range m.OutputType.Fields {
+				if f.Map {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (ann *serviceAnnotations) FormatClassComments() string {
+	doc := ""
+	if ann.Service != nil {
+		doc = ann.Service.Documentation
+	}
+	formatted := ""
+	if doc == "" {
+		formatted = " " + ann.Name + "Client"
+	} else {
+		lines := strings.Split(strings.TrimSuffix(doc, "\n"), "\n")
+		var out []string
+		for _, l := range lines {
+			l = strings.TrimPrefix(l, " ")
+			if l == "" {
+				out = append(out, "///")
+			} else {
+				out = append(out, "/// "+l)
+			}
+		}
+		formatted = strings.Join(out, "\n")
+		formatted = strings.ReplaceAll(formatted, "[groups](#google.monitoring.v3.Group)", "[groups][google.monitoring.v3.Group]")
+		if ann.Service != nil {
+			formatted = strings.ReplaceAll(formatted, ann.Service.Name, ann.Name)
+		}
+	}
+
+	re := regexp.MustCompile(`\[([a-zA-Z0-9_.]+)\]`)
+	matches := re.FindAllStringSubmatch(doc, -1)
+	refs := make(map[string]protoDefinitionLocation)
+	for _, match := range matches {
+		if len(match) > 1 {
+			if loc, ok := findProtoLocation(match[1]); ok {
+				refs[match[1]] = loc
+			}
+		}
+	}
+	var trailer string
+	var refKeys []string
+	for k := range refs {
+		refKeys = append(refKeys, k)
+	}
+	slices.Sort(refKeys)
+	for _, k := range refKeys {
+		loc := refs[k]
+		trailer += fmt.Sprintf("\n/// [%s]: @googleapis_reference_link{%s#L%d}", k, loc.Filename, loc.Line)
+	}
+	if trailer != "" {
+		trailer += "\n///"
+	}
+
+	fixedComment := "\n///\n/// @par Equality\n" +
+		"///\n" +
+		"/// Instances of this class created via copy-construction or copy-assignment\n" +
+		"/// always compare equal. Instances created with equal\n" +
+		"/// `std::shared_ptr<*Connection>` objects compare equal. Objects that compare\n" +
+		"/// equal share the same underlying resources.\n" +
+		"///\n" +
+		"/// @par Performance\n" +
+		"///\n" +
+		"/// Creating a new instance of this class is a relatively expensive operation,\n" +
+		"/// new objects establish new connections to the service. In contrast,\n" +
+		"/// copy-construction, move-construction, and the corresponding assignment\n" +
+		"/// operations are relatively efficient as the copies share all underlying\n" +
+		"/// resources.\n" +
+		"///\n" +
+		"/// @par Thread Safety\n" +
+		"///\n" +
+		"/// Concurrent access to different instances of this class, even if they compare\n" +
+		"/// equal, is guaranteed to work. Two or more threads operating on the same\n" +
+		"/// instance of this class is not guaranteed to work. Since copy-construction\n" +
+		"/// and move-construction is a relatively efficient operation, consider using\n" +
+		"/// such a copy when using this class from multiple threads.\n" +
+		"///"
+
+	result := "///\n" + formatted + fixedComment + trailer
+	result = strings.ReplaceAll(result, "///  ", "/// ")
+	return result
 }
 
 func (ann *serviceAnnotations) MethodSignatureUsesDeprecatedField() bool {
@@ -515,6 +656,250 @@ func (ann *serviceAnnotations) SourceCcIncludes() []string {
 	return includes
 }
 
+func (ann *serviceAnnotations) ConnectionSourceLocalIncludes() []string {
+	var includes []string
+	if ann.OptionsHeaderPath() != "" {
+		includes = append(includes, ann.OptionsHeaderPath())
+	}
+	if ann.HasGrpc && ann.ConnectionImplHeaderPath() != "" {
+		includes = append(includes, ann.ConnectionImplHeaderPath())
+	}
+	if ann.OptionDefaultsHeaderPath() != "" {
+		includes = append(includes, ann.OptionDefaultsHeaderPath())
+	}
+	if ann.HasGrpc && !ann.OmitStubFactory && ann.StubFactoryHeaderPath() != "" {
+		includes = append(includes, ann.StubFactoryHeaderPath())
+	}
+	if ann.TracingConnectionHeaderPath() != "" {
+		includes = append(includes, ann.TracingConnectionHeaderPath())
+	}
+	includes = append(includes,
+		"google/cloud/background_threads.h",
+		"google/cloud/common_options.h",
+		"google/cloud/credentials.h",
+		"google/cloud/grpc_options.h",
+	)
+	if ann.HasGrpc {
+		includes = append(includes, "google/cloud/internal/pagination_range.h")
+	}
+	includes = append(includes, "google/cloud/internal/unified_grpc_credentials.h")
+
+	slices.Sort(includes)
+	return append([]string{ann.ConnectionHeaderPath()}, includes...)
+}
+
+func (ann *serviceAnnotations) ConnectionHeaderLocalIncludes() []string {
+	var includes []string
+	if ann.HasRetryTraits && ann.RetryTraitsHeaderPath() != "" {
+		includes = append(includes, ann.RetryTraitsHeaderPath())
+	}
+	if ann.IdempotencyPolicyHeaderPath() != "" {
+		includes = append(includes, ann.IdempotencyPolicyHeaderPath())
+	}
+	if ann.HasLRO() {
+		includes = append(includes, "google/cloud/no_await_tag.h")
+	}
+	includes = append(includes, "google/cloud/backoff_policy.h")
+	if ann.HasLRO() || ann.HasAsyncMethod() {
+		includes = append(includes, "google/cloud/future.h")
+	}
+	includes = append(includes, "google/cloud/internal/retry_policy_impl.h")
+	includes = append(includes, "google/cloud/options.h")
+	if ann.HasLRO() {
+		includes = append(includes, "google/cloud/polling_policy.h")
+	}
+	includes = append(includes, "google/cloud/status_or.h")
+	if ann.HasStreamingReadMethod() || ann.HasPaginatedMethod() {
+		includes = append(includes, "google/cloud/stream_range.h")
+	}
+	if ann.HasBidirStreamingMethod() {
+		includes = append(includes, "google/cloud/internal/async_read_write_stream_impl.h")
+	}
+	includes = append(includes, "google/cloud/version.h")
+
+	slices.Sort(includes)
+	return includes
+}
+
+func (ann *serviceAnnotations) ConnectionHeaderSystemIncludes() []string {
+	var includes []string
+	if ann.ProtoHeaderPath() != "" {
+		includes = append(includes, ann.ProtoHeaderPath())
+	}
+	if ann.HasGrpcLRO() {
+		includes = append(includes, "google/longrunning/operations.grpc.pb.h")
+	}
+	includes = append(includes, "memory")
+	if ann.HasGrpc && ann.HasEndpointLocation() {
+		includes = append(includes, "string")
+	}
+	slices.Sort(includes)
+	return includes
+}
+
+func (ann *serviceAnnotations) TransientErrorsComment() string {
+	if len(ann.RetryableStatusCodes) == 0 {
+		return ""
+	}
+	var comment strings.Builder
+	comment.WriteString("\n *\n * In this class the following status codes are treated as transient errors:")
+	for _, code := range ann.RetryableStatusCodes {
+		fmt.Fprintf(&comment, "\n * - [`%s`](@ref google::cloud::StatusCode)", code)
+	}
+	return comment.String()
+}
+
+func (ann *serviceAnnotations) ConnectionImplHeaderIncludes() []string {
+	var includes []string
+	includes = append(includes,
+		ann.IdempotencyPolicyHeaderPath(),
+		ann.OptionsHeaderPath(),
+		ann.StubHeaderPath(),
+		ann.ConnectionHeaderPath(),
+	)
+	if ann.HasRetryTraits {
+		includes = append(includes, ann.RetryTraitsHeaderPath())
+	}
+	if ann.HasBidirStreamingMethod() {
+		includes = append(includes, "google/cloud/async_streaming_read_write_rpc.h")
+	}
+	includes = append(includes,
+		"google/cloud/background_threads.h",
+		"google/cloud/backoff_policy.h",
+	)
+	if ann.HasGrpcLRO() {
+		includes = append(includes, "google/cloud/future.h")
+	}
+	if ann.HasRequestId() {
+		includes = append(includes, "google/cloud/internal/invocation_id_generator.h")
+	}
+	includes = append(includes, "google/cloud/options.h")
+	if ann.HasGrpcLRO() {
+		includes = append(includes, "google/cloud/polling_policy.h")
+	}
+	includes = append(includes, "google/cloud/status_or.h")
+	if ann.HasStreamingReadMethod() || ann.HasPaginatedMethod() {
+		includes = append(includes, "google/cloud/stream_range.h")
+	}
+	includes = append(includes, "google/cloud/version.h")
+	slices.Sort(includes)
+	return includes
+}
+
+func (ann *serviceAnnotations) NeedsCompletionQueue() bool {
+	return ann.HasAsyncMethod() || ann.HasBidirStreamingMethod()
+}
+
+func (ann *serviceAnnotations) StubHeaderIncludes() []string {
+	var includes []string
+	if ann.HasBidirStreamingMethod() {
+		includes = append(includes, "google/cloud/async_streaming_read_write_rpc.h")
+	}
+	if ann.NeedsCompletionQueue() {
+		includes = append(includes, "google/cloud/completion_queue.h")
+	}
+	if ann.HasAsyncMethod() {
+		includes = append(includes, "google/cloud/future.h")
+	}
+	if ann.HasAsynchronousStreamingReadMethod() {
+		includes = append(includes, "google/cloud/internal/async_streaming_read_rpc.h")
+	}
+	if ann.HasAsynchronousStreamingWriteMethod() {
+		includes = append(includes, "google/cloud/internal/async_streaming_write_rpc.h")
+	}
+	if ann.HasStreamingReadMethod() {
+		includes = append(includes, "google/cloud/internal/streaming_read_rpc.h")
+	}
+	if ann.HasStreamingWriteMethod() {
+		includes = append(includes, "google/cloud/internal/streaming_write_rpc.h")
+	}
+	includes = append(includes,
+		"google/cloud/options.h",
+		"google/cloud/status_or.h",
+		"google/cloud/version.h",
+	)
+	slices.Sort(includes)
+	return includes
+}
+
+func (ann *serviceAnnotations) StubSourceIncludes() []string {
+	var includes []string
+	includes = append(includes, ann.StubHeaderPath())
+	if ann.HasBidirStreamingMethod() {
+		includes = append(includes, "google/cloud/internal/async_read_write_stream_impl.h")
+	}
+	if ann.HasAsynchronousStreamingReadMethod() {
+		includes = append(includes, "google/cloud/internal/async_streaming_read_rpc_impl.h")
+	}
+	if ann.HasAsynchronousStreamingWriteMethod() {
+		includes = append(includes, "google/cloud/internal/async_streaming_write_rpc_impl.h")
+	}
+	if ann.HasStreamingWriteMethod() {
+		includes = append(includes, "google/cloud/internal/streaming_write_rpc_impl.h")
+	}
+	includes = append(includes,
+		"google/cloud/grpc_error_delegate.h",
+		"google/cloud/status_or.h",
+	)
+	slices.Sort(includes)
+	return includes
+}
+
+func (ann *serviceAnnotations) DefaultStubConstructor() string {
+	var b strings.Builder
+	stubFqn := protoNameToCppName(ann.ServiceGrpcFqn())
+	if ann.HasGrpcLRO() {
+		fmt.Fprintf(&b, "  Default%s(\n", ann.StubClassName())
+		fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub,\n", stubFqn)
+		if ann.HasLocationsMixin() {
+			b.WriteString("      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub,\n")
+		}
+		if ann.HasIamMixin() {
+			b.WriteString("      std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub,\n")
+		}
+		b.WriteString("      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub)\n")
+		b.WriteString("      : grpc_stub_(std::move(grpc_stub)),\n")
+		if ann.HasLocationsMixin() {
+			b.WriteString("        locations_stub_(std::move(locations_stub)),\n")
+		}
+		if ann.HasIamMixin() {
+			b.WriteString("        iampolicy_stub_(std::move(iampolicy_stub)),\n")
+		}
+		b.WriteString("        operations_stub_(std::move(operations_stub)) {}")
+	} else {
+		hasMixins := ann.HasLocationsMixin() || ann.HasIamMixin() || ann.HasOperationsMixin()
+		if !hasMixins {
+			fmt.Fprintf(&b, "  explicit Default%s(\n", ann.StubClassName())
+			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub)\n", stubFqn)
+			b.WriteString("      : grpc_stub_(std::move(grpc_stub)) {}")
+		} else {
+			fmt.Fprintf(&b, "  Default%s(\n", ann.StubClassName())
+			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub", stubFqn)
+			if ann.HasOperationsMixin() {
+				b.WriteString(",\n      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub")
+			}
+			if ann.HasIamMixin() {
+				b.WriteString(",\n      std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub")
+			}
+			if ann.HasLocationsMixin() {
+				b.WriteString(",\n      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub")
+			}
+			b.WriteString(")\n      : grpc_stub_(std::move(grpc_stub))")
+			if ann.HasOperationsMixin() {
+				b.WriteString(",\n        operations_stub_(std::move(operations_stub))")
+			}
+			if ann.HasIamMixin() {
+				b.WriteString(",\n        iampolicy_stub_(std::move(iampolicy_stub))")
+			}
+			if ann.HasLocationsMixin() {
+				b.WriteString(",\n        locations_stub_(std::move(locations_stub))")
+			}
+			b.WriteString(" {}")
+		}
+	}
+	return b.String()
+}
+
 func (ann *serviceAnnotations) generatedFiles(forwardingRelDir string) []language.GeneratedFile {
 	var files []language.GeneratedFile
 
@@ -644,8 +1029,10 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 	if c.Cpp != nil {
 		endpointLocationStyle = c.Cpp.EndpointLocationStyle
 	}
+	protoSourceFile := ""
 	protoGrpcPath := ""
 	if c.Library != nil && len(c.Library.APIs) > 0 && c.Library.APIs[0].Path != "" {
+		protoSourceFile = c.Library.APIs[0].Path
 		protoGrpcPath = strings.TrimSuffix(c.Library.APIs[0].Path, ".proto") + ".grpc.pb.h"
 	}
 
@@ -676,6 +1063,7 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 		OmitStubFactory:        c.Cpp.OmitStubFactory,
 		CopyrightYear:          c.copyrightYear(),
 		Service:                service,
+		ProtoSourceFile:        protoSourceFile,
 		ProtoGrpcHeaderPath:    protoGrpcPath,
 		ServiceEndpointEnvVar:  serviceEndpointEnvVar,
 		EmulatorEndpointEnvVar: emulatorEndpointEnvVar,

@@ -288,3 +288,26 @@ func TestServiceAnnotations_Layer36_Helpers(t *testing.T) {
 		t.Errorf("StubFactoryMakeDefaultStub expected to contain service_locations_stub, got:\n%s", stubCode)
 	}
 }
+
+func TestServiceAnnotations_ProtoHeaderPath(t *testing.T) {
+	annEmpty := &serviceAnnotations{}
+	if got := annEmpty.ProtoHeaderPath(); got != "" {
+		t.Errorf("ProtoHeaderPath on empty ProtoSourceFile: want '', got %q", got)
+	}
+
+	annWithProto := &serviceAnnotations{
+		ProtoSourceFile: "google/cloud/secretmanager/v1/service.proto",
+	}
+	if got := annWithProto.ProtoHeaderPath(); got != "google/cloud/secretmanager/v1/service.pb.h" {
+		t.Errorf("ProtoHeaderPath: want 'google/cloud/secretmanager/v1/service.pb.h', got %q", got)
+	}
+
+	// PbIncludeByTransport when gRPC is disabled returns ProtoHeaderPath
+	annRest := &serviceAnnotations{
+		ProtoSourceFile: "google/cloud/secretmanager/v1/service.proto",
+		HasGrpc:         false,
+	}
+	if got := annRest.PbIncludeByTransport(); got != "google/cloud/secretmanager/v1/service.pb.h" {
+		t.Errorf("PbIncludeByTransport(REST): want 'google/cloud/secretmanager/v1/service.pb.h', got %q", got)
+	}
+}

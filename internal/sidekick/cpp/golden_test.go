@@ -65,7 +65,7 @@ func TestGoldenFixtures_GoldenFileCount(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
+		if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
 			gotCount++
 		}
 		return nil
@@ -365,7 +365,7 @@ func TestGoldenServices_GenerateEmitsAllFiles(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
+		if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
 			rel, err := filepath.Rel(goldenRoot, p)
 			if err != nil {
 				return err
@@ -386,7 +386,7 @@ func TestGoldenServices_GenerateEmitsAllFiles(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
+		if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
 			rel, err := filepath.Rel(goldenDir, p)
 			if err != nil {
 				return err
@@ -1833,4 +1833,121 @@ func TestGoldenServices_Layer36_MethodDefinitions(t *testing.T) {
 			"Options RequestIdServiceDefaultOptions(Options options) {\n",
 			"  return options;\n}\n")
 	})
+}
+
+// TestGoldenServices_Layer37_PureGrpcParity verifies 100% byte-for-byte parity for pure gRPC
+// services (test-request-id) against the upstream golden files.
+//
+// Note: Legacy golden files in generator/integration_tests/golden/ have DisableFormat: true
+// from the upstream generator (.clang-format). Clang-format respects this configuration and leaves
+// formatting unperturbed to preserve legacy golden parity. Active formatting will be verified in
+// production oracles (Phases 6–9) where clang-format is standard.
+func TestGoldenServices_Layer37_PureGrpcParity(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	// Copy .clang-format to goldenRoot to ensure clang-format respects the golden configuration.
+	// Legacy golden files in generator/integration_tests/golden/ have DisableFormat: true
+	// from the upstream generator. Active formatting will be verified in production oracles
+	// (Phases 6–9) where clang-format is standard.
+	dotClangFormatSrc := filepath.Join("testdata", "golden", ".clang-format")
+	if _, err := os.Stat(dotClangFormatSrc); os.IsNotExist(err) {
+		dotClangFormatSrc = filepath.Join("testdata", ".clang-format")
+	}
+	if data, err := os.ReadFile(dotClangFormatSrc); err == nil {
+		_ = os.WriteFile(filepath.Join(goldenRoot, ".clang-format"), data, 0o644)
+	}
+
+	// Generate pure gRPC service: test-request-id (Library 2)
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	goldenDir := filepath.Join("testdata", "golden")
+
+	// Find all 28 request_id files in goldenDir
+	var wantRelPaths []string
+	err = filepath.WalkDir(goldenDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.Contains(filepath.Base(p), "request_id") {
+			rel, err := filepath.Rel(goldenDir, p)
+			if err != nil {
+				return err
+			}
+			wantRelPaths = append(wantRelPaths, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking goldenDir: %v", err)
+	}
+	slices.Sort(wantRelPaths)
+
+	if len(wantRelPaths) != 28 {
+		t.Fatalf("expected 28 request_id files in golden, found %d", len(wantRelPaths))
+	}
+
+	// Format emitted files with clang-format -i
+	formatter := "clang-format"
+	if _, err := exec.LookPath(formatter); err == nil {
+		var emittedFiles []string
+		for _, rel := range wantRelPaths {
+			emittedFiles = append(emittedFiles, filepath.Join(goldenRoot, rel))
+		}
+		args := append([]string{"-i"}, emittedFiles...)
+		cmd := exec.CommandContext(ctx, formatter, args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("clang-format failed: %v\nOutput: %s", err, output)
+		}
+	} else {
+		t.Logf("clang-format not found on PATH, skipping formatting")
+	}
+
+	// Byte-for-byte comparison
+	for _, rel := range wantRelPaths {
+		t.Run(rel, func(t *testing.T) {
+			gotBytes, err := os.ReadFile(filepath.Join(goldenRoot, rel))
+			if err != nil {
+				t.Fatalf("failed to read emitted file %s: %v", rel, err)
+			}
+			wantBytes, err := os.ReadFile(filepath.Join(goldenDir, rel))
+			if err != nil {
+				t.Fatalf("failed to read golden file %s: %v", rel, err)
+			}
+
+			if diff := cmp.Diff(string(wantBytes), string(gotBytes)); diff != "" {
+				gotPath := filepath.Join(goldenRoot, rel)
+				wantPath := filepath.Join(goldenDir, rel)
+				cmd := exec.Command("diff", "-u", wantPath, gotPath)
+				out, _ := cmd.CombinedOutput()
+				t.Errorf("file %s differs from golden:\n%s", rel, string(out))
+			}
+		})
+	}
 }
