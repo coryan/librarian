@@ -21,6 +21,9 @@
 #include "{{Codec.OptionsHeaderPath}}"
 #include "google/cloud/internal/populate_common_options.h"
 #include "google/cloud/internal/populate_grpc_options.h"
+{{#Codec.HasEndpointLocation}}
+#include "google/cloud/internal/absl_str_cat_quiet.h"
+{{/Codec.HasEndpointLocation}}
 #include <memory>
 #include <utility>
 
@@ -37,12 +40,7 @@ Options {{Codec.Name}}DefaultOptions({{#Codec.HasEndpointLocation}}std::string c
   options = internal::PopulateCommonOptions(
       std::move(options), "{{Codec.ServiceEndpointEnvVar}}",
       "{{Codec.EmulatorEndpointEnvVar}}", "{{Codec.ServiceAuthorityEnvVar}}",
-{{#Codec.HasEndpointLocation}}
-      absl::StrCat(location, location.empty() ? "" : "-", "{{Codec.DefaultEndpoint}}"));
-{{/Codec.HasEndpointLocation}}
-{{^Codec.HasEndpointLocation}}
-      "{{Codec.DefaultEndpoint}}");
-{{/Codec.HasEndpointLocation}}
+      {{{Codec.OptionDefaultsEndpointArg}}});
   options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>()) {
     options.set<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>(

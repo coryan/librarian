@@ -21,8 +21,9 @@
 
 #include "google/cloud/idempotency.h"
 #include "google/cloud/version.h"
-#include <{{Codec.PbIncludeByTransport}}>
-#include <memory>
+{{#Codec.IdempotencyPolicyHeaderSystemIncludes}}
+#include <{{.}}>
+{{/Codec.IdempotencyPolicyHeaderSystemIncludes}}
 
 namespace google {
 namespace cloud {

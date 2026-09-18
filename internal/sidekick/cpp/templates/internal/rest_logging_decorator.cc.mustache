@@ -33,6 +33,116 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
     std::set<std::string> components)
     : child_(std::move(child)), tracing_options_(std::move(tracing_options)),
       components_(std::move(components)) {}
+{{#Codec.RestMethods}}
+{{#IsLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.RestLoggingDecoratorClassName}}::Async{{Name}}(
+      CompletionQueue& cq,
+      std::unique_ptr<rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      {{RequestType}} const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](CompletionQueue& cq,
+             std::unique_ptr<rest_internal::RestContext> rest_context,
+             google::cloud::internal::ImmutableOptions options,
+             {{RequestType}} const& request) {
+        return child_->Async{{Name}}(
+            cq, std::move(rest_context), std::move(options), request);
+      },
+      cq, std::move(rest_context), std::move(options), request, __func__,
+      tracing_options_);
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.RestLoggingDecoratorClassName}}::{{Name}}(
+    rest_internal::RestContext& rest_context,
+    Options const& options,
+    {{RequestType}} const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](rest_internal::RestContext& rest_context,
+             Options const& options,
+             {{RequestType}} const& request) {
+        return child_->{{Name}}(rest_context, options, request);
+      },
+      rest_context, options, request, __func__, tracing_options_);
+}
+{{/IsLRO}}
+{{^IsLRO}}
+
+{{{PlainReturnType}}}
+{{Codec.RestLoggingDecoratorClassName}}::{{Name}}(
+    rest_internal::RestContext& rest_context,
+    Options const& options,
+    {{RequestType}} const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](rest_internal::RestContext& rest_context,
+             Options const& options,
+             {{RequestType}} const& request) {
+        return child_->{{Name}}(rest_context, options, request);
+      },
+      rest_context, options, request, __func__, tracing_options_);
+}
+{{/IsLRO}}
+{{/Codec.RestMethods}}
+{{#Codec.RestAsyncMethods}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.RestLoggingDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](CompletionQueue& cq,
+             std::unique_ptr<rest_internal::RestContext> rest_context,
+             google::cloud::internal::ImmutableOptions options,
+             {{RequestType}} const& request) {
+        return child_->Async{{Name}}(
+            cq, std::move(rest_context), std::move(options), request);
+      },
+      cq, std::move(rest_context), std::move(options), request, __func__,
+      tracing_options_);
+}
+{{/Codec.RestAsyncMethods}}
+{{#Codec.HasGrpcLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.RestLoggingDecoratorClassName}}::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::GetOperationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](CompletionQueue& cq,
+             std::unique_ptr<rest_internal::RestContext> rest_context,
+             google::cloud::internal::ImmutableOptions options,
+             google::longrunning::GetOperationRequest const& request) {
+        return child_->AsyncGetOperation(
+            cq, std::move(rest_context), std::move(options), request);
+      },
+      cq, std::move(rest_context), std::move(options), request, __func__,
+      tracing_options_);
+}
+
+future<Status>
+{{Codec.RestLoggingDecoratorClassName}}::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::CancelOperationRequest const& request) {
+  return google::cloud::internal::LogWrapper(
+      [this](CompletionQueue& cq,
+             std::unique_ptr<rest_internal::RestContext> rest_context,
+             google::cloud::internal::ImmutableOptions options,
+             google::longrunning::CancelOperationRequest const& request) {
+        return child_->AsyncCancelOperation(
+            cq, std::move(rest_context), std::move(options), request);
+      },
+      cq, std::move(rest_context), std::move(options), request, __func__,
+      tracing_options_);
+}
+{{/Codec.HasGrpcLRO}}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

@@ -32,14 +32,15 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 {{#Codec.StubMethods}}
 {{#IsBidiStreaming}}
 
-std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+std::unique_ptr<google::cloud::AsyncStreamingReadWriteRpc<
     {{RequestType}},
     {{ResponseType}}>>
 {{Codec.RoundRobinDecoratorClassName}}::Async{{Name}}(
     google::cloud::CompletionQueue const& cq,
     std::shared_ptr<grpc::ClientContext> context,
     google::cloud::internal::ImmutableOptions options) {
-  return Child()->Async{{Name}}(cq, std::move(context), std::move(options));
+  return Child()->Async{{Name}}(
+      cq, std::move(context), std::move(options));
 }
 {{/IsBidiStreaming}}
 {{#IsStreamingRead}}
@@ -55,8 +56,7 @@ std::unique_ptr<google::cloud::internal::StreamingReadRpc<{{{ResponseType}}}>>
 {{#IsStreamingWrite}}
 
 std::unique_ptr<google::cloud::internal::StreamingWriteRpc<
-    {{RequestType}},
-    {{ResponseType}}>>
+    {{RequestType}}, {{ResponseType}}>>
 {{Codec.RoundRobinDecoratorClassName}}::{{Name}}(
     std::shared_ptr<grpc::ClientContext> context,
     Options const& options) {
@@ -67,10 +67,10 @@ std::unique_ptr<google::cloud::internal::StreamingWriteRpc<
 
 future<StatusOr<google::longrunning::Operation>>
 {{Codec.RoundRobinDecoratorClassName}}::Async{{Name}}(
-      google::cloud::CompletionQueue& cq,
-      std::shared_ptr<grpc::ClientContext> context,
-      google::cloud::internal::ImmutableOptions options,
-      {{RequestType}} const& request) {
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
   return Child()->Async{{Name}}(
       cq, std::move(context), std::move(options), request);
 }

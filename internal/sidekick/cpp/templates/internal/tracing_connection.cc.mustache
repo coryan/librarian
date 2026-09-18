@@ -35,9 +35,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
     std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> child)
     : child_(std::move(child)) {}
 {{#Codec.Methods}}
-{{#IsBidiStreaming}}
-
-std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+{{#IsBidiStreaming}}std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
     {{RequestType}},
     {{ResponseType}}>>
 {{Codec.TracingConnectionClassName}}::Async{{Name}}() {

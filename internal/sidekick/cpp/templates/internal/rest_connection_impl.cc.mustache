@@ -20,8 +20,18 @@
 #include "{{Codec.RestStubFactoryHeaderPath}}"
 #include "google/cloud/common_options.h"
 #include "google/cloud/credentials.h"
+{{#Codec.HasGrpcLRO}}
+#include "google/cloud/internal/async_rest_long_running_operation.h"
+{{/Codec.HasGrpcLRO}}
+{{#Codec.HasRestAsyncRetryLoop}}
 #include "google/cloud/internal/async_rest_retry_loop.h"
+{{/Codec.HasRestAsyncRetryLoop}}
+{{#Codec.HasGrpcLRO}}
+#include "google/cloud/internal/extract_long_running_result.h"
+{{/Codec.HasGrpcLRO}}
+{{#Codec.HasPaginatedMethod}}
 #include "google/cloud/internal/pagination_range.h"
+{{/Codec.HasPaginatedMethod}}
 #include "google/cloud/internal/rest_retry_loop.h"
 #include "google/cloud/rest_options.h"
 #include <memory>
@@ -40,6 +50,163 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
     options_(internal::MergeOptions(
         std::move(options),
         {{Codec.ConnectionClassName}}::options())) {}
+{{#Codec.RestMethods}}
+{{#IsPaginated}}
+
+StreamRange<{{{RangeOutputType}}}>
+{{Codec.RestConnectionImplClassName}}::{{Name}}({{RequestType}} request) {
+  request.clear_page_token();
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto idempotency = idempotency_policy(*current)->{{Name}}(request);
+  char const* function_name = __func__;
+  return google::cloud::internal::MakePaginationRange<StreamRange<{{{RangeOutputType}}}>>(
+      current, std::move(request),
+      [idempotency, function_name, stub = stub_,
+       retry = std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyClassName}}>(retry_policy(*current)),
+       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
+          Options const& options, {{RequestType}} const& r) {
+        return google::cloud::rest_internal::RestRetryLoop(
+            retry->clone(), backoff->clone(), idempotency,
+            [stub](rest_internal::RestContext& rest_context,
+                   Options const& options,
+                   {{RequestType}} const& request) {
+              return stub->{{Name}}(rest_context, options, request);
+            },
+            options, r, function_name);
+      },
+      []({{{ResponseType}}} r) {
+        std::vector<{{{RangeOutputType}}}> result(r.{{RangeOutputFieldName}}().size());
+        auto& messages = *r.mutable_{{RangeOutputFieldName}}();
+        std::move(messages.begin(), messages.end(), result.begin());
+        return result;
+      });
+}
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsLRO}}
+
+{{{LroFutureReturnType}}}
+{{Codec.RestConnectionImplClassName}}::{{Name}}({{RequestType}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return rest_internal::AsyncRestLongRunningOperation<{{{DeducedResponseType}}}>(
+    background_->cq(), current, request,
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options, {{RequestType}} const& request) {
+      return stub->Async{{Name}}(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+      return stub->AsyncGetOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+      return stub->AsyncCancelOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    {{{ExtractLongRunningResultFunction}}}
+    retry_policy(*current), backoff_policy(*current),
+    idempotency_policy(*current)->{{Name}}(request),
+    polling_policy(*current), __func__){{#IsLroVoid}}
+    .then([](future<StatusOr<google::protobuf::Empty>> f) {
+      return f.get().status();
+    });
+{{/IsLroVoid}}{{^IsLroVoid}};
+
+{{/IsLroVoid}}
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.RestConnectionImplClassName}}::{{Name}}(NoAwaitTag, {{RequestType}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::rest_internal::RestRetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->{{Name}}(request),
+      [this](rest_internal::RestContext& rest_context,
+             Options const& options, {{RequestType}} const& request) {
+        return stub_->{{Name}}(rest_context, options, request);
+      },
+      *current, request, __func__);
+}
+
+{{{LroFutureReturnType}}}
+{{Codec.RestConnectionImplClassName}}::{{Name}}(
+    google::longrunning::Operation const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  if (!operation.metadata().Is<typename {{{OperationMetadataType}}}>()) {
+    return make_ready_{{{LroFutureReturnType}}}(
+        internal::InvalidArgumentError("operation does not correspond to {{Name}}",
+                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
+  }
+  return rest_internal::AsyncRestAwaitLongRunningOperation<{{{DeducedResponseType}}}>(
+    background_->cq(), current, operation,
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::GetOperationRequest const& request) {
+      return stub->AsyncGetOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   google::longrunning::CancelOperationRequest const& request) {
+      return stub->AsyncCancelOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    {{{ExtractLongRunningResultFunction}}}
+    polling_policy(*current), __func__){{#IsLroVoid}}
+    .then([](future<StatusOr<google::protobuf::Empty>> f) {
+      return f.get().status();
+    });
+{{/IsLroVoid}}{{^IsLroVoid}};
+
+{{/IsLroVoid}}
+}
+{{/IsLRO}}
+{{^IsLRO}}
+
+{{{PlainReturnType}}}
+{{Codec.RestConnectionImplClassName}}::{{Name}}({{RequestType}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::rest_internal::RestRetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->{{Name}}(request),
+      [this](rest_internal::RestContext& rest_context,
+             Options const& options, {{RequestType}} const& request) {
+        return stub_->{{Name}}(rest_context, options, request);
+      },
+      *current, request, __func__);
+}
+{{/IsLRO}}
+{{/IsPaginated}}
+{{/Codec.RestMethods}}
+{{#Codec.RestAsyncMethods}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.RestConnectionImplClassName}}::Async{{Name}}({{RequestType}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  auto retry = retry_policy(*current);
+  auto backoff = backoff_policy(*current);
+  auto const idempotent = idempotency_policy(*current)->{{Name}}(request);
+  return rest_internal::AsyncRestRetryLoop(
+      std::move(retry), std::move(backoff), idempotent, background_->cq(),
+      [stub = stub_](CompletionQueue& cq,
+                     std::unique_ptr<rest_internal::RestContext> context,
+                     google::cloud::internal::ImmutableOptions options,
+                     {{RequestType}} const& request) {
+        return stub->Async{{Name}}(
+            cq, std::move(context), std::move(options), request);
+      },
+      std::move(current), request, __func__);
+}
+{{/Codec.RestAsyncMethods}}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

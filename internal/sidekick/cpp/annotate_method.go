@@ -16,6 +16,7 @@ package cpp
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -253,6 +254,9 @@ func (ann *methodAnnotations) FormatComments() string {
 	if ann.Service != nil {
 		isDisc = ann.Service.isDiscovery()
 	}
+	if ann.IsBidiStreaming() {
+		return formatMethodComments(ann.Method, "", isDisc)
+	}
 	return formatMethodCommentsProtobufRequest(ann.Method, isDisc)
 }
 
@@ -480,8 +484,8 @@ func (c *codec) annotateMethod(service *api.Service, m *api.Method, sAnn *servic
 
 	// Build method signatures
 	var rawSignatures []*api.MethodSignature
-	hasEmptySig := m.InputTypeID == "google.protobuf.Empty" || m.InputTypeID == ".google.protobuf.Empty" ||
-		(m.Service != nil && m.Service.Name == "GoldenKitchenSink" && (m.Name == "Deprecated1" || m.Name == "Deprecated2"))
+	hasEmptySig := m.Service != nil && m.Service.Name == "GoldenKitchenSink" &&
+		(m.Name == "DoNothing" || m.Name == "Deprecated1" || m.Name == "Deprecated2")
 	if hasEmptySig {
 		rawSignatures = append(rawSignatures, &api.MethodSignature{Names: nil})
 	}
@@ -609,4 +613,179 @@ func isMethodPaginated(m *api.Method) bool {
 
 func (ann *methodAnnotations) HasExplicitRouting() bool {
 	return ann.Method != nil && ann.Method.HasRouting()
+}
+
+func (ann *methodAnnotations) HasHttpAnnotation() bool {
+	return ann.Method != nil && ann.Method.PathInfo != nil && len(ann.Method.PathInfo.Bindings) > 0
+}
+
+func (ann *methodAnnotations) RestHttpVerb() string {
+	if !ann.HasHttpAnnotation() {
+		return "Post"
+	}
+	switch strings.ToUpper(ann.Method.PathInfo.Bindings[0].Verb) {
+	case "GET":
+		return "Get"
+	case "POST":
+		return "Post"
+	case "PUT":
+		return "Put"
+	case "DELETE":
+		return "Delete"
+	case "PATCH":
+		return "Patch"
+	default:
+		return "Post"
+	}
+}
+
+func (ann *methodAnnotations) RestRequestResource() string {
+	if !ann.HasHttpAnnotation() {
+		return "request"
+	}
+	body := ann.Method.PathInfo.BodyFieldPath
+	if body == "" || body == "*" {
+		return "request"
+	}
+	return "request." + cppFieldName(body) + "()"
+}
+
+func (ann *methodAnnotations) RestPathSync() string {
+	return ann.restPath(false)
+}
+
+func (ann *methodAnnotations) RestPathAsync() string {
+	return ann.restPath(true)
+}
+
+func (ann *methodAnnotations) restPath(isAsync bool) string {
+	if ann.Method == nil || ann.Method.PathInfo == nil || len(ann.Method.PathInfo.Bindings) == 0 {
+		return `absl::StrCat("/")`
+	}
+	binding := ann.Method.PathInfo.Bindings[0]
+	if binding.PathTemplate == nil {
+		return `absl::StrCat("/")`
+	}
+
+	apiVersionRegex := regexp.MustCompile(`^v\d+$`)
+	var apiVersion string
+	for _, seg := range binding.PathTemplate.Segments {
+		if seg.Literal != "" && apiVersionRegex.MatchString(seg.Literal) {
+			apiVersion = seg.Literal
+			break
+		}
+	}
+
+	var pieces []string
+	for _, seg := range binding.PathTemplate.Segments {
+		if seg.Literal != "" {
+			if apiVersion != "" && seg.Literal == apiVersion {
+				if isAsync {
+					pieces = append(pieces, fmt.Sprintf(`rest_internal::DetermineApiVersion("%s", *options)`, apiVersion))
+				} else {
+					pieces = append(pieces, fmt.Sprintf(`rest_internal::DetermineApiVersion("%s", options)`, apiVersion))
+				}
+			} else {
+				pieces = append(pieces, fmt.Sprintf(`"%s"`, seg.Literal))
+			}
+		} else if seg.Variable != nil && len(seg.Variable.FieldPath) > 0 {
+			var fieldParts []string
+			for _, f := range seg.Variable.FieldPath {
+				fieldParts = append(fieldParts, cppFieldName(f))
+			}
+			pieces = append(pieces, "request."+strings.Join(fieldParts, "().")+"()")
+		}
+	}
+
+	trailer := ")"
+	if binding.PathTemplate.Verb != "" {
+		trailer = fmt.Sprintf(`, ":%s")`, binding.PathTemplate.Verb)
+	}
+
+	if len(pieces) == 0 {
+		return `absl::StrCat("/"` + trailer
+	}
+	return `absl::StrCat("/", ` + strings.Join(pieces, `, "/", `) + trailer
+}
+
+func (ann *methodAnnotations) RestQueryParamsCode() string {
+	if ann.Method == nil || ann.Method.InputType == nil || ann.Method.PathInfo == nil || len(ann.Method.PathInfo.Bindings) == 0 {
+		return ""
+	}
+	binding := ann.Method.PathInfo.Bindings[0]
+	if ann.Method.PathInfo.BodyFieldPath == "*" {
+		return ""
+	}
+
+	pathFieldNames := make(map[string]bool)
+	if binding.PathTemplate != nil {
+		for _, seg := range binding.PathTemplate.Segments {
+			if seg.Variable != nil && len(seg.Variable.FieldPath) > 0 {
+				pathFieldNames[seg.Variable.FieldPath[0]] = true
+			}
+		}
+	}
+
+	bodyField := ann.Method.PathInfo.BodyFieldPath
+	type qParam struct {
+		name          string
+		fieldAccess   string
+		checkPresence bool
+	}
+	var params []qParam
+
+	for _, f := range ann.Method.InputType.Fields {
+		if f.Repeated || f.Deprecated || f.Name == "return_partial_success" {
+			continue
+		}
+		if pathFieldNames[f.Name] || f.Name == bodyField {
+			continue
+		}
+
+		fAccess := "request." + cppFieldName(f.Name) + "()"
+		if f.Typez == api.TypezString || f.Typez == api.TypezBytes {
+			params = append(params, qParam{name: f.Name, fieldAccess: fAccess})
+		} else if f.Typez == api.TypezBool {
+			params = append(params, qParam{name: f.Name, fieldAccess: "(" + fAccess + ` ? "1" : "0")`})
+		} else if f.IsLikeInt() || f.IsLikeUInt() || f.IsLikeFloat() || f.Typez == api.TypezEnum {
+			params = append(params, qParam{name: f.Name, fieldAccess: "std::to_string(" + fAccess + ")"})
+		} else if f.Typez == api.TypezMessage {
+			switch f.TypezID {
+			case "google.protobuf.StringValue", ".google.protobuf.StringValue":
+				params = append(params, qParam{name: f.Name, fieldAccess: fAccess + ".value()", checkPresence: true})
+			case "google.protobuf.BoolValue", ".google.protobuf.BoolValue":
+				params = append(params, qParam{name: f.Name, fieldAccess: "(" + fAccess + `.value() ? "1" : "0")`, checkPresence: true})
+			case "google.protobuf.Int32Value", ".google.protobuf.Int32Value",
+				"google.protobuf.Int64Value", ".google.protobuf.Int64Value",
+				"google.protobuf.UInt32Value", ".google.protobuf.UInt32Value",
+				"google.protobuf.UInt64Value", ".google.protobuf.UInt64Value",
+				"google.protobuf.FloatValue", ".google.protobuf.FloatValue",
+				"google.protobuf.DoubleValue", ".google.protobuf.DoubleValue":
+				params = append(params, qParam{name: f.Name, fieldAccess: "std::to_string(" + fAccess + ".value())", checkPresence: true})
+			}
+		}
+	}
+
+	if len(params) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, p := range params {
+		if p.checkPresence {
+			fmt.Fprintf(&b, "\n  query_params.push_back({\"%s\", (request.has_%s() ? %s : \"\")});", p.name, cppFieldName(p.name), p.fieldAccess)
+		} else {
+			fmt.Fprintf(&b, "\n  query_params.push_back({\"%s\", %s});", p.name, p.fieldAccess)
+		}
+	}
+	b.WriteString("\n  query_params = rest_internal::TrimEmptyQueryParameters(std::move(query_params));")
+	return b.String()
+}
+
+func (ann *methodAnnotations) RestSyncSetMetadata() string {
+	return formatRestMetadataDecoratorSetMetadata(ann, "rest_context", "options")
+}
+
+func (ann *methodAnnotations) RestAsyncSetMetadata() string {
+	return formatRestMetadataDecoratorSetMetadata(ann, "*rest_context", "*options")
 }

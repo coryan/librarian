@@ -26,29 +26,37 @@ import (
 )
 
 type serviceAnnotations struct {
-	Name                   string
-	BaseFileName           string
-	ProductPath            string
-	ForwardingPath         string
-	HasGrpc                bool
-	HasRest                bool
-	HasRoundRobin          bool
-	HasRetryTraits         bool
-	RetryableStatusCodes   []string
-	EndpointLocationStyle  string
-	OmitClient             bool
-	OmitConnection         bool
-	OmitStubFactory        bool
-	CopyrightYear          string
-	Service                *api.Service
-	Methods                []*methodAnnotations
-	StubMethods            []*methodAnnotations
-	AsyncMethods           []*methodAnnotations
-	AsyncStubMethods       []*methodAnnotations
-	ProtoSourceFile        string
-	ProtoGrpcHeaderPath    string
-	ServiceEndpointEnvVar  string
-	EmulatorEndpointEnvVar string
+	Name                    string
+	BaseFileName            string
+	ProductPath             string
+	ForwardingPath          string
+	HasGrpc                 bool
+	HasRest                 bool
+	HasRoundRobin           bool
+	HasRetryTraits          bool
+	RetryableStatusCodes    []string
+	EndpointLocationStyle   string
+	OmitClient              bool
+	OmitConnection          bool
+	OmitStubFactory         bool
+	CopyrightYear           string
+	Service                 *api.Service
+	Methods                 []*methodAnnotations
+	StubMethods             []*methodAnnotations
+	AsyncMethods            []*methodAnnotations
+	AsyncStubMethods        []*methodAnnotations
+	ProtoSourceFile         string
+	ProtoGrpcHeaderPath     string
+	ServiceEndpointEnvVar   string
+	EmulatorEndpointEnvVar  string
+	AdditionalPbHeaderPaths []string
+}
+
+func (ann *serviceAnnotations) SourcesCopyrightYear() string {
+	if ann.CopyrightYear < "2024" {
+		return "2024"
+	}
+	return ann.CopyrightYear
 }
 
 func (ann *serviceAnnotations) OptionsGroup() string {
@@ -146,7 +154,11 @@ func (ann *serviceAnnotations) HasBidirStreamingMethod() bool {
 }
 
 func (ann *serviceAnnotations) HasAsyncMethod() bool {
-	return len(ann.AsyncMethods) > 0
+	return len(ann.AsyncStubMethods) > 0 || ann.HasLRO()
+}
+
+func (ann *serviceAnnotations) HasRestAsyncRetryLoop() bool {
+	return len(ann.AsyncStubMethods) > 0
 }
 
 func (ann *serviceAnnotations) HasStreamingMethod() bool {
@@ -259,7 +271,7 @@ func (ann *serviceAnnotations) FormatClassComments() string {
 	}
 	formatted := ""
 	if doc == "" {
-		formatted = " " + ann.Name + "Client"
+		formatted = "/// " + ann.Name + "Client"
 	} else {
 		lines := strings.Split(strings.TrimSuffix(doc, "\n"), "\n")
 		var out []string
@@ -355,6 +367,19 @@ func (ann *serviceAnnotations) DefaultEndpoint() string {
 	return ""
 }
 
+func (ann *serviceAnnotations) OptionDefaultsEndpointArg() string {
+	switch ann.EndpointLocationStyle {
+	case "LOCATION_DEPENDENT":
+		return fmt.Sprintf("absl::StrCat(location, \"-\", %q)", ann.DefaultEndpoint())
+	case "LOCATION_DEPENDENT_COMPAT":
+		return fmt.Sprintf("absl::StrCat(location, location.empty() ? \"\" : \"-\", %q)", ann.DefaultEndpoint())
+	case "LOCATION_OPTIONALLY_DEPENDENT":
+		return fmt.Sprintf("// optional location tag for generating docs\n      absl::StrCat(location, location.empty() ? \"\" : \"-\", %q)", ann.DefaultEndpoint())
+	default:
+		return fmt.Sprintf("%q", ann.DefaultEndpoint())
+	}
+}
+
 func (ann *serviceAnnotations) ServiceGrpcFqn() string {
 	if ann.Service == nil || ann.Service.Package == "" {
 		return ann.Name
@@ -375,6 +400,10 @@ func (ann *serviceAnnotations) ApiVersion() string {
 	return ""
 }
 
+func (ann *serviceAnnotations) HasApiVersion() bool {
+	return ann.ApiVersion() != ""
+}
+
 func (ann *serviceAnnotations) HasLocationsMixin() bool {
 	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
 		return m.Method != nil && m.Method.SourceService != nil && m.Method.Service != nil &&
@@ -390,9 +419,6 @@ func (ann *serviceAnnotations) HasIamMixin() bool {
 }
 
 func (ann *serviceAnnotations) HasOperationsMixin() bool {
-	if ann.HasLRO() {
-		return false
-	}
 	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
 		return m.Method != nil && m.Method.SourceService != nil && m.Method.Service != nil &&
 			m.Method.SourceService.Name != m.Method.Service.Name && m.Method.SourceService.Name == "Operations"
@@ -403,7 +429,7 @@ func (ann *serviceAnnotations) StubFactoryMakeDefaultStub() string {
 	var b strings.Builder
 	cppStubType := protoNameToCppName(ann.ServiceGrpcFqn())
 	fmt.Fprintf(&b, "  auto service_grpc_stub = %s::NewStub(channel);\n", cppStubType)
-	if ann.HasOperationsMixin() {
+	if ann.HasOperationsMixin() && !ann.HasGrpcLRO() {
 		b.WriteString("  auto service_operations_stub = google::longrunning::Operations::NewStub(channel);\n")
 	}
 	if ann.HasIamMixin() {
@@ -459,6 +485,28 @@ func (ann *serviceAnnotations) IdempotencyPolicyHeader() string {
 
 func (ann *serviceAnnotations) IdempotencyPolicySource() string {
 	return ann.BaseFileName + "_connection_idempotency_policy.cc"
+}
+
+func (ann *serviceAnnotations) IdempotencyPolicyHeaderSystemIncludes() []string {
+	var includes []string
+	ext := ".grpc.pb.h"
+	if !ann.HasGrpc {
+		ext = ".pb.h"
+	}
+	if ann.PbIncludeByTransport() != "" {
+		includes = append(includes, ann.PbIncludeByTransport())
+	}
+	if ann.HasLocationsMixin() {
+		includes = append(includes, "google/cloud/location/locations"+ext)
+	}
+	if ann.HasIamMixin() {
+		includes = append(includes, "google/iam/v1/iam_policy"+ext)
+	}
+	if ann.HasOperationsMixin() {
+		includes = append(includes, "google/longrunning/operations"+ext)
+	}
+	includes = append(includes, "memory")
+	return includes
 }
 
 func (ann *serviceAnnotations) OptionsHeader() string {
@@ -679,7 +727,7 @@ func (ann *serviceAnnotations) ConnectionSourceLocalIncludes() []string {
 		"google/cloud/credentials.h",
 		"google/cloud/grpc_options.h",
 	)
-	if ann.HasGrpc {
+	if ann.HasPaginatedMethod() {
 		includes = append(includes, "google/cloud/internal/pagination_range.h")
 	}
 	includes = append(includes, "google/cloud/internal/unified_grpc_credentials.h")
@@ -723,6 +771,9 @@ func (ann *serviceAnnotations) ConnectionHeaderLocalIncludes() []string {
 
 func (ann *serviceAnnotations) ConnectionHeaderSystemIncludes() []string {
 	var includes []string
+	if len(ann.AdditionalPbHeaderPaths) > 0 {
+		includes = append(includes, ann.AdditionalPbHeaderPaths...)
+	}
 	if ann.ProtoHeaderPath() != "" {
 		includes = append(includes, ann.ProtoHeaderPath())
 	}
@@ -845,6 +896,34 @@ func (ann *serviceAnnotations) StubSourceIncludes() []string {
 	return includes
 }
 
+func (ann *serviceAnnotations) StubHeaderSystemIncludes() []string {
+	var includes []string
+	if len(ann.AdditionalPbHeaderPaths) > 0 {
+		includes = append(includes, ann.AdditionalPbHeaderPaths...)
+	}
+	if ann.HasLocationsMixin() {
+		includes = append(includes, "google/cloud/location/locations.grpc.pb.h")
+	}
+	if ann.HasIamMixin() {
+		includes = append(includes, "google/iam/v1/iam_policy.grpc.pb.h")
+	}
+	if ann.HasOperationsMixin() {
+		includes = append(includes, "google/longrunning/operations.grpc.pb.h")
+	}
+	if ann.ProtoGrpcHeaderPath != "" {
+		includes = append(includes, ann.ProtoGrpcHeaderPath)
+	}
+	if !ann.HasOperationsMixin() && ann.HasGrpcLRO() {
+		includes = append(includes, "google/longrunning/operations.grpc.pb.h")
+	}
+	includes = append(includes, "memory", "utility")
+	return includes
+}
+
+func (ann *serviceAnnotations) HasOperationsMixinOrGrpcLRO() bool {
+	return ann.HasOperationsMixin() || ann.HasGrpcLRO()
+}
+
 func (ann *serviceAnnotations) DefaultStubConstructor() string {
 	var b strings.Builder
 	stubFqn := protoNameToCppName(ann.ServiceGrpcFqn())
@@ -873,31 +952,59 @@ func (ann *serviceAnnotations) DefaultStubConstructor() string {
 			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub)\n", stubFqn)
 			b.WriteString("      : grpc_stub_(std::move(grpc_stub)) {}")
 		} else {
-			fmt.Fprintf(&b, "  Default%s(\n", ann.StubClassName())
-			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub", stubFqn)
+			fmt.Fprintf(&b, "  explicit Default%s(\n", ann.StubClassName())
+			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub,\n", stubFqn)
 			if ann.HasOperationsMixin() {
-				b.WriteString(",\n      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub")
+				b.WriteString("      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub\n")
 			}
 			if ann.HasIamMixin() {
-				b.WriteString(",\n      std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub")
+				b.WriteString(",\n      std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub\n")
 			}
 			if ann.HasLocationsMixin() {
-				b.WriteString(",\n      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub")
+				b.WriteString(",\n      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub\n")
 			}
-			b.WriteString(")\n      : grpc_stub_(std::move(grpc_stub))")
+			b.WriteString(")\n      : grpc_stub_(std::move(grpc_stub)),\n")
+			var inits []string
 			if ann.HasOperationsMixin() {
-				b.WriteString(",\n        operations_stub_(std::move(operations_stub))")
+				inits = append(inits, "        operations_stub_(std::move(operations_stub))")
 			}
 			if ann.HasIamMixin() {
-				b.WriteString(",\n        iampolicy_stub_(std::move(iampolicy_stub))")
+				inits = append(inits, "        iampolicy_stub_(std::move(iampolicy_stub))")
 			}
 			if ann.HasLocationsMixin() {
-				b.WriteString(",\n        locations_stub_(std::move(locations_stub))")
+				inits = append(inits, "        locations_stub_(std::move(locations_stub))")
 			}
+			b.WriteString(strings.Join(inits, ",\n"))
 			b.WriteString(" {}")
 		}
 	}
 	return b.String()
+}
+
+func (ann *serviceAnnotations) DefaultStubPrivateMembers() []string {
+	var members []string
+	stubFqn := protoNameToCppName(ann.ServiceGrpcFqn())
+	members = append(members, fmt.Sprintf("std::unique_ptr<%s::StubInterface> grpc_stub_;", stubFqn))
+	if ann.HasGrpcLRO() {
+		if ann.HasLocationsMixin() {
+			members = append(members, "std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub_;")
+		}
+		if ann.HasIamMixin() {
+			members = append(members, "std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub_;")
+		}
+		members = append(members, "std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub_;")
+	} else {
+		if ann.HasOperationsMixin() {
+			members = append(members, "std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub_;")
+		}
+		if ann.HasIamMixin() {
+			members = append(members, "std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub_;")
+		}
+		if ann.HasLocationsMixin() {
+			members = append(members, "std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub_;")
+		}
+	}
+	return members
 }
 
 func (ann *serviceAnnotations) generatedFiles(forwardingRelDir string) []language.GeneratedFile {
@@ -1046,27 +1153,34 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 			emulatorEndpointEnvVar = c.Cpp.EmulatorEndpointEnvVar
 		}
 	}
+	var additionalPbHeaders []string
+	if c.Cpp != nil {
+		for _, proto := range c.Cpp.AdditionalProtoFiles {
+			additionalPbHeaders = append(additionalPbHeaders, strings.TrimSuffix(proto, ".proto")+".pb.h")
+		}
+	}
 
 	ann := &serviceAnnotations{
-		Name:                   service.Name,
-		BaseFileName:           serviceNameToFileName(service.Name),
-		ProductPath:            c.Cpp.ProductPath,
-		ForwardingPath:         c.Cpp.ForwardingProductPath,
-		HasGrpc:                c.hasGrpc(),
-		HasRest:                c.hasRest(),
-		HasRoundRobin:          c.hasRoundRobin(),
-		HasRetryTraits:         len(codes) > 0,
-		RetryableStatusCodes:   codes,
-		EndpointLocationStyle:  endpointLocationStyle,
-		OmitClient:             c.Cpp.OmitClient,
-		OmitConnection:         c.Cpp.OmitConnection,
-		OmitStubFactory:        c.Cpp.OmitStubFactory,
-		CopyrightYear:          c.copyrightYear(),
-		Service:                service,
-		ProtoSourceFile:        protoSourceFile,
-		ProtoGrpcHeaderPath:    protoGrpcPath,
-		ServiceEndpointEnvVar:  serviceEndpointEnvVar,
-		EmulatorEndpointEnvVar: emulatorEndpointEnvVar,
+		Name:                    service.Name,
+		BaseFileName:            serviceNameToFileName(service.Name),
+		ProductPath:             c.Cpp.ProductPath,
+		ForwardingPath:          c.Cpp.ForwardingProductPath,
+		HasGrpc:                 c.hasGrpc(),
+		HasRest:                 c.hasRest(),
+		HasRoundRobin:           c.hasRoundRobin(),
+		HasRetryTraits:          len(codes) > 0,
+		RetryableStatusCodes:    codes,
+		EndpointLocationStyle:   endpointLocationStyle,
+		OmitClient:              c.Cpp.OmitClient,
+		OmitConnection:          c.Cpp.OmitConnection,
+		OmitStubFactory:         c.Cpp.OmitStubFactory,
+		CopyrightYear:           c.copyrightYear(),
+		Service:                 service,
+		ProtoSourceFile:         protoSourceFile,
+		ProtoGrpcHeaderPath:     protoGrpcPath,
+		ServiceEndpointEnvVar:   serviceEndpointEnvVar,
+		EmulatorEndpointEnvVar:  emulatorEndpointEnvVar,
+		AdditionalPbHeaderPaths: additionalPbHeaders,
 	}
 
 	var methods []*methodAnnotations
@@ -1146,4 +1260,59 @@ func (c *codec) annotateModel() error {
 		c.annotateService(s)
 	}
 	return nil
+}
+
+func (ann *serviceAnnotations) RestMethods() []*methodAnnotations {
+	var res []*methodAnnotations
+	for _, m := range ann.StubMethods {
+		if m.HasHttpAnnotation() && !m.IsStreaming() {
+			res = append(res, m)
+		}
+	}
+	return res
+}
+
+func (ann *serviceAnnotations) RestAsyncMethods() []*methodAnnotations {
+	var res []*methodAnnotations
+	for _, m := range ann.AsyncMethods {
+		if m.HasHttpAnnotation() && !m.IsStreaming() && !m.IsLRO {
+			res = append(res, m)
+		}
+	}
+	return res
+}
+
+func (ann *serviceAnnotations) HasRestAsyncMethods() bool {
+	return len(ann.RestAsyncMethods()) > 0
+}
+
+func (ann *serviceAnnotations) RestStubHeaderProtobufIncludes() []string {
+	var includes []string
+	if len(ann.AdditionalPbHeaderPaths) > 0 {
+		includes = append(includes, ann.AdditionalPbHeaderPaths...)
+	}
+	if ann.HasLocationsMixin() {
+		includes = append(includes, "google/cloud/location/locations.pb.h")
+	}
+	if ann.HasIamMixin() {
+		includes = append(includes, "google/iam/v1/iam_policy.pb.h")
+	}
+	if ann.HasOperationsMixin() {
+		includes = append(includes, "google/longrunning/operations.pb.h")
+	}
+	if ann.ProtoHeaderPath() != "" {
+		includes = append(includes, ann.ProtoHeaderPath())
+	}
+	return includes
+}
+
+func (ann *serviceAnnotations) RestStubCcProtobufIncludes() []string {
+	var includes []string
+	if ann.ProtoHeaderPath() != "" {
+		includes = append(includes, ann.ProtoHeaderPath())
+	}
+	if ann.HasGrpcLRO() {
+		includes = append(includes, "google/longrunning/operations.pb.h")
+	}
+	return includes
 }

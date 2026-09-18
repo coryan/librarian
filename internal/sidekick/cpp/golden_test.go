@@ -1951,3 +1951,147 @@ func TestGoldenServices_Layer37_PureGrpcParity(t *testing.T) {
 		})
 	}
 }
+
+// TestGoldenServices_Phase4_AllFilesParity asserts 100% byte-for-byte exact zero diff
+// across all 188 reference golden files across all 4 test services.
+func TestGoldenServices_Phase4_AllFilesParity(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	dotClangFormatSrc := filepath.Join("testdata", "golden", ".clang-format")
+	if _, err := os.Stat(dotClangFormatSrc); os.IsNotExist(err) {
+		dotClangFormatSrc = filepath.Join("testdata", ".clang-format")
+	}
+	if data, err := os.ReadFile(dotClangFormatSrc); err == nil {
+		_ = os.WriteFile(filepath.Join(goldenRoot, ".clang-format"), data, 0o644)
+	}
+
+	// 1. GoldenKitchenSink and GoldenThingAdmin (Library 0: golden)
+	sinkModel, err := loadTestModel(t, protosDir, googleapisDir, "test.yaml", "test.proto", "backup.proto", "common.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test.proto: %v", err)
+	}
+	if err := Generate(ctx, sinkModel, outdir, cfg.Libraries[0]); err != nil {
+		t.Fatalf("Generate(lib0) failed: %v", err)
+	}
+
+	// 2. GoldenRestOnly (Library 1: golden-test2)
+	restModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test2.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test2.proto: %v", err)
+	}
+	if err := Generate(ctx, restModel, outdir, cfg.Libraries[1]); err != nil {
+		t.Fatalf("Generate(lib1) failed: %v", err)
+	}
+
+	// 3. RequestIdService (Library 2: test-request-id)
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	// 4. DeprecatedService (Library 3: test-deprecated)
+	depModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test_deprecated.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_deprecated.proto: %v", err)
+	}
+	if err := Generate(ctx, depModel, outdir, cfg.Libraries[3]); err != nil {
+		t.Fatalf("Generate(lib3) failed: %v", err)
+	}
+
+	goldenDir := filepath.Join("testdata", "golden")
+
+	var wantRelPaths []string
+	err = filepath.WalkDir(goldenDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
+			rel, err := filepath.Rel(goldenDir, p)
+			if err != nil {
+				return err
+			}
+			wantRelPaths = append(wantRelPaths, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking goldenDir: %v", err)
+	}
+	slices.Sort(wantRelPaths)
+
+	if len(wantRelPaths) != 188 {
+		t.Fatalf("expected 188 files in golden, found %d", len(wantRelPaths))
+	}
+
+	// Format emitted files with clang-format -i
+	formatter := "clang-format"
+	if _, err := exec.LookPath(formatter); err == nil {
+		var emittedFiles []string
+		for _, rel := range wantRelPaths {
+			emittedFiles = append(emittedFiles, filepath.Join(goldenRoot, rel))
+		}
+		// Format in chunks if needed, but 188 files easily fit on command line
+		args := append([]string{"-i"}, emittedFiles...)
+		cmd := exec.CommandContext(ctx, formatter, args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("clang-format failed: %v\nOutput: %s", err, output)
+		}
+	} else {
+		t.Logf("clang-format not found on PATH, skipping formatting")
+	}
+
+	var differingFiles []string
+	for _, rel := range wantRelPaths {
+		gotBytes, err := os.ReadFile(filepath.Join(goldenRoot, rel))
+		if err != nil {
+			t.Errorf("failed to read emitted file %s: %v", rel, err)
+			continue
+		}
+		wantBytes, err := os.ReadFile(filepath.Join(goldenDir, rel))
+		if err != nil {
+			t.Errorf("failed to read golden file %s: %v", rel, err)
+			continue
+		}
+
+		if diff := cmp.Diff(string(wantBytes), string(gotBytes)); diff != "" {
+			differingFiles = append(differingFiles, rel)
+			t.Run(rel, func(t *testing.T) {
+				gotPath := filepath.Join(goldenRoot, rel)
+				wantPath := filepath.Join(goldenDir, rel)
+				cmd := exec.Command("diff", "-u", wantPath, gotPath)
+				out, _ := cmd.CombinedOutput()
+				t.Errorf("file %s differs from golden:\n%s", rel, string(out))
+			})
+		}
+	}
+
+	t.Logf("Total golden files: %d, Matching: %d, Differing: %d",
+		len(wantRelPaths), len(wantRelPaths)-len(differingFiles), len(differingFiles))
+	for _, f := range differingFiles {
+		t.Logf("DIFFERING: %s", f)
+	}
+}

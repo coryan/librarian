@@ -201,3 +201,57 @@ func formatMetadataDecoratorSetMetadata(ann *methodAnnotations, contextVar, opti
 
 	return fmt.Sprintf("  SetMetadata(%s, %s);", contextVar, optionsVar)
 }
+
+func formatRestMetadataDecoratorSetMetadata(ann *methodAnnotations, contextVar, optionsVar string) string {
+	if ann == nil {
+		return fmt.Sprintf("  SetMetadata(%s, %s);", contextVar, optionsVar)
+	}
+
+	if ann.Method != nil && ann.Method.HasRouting() {
+		params := parseExplicitRoutingParams(ann.Method)
+		if len(params) > 0 {
+			var b strings.Builder
+			b.WriteString("  std::vector<std::string> params;\n")
+			fmt.Fprintf(&b, "  params.reserve(%d);\n\n", len(params))
+
+			requestType := ann.RequestType
+
+			for _, p := range params {
+				if p.isAllFullMatch() {
+					for i, m := range p.matchers {
+						if i == 0 {
+							fmt.Fprintf(&b, "  if (!%s.empty()) {\n", m.accessor)
+						} else {
+							fmt.Fprintf(&b, " else if (!%s.empty()) {\n", m.accessor)
+						}
+						fmt.Fprintf(&b, "    params.push_back(absl::StrCat(\"%s=\", internal::UrlEncode(%s)));\n", p.name, m.accessor)
+						b.WriteString("  }")
+					}
+					b.WriteString("\n\n")
+				} else {
+					fmt.Fprintf(&b, "  static auto* %s_matcher = []{\n", p.name)
+					fmt.Fprintf(&b, "    return new google::cloud::internal::RoutingMatcher<%s>{\n", requestType)
+					fmt.Fprintf(&b, "      \"%s=\", {\n", p.name)
+					for _, m := range p.matchers {
+						fmt.Fprintf(&b, "      {[](%s const& request) -> std::string const& {\n", requestType)
+						fmt.Fprintf(&b, "        return %s;\n", m.accessor)
+						b.WriteString("      },\n")
+						if m.isFullMatch {
+							b.WriteString("      absl::nullopt},\n")
+						} else {
+							fmt.Fprintf(&b, "      std::regex{%q, std::regex::optimize}},\n", m.pattern)
+						}
+					}
+					b.WriteString("      }};\n")
+					b.WriteString("  }();\n")
+					fmt.Fprintf(&b, "  %s_matcher->AppendParam(request, params);\n\n", p.name)
+				}
+			}
+
+			fmt.Fprintf(&b, "  SetMetadata(%s, %s, params);\n", contextVar, optionsVar)
+			return b.String()
+		}
+	}
+
+	return fmt.Sprintf("  SetMetadata(%s, %s);", contextVar, optionsVar)
+}

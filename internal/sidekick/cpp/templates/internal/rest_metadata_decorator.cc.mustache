@@ -21,7 +21,9 @@
 #include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/api_client_header.h"
 #include "google/cloud/internal/rest_set_metadata.h"
+{{#Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/internal/routing_matcher.h"
+{{/Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/status_or.h"
 #include <memory>
 #include <utility>
@@ -39,10 +41,83 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
           api_client_header.empty()
               ? google::cloud::internal::GeneratedLibClientHeader()
               : std::move(api_client_header)) {}
+{{#Codec.RestMethods}}
+{{#IsLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.RestMetadataDecoratorClassName}}::Async{{Name}}(
+      CompletionQueue& cq,
+      std::unique_ptr<rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      {{RequestType}} const& request) {
+{{{RestAsyncSetMetadata}}}
+  return child_->Async{{Name}}(
+      cq, std::move(rest_context), std::move(options), request);
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.RestMetadataDecoratorClassName}}::{{Name}}(
+    rest_internal::RestContext& rest_context,
+    Options const& options, {{RequestType}} const& request) {
+{{{RestSyncSetMetadata}}}
+  return child_->{{Name}}(rest_context, options, request);
+}
+{{/IsLRO}}
+{{^IsLRO}}
+
+{{{PlainReturnType}}}
+{{Codec.RestMetadataDecoratorClassName}}::{{Name}}(
+    rest_internal::RestContext& rest_context,
+    Options const& options, {{RequestType}} const& request) {
+{{{RestSyncSetMetadata}}}
+  return child_->{{Name}}(rest_context, options, request);
+}
+{{/IsLRO}}
+{{/Codec.RestMethods}}
+{{#Codec.RestAsyncMethods}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.RestMetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+{{{RestAsyncSetMetadata}}}
+  return child_->Async{{Name}}(
+      cq, std::move(rest_context), std::move(options), request);
+}
+{{/Codec.RestAsyncMethods}}
+{{#Codec.HasGrpcLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.RestMetadataDecoratorClassName}}::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(*rest_context, *options);
+  return child_->AsyncGetOperation(
+      cq, std::move(rest_context), std::move(options), request);
+}
+
+future<Status>
+{{Codec.RestMetadataDecoratorClassName}}::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(*rest_context, *options);
+  return child_->AsyncCancelOperation(
+      cq, std::move(rest_context), std::move(options), request);
+}
+{{/Codec.HasGrpcLRO}}
 
 void {{Codec.RestMetadataDecoratorClassName}}::SetMetadata(
       rest_internal::RestContext& rest_context,
       Options const& options, std::vector<std::string> const& params) {
+{{#Codec.HasApiVersion}}
+  rest_context.AddHeader("x-goog-api-version", "{{Codec.ApiVersion}}");
+{{/Codec.HasApiVersion}}
   google::cloud::rest_internal::SetMetadata(
       rest_context, options, params, api_client_header_);
 }

@@ -124,8 +124,8 @@ future<StatusOr<{{ResponseType}}>>
 }
 {{/IsVoid}}
 {{/Codec.AsyncMethods}}
-
 {{#Codec.HasGrpc}}
+
 std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeConnectionFunctionName}}(
     Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,

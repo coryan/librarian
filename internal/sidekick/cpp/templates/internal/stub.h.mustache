@@ -22,12 +22,9 @@
 {{#Codec.StubHeaderIncludes}}
 #include "{{.}}"
 {{/Codec.StubHeaderIncludes}}
-#include <{{Codec.ProtoGrpcHeaderPath}}>
-{{#Codec.HasGrpcLRO}}
-#include <google/longrunning/operations.grpc.pb.h>
-{{/Codec.HasGrpcLRO}}
-#include <memory>
-#include <utility>
+{{#Codec.StubHeaderSystemIncludes}}
+#include <{{.}}>
+{{/Codec.StubHeaderSystemIncludes}}
 
 namespace google {
 namespace cloud {
@@ -260,19 +257,9 @@ class {{Codec.DefaultStubClassName}} : public {{Codec.StubClassName}} {
 {{/Codec.HasLRO}}
 
  private:
-  std::unique_ptr<{{Codec.GrpcStubType}}::StubInterface> grpc_stub_;
-{{#Codec.HasLocationsMixin}}
-  std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub_;
-{{/Codec.HasLocationsMixin}}
-{{#Codec.HasIamMixin}}
-  std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub_;
-{{/Codec.HasIamMixin}}
-{{#Codec.HasOperationsMixin}}
-  std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub_;
-{{/Codec.HasOperationsMixin}}
-{{#Codec.HasGrpcLRO}}
-  std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub_;
-{{/Codec.HasGrpcLRO}}
+{{#Codec.DefaultStubPrivateMembers}}
+  {{{.}}}
+{{/Codec.DefaultStubPrivateMembers}}
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

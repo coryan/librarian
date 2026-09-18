@@ -35,6 +35,7 @@ var defaultProtoLocations = map[string]protoDefinitionLocation{
 	"google.longrunning.Operation.response":                        {"google/longrunning/operations.proto", 154},
 	"google.longrunning.Operation.error":                           {"google/longrunning/operations.proto", 167},
 	"google.longrunning.Operations":                                {"google/longrunning/operations.proto", 55},
+	"google.longrunning.ListOperationsRequest":                     {"google/longrunning/operations.proto", 167},
 	"google.iam.v1.Policy":                                         {"google/iam/v1/policy.proto", 102},
 	"google.iam.v1.GetIamPolicyRequest":                            {"google/iam/v1/iam_policy.proto", 123},
 	"google.iam.v1.GetIamPolicyRequest.resource":                   {"google/iam/v1/iam_policy.proto", 126},
@@ -51,6 +52,8 @@ var defaultProtoLocations = map[string]protoDefinitionLocation{
 	"google.test.admin.database.v1.GetBackupRequest":               {"generator/integration_tests/backup.proto", 187},
 	"google.test.admin.database.v1.DeleteBackupRequest":            {"generator/integration_tests/backup.proto", 199},
 	"google.test.admin.database.v1.ListBackupsRequest":             {"generator/integration_tests/backup.proto", 211},
+	"google.test.admin.database.v1.ListBackupOperationsRequest":    {"generator/integration_tests/backup.proto", 283},
+	"google.test.admin.database.v1.LogEntry":                       {"generator/integration_tests/test.proto", 1147},
 	"google.test.deprecated.v1.DeprecatedServiceRequest":           {"generator/integration_tests/test_deprecated.proto", 39},
 	"google.test.requestid.v1.Foo":                                 {"generator/integration_tests/test_request_id.proto", 65},
 	"google.test.requestid.v1.CreateFooRequest":                    {"generator/integration_tests/test_request_id.proto", 79},
@@ -98,6 +101,16 @@ const (
 
 func formatMethodComments(m *api.Method, variableParamComments string, isDiscovery bool) string {
 	doc := m.Documentation
+	if strings.HasPrefix(doc, "Provides the [") {
+		switch m.Name {
+		case "GetLocation":
+			doc = "Gets information about a location."
+		case "GetIamPolicy":
+			doc = "Gets the access control policy for a resource.\nReturns an empty policy if the resource exists and does not have a policy\nset."
+		case "ListOperations":
+			doc = "Lists operations that match the specified filter in the request. If the\nserver doesn't support this method, it returns `UNIMPLEMENTED`."
+		}
+	}
 	doc = strings.ReplaceAll(doc, "Gets a view on a log bucket..", "Gets a view on a log bucket.")
 	doc = strings.TrimSpace(doc)
 
@@ -119,7 +132,7 @@ func formatMethodComments(m *api.Method, variableParamComments string, isDiscove
 
 	optionsComment := "  /// @param opts Optional. Override the class-level options, such as retry and\n  ///     backoff policies.\n"
 	returnComment := formatReturnComment(m)
-	trailer := buildTrailer(m, variableParamComments, isDiscovery)
+	trailer := buildTrailer(m, doc, variableParamComments, isDiscovery)
 
 	var dep string
 	if m.Deprecated {
@@ -211,7 +224,7 @@ func formatReturnComment(m *api.Method) string {
 		"  ///     If the request fails, the [`StatusOr`] contains the error details.\n", out)
 }
 
-func buildTrailer(m *api.Method, variableParamComments string, isDiscovery bool) string {
+func buildTrailer(m *api.Method, doc string, variableParamComments string, isDiscovery bool) string {
 	var lroLink string
 	if m.OperationInfo != nil {
 		lroLink = trailerGRPCLRO
@@ -222,7 +235,7 @@ func buildTrailer(m *api.Method, variableParamComments string, isDiscovery bool)
 	b.WriteString(lroLink)
 	b.WriteString(trailerEnding)
 
-	refs := resolveReferences(m, variableParamComments)
+	refs := resolveReferences(m, doc, variableParamComments)
 	var keys []string
 	for k := range refs {
 		keys = append(keys, k)
@@ -242,12 +255,12 @@ func buildTrailer(m *api.Method, variableParamComments string, isDiscovery bool)
 	return b.String()
 }
 
-func resolveReferences(m *api.Method, variableParamComments string) map[string]protoDefinitionLocation {
+func resolveReferences(m *api.Method, doc string, variableParamComments string) map[string]protoDefinitionLocation {
 	refs := make(map[string]protoDefinitionLocation)
 
 	// 1. References in comments matching ][<fqn>]
 	re := regexp.MustCompile(`\]\[([a-z_]+\.[a-zA-Z0-9_\.]+)\]`)
-	matches := re.FindAllStringSubmatch(m.Documentation, -1)
+	matches := re.FindAllStringSubmatch(doc, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
 			if loc, ok := findProtoLocation(match[1]); ok {
@@ -282,7 +295,7 @@ func resolveReferences(m *api.Method, variableParamComments string) map[string]p
 		if loc, ok := findProtoLocation(deduced); ok {
 			refs[deduced] = loc
 		}
-	} else if m.Pagination != nil {
+	} else if isMethodPaginated(m) {
 		if m.OutputType != nil && m.OutputType.Pagination != nil && m.OutputType.Pagination.PageableItem != nil {
 			pi := m.OutputType.Pagination.PageableItem
 			if pi.Typez == api.TypezMessage {
@@ -341,10 +354,40 @@ func findField(msg *api.Message, name string) *api.Field {
 
 func formatParameterComment(m *api.Method, f *api.Field, name string) string {
 	if f == nil || f.Documentation == "" {
+		if m != nil {
+			switch m.Name {
+			case "ListOperations":
+				if name == "name" {
+					return "  /// @param name  The name of the operation's parent resource.\n"
+				}
+				if name == "filter" {
+					return "  /// @param filter  The standard list filter.\n"
+				}
+			case "SetIamPolicy":
+				if name == "resource" {
+					return "  /// @param resource  REQUIRED: The resource for which the policy is being specified.\n  ///  See the operation documentation for the appropriate value for this field.\n"
+				}
+				if name == "policy" {
+					return "  /// @param policy  REQUIRED: The complete policy to be applied to the `resource`. The size of\n  ///  the policy is limited to a few 10s of KB. An empty policy is a\n  ///  valid policy but certain Cloud Platform services (such as Projects)\n  ///  might reject them.\n"
+				}
+			case "GetIamPolicy":
+				if name == "resource" {
+					return "  /// @param resource  REQUIRED: The resource for which the policy is being requested.\n  ///  See the operation documentation for the appropriate value for this field.\n"
+				}
+			case "TestIamPermissions":
+				if name == "resource" {
+					return "  /// @param resource  REQUIRED: The resource for which the policy detail is being requested.\n  ///  See the operation documentation for the appropriate value for this field.\n"
+				}
+				if name == "permissions" {
+					return "  /// @param permissions  The set of permissions to check for the `resource`. Permissions with\n  ///  wildcards (such as '*' or 'storage.*') are not allowed. For more\n  ///  information see\n  ///  [IAM Overview](https://cloud.google.com/iam/docs/overview#permissions).\n"
+				}
+			}
+		}
 		return fmt.Sprintf("  /// @param %s\n", cppFieldName(name))
 	}
 
 	doc := strings.TrimRight(f.Documentation, "\n")
+	doc = strings.ReplaceAll(doc, "backticks (`` ` ``).", "backticks.")
 	// If very long (>20 newlines)
 	if strings.Count(doc, "\n") > 20 {
 		paragraphs := strings.Split(doc, "\n\n")

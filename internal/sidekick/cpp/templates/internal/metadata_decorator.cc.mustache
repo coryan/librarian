@@ -65,8 +65,8 @@ std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
 {{#IsBidiStreaming}}
 
 std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-    {{RequestType}},
-    {{ResponseType}}>>
+      {{RequestType}},
+      {{ResponseType}}>>
 {{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
     google::cloud::CompletionQueue const& cq,
     std::shared_ptr<grpc::ClientContext> context,
@@ -135,7 +135,7 @@ std::unique_ptr<google::cloud::internal::StreamingReadRpc<{{{ResponseType}}}>>
 {{#IsStreamingRead}}
 
 std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
-    {{{ResponseType}}}>>
+      {{{ResponseType}}}>>
 {{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
     google::cloud::CompletionQueue const& cq,
     std::shared_ptr<grpc::ClientContext> context,

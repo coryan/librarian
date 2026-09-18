@@ -23,15 +23,18 @@
 #include "{{Codec.IdempotencyPolicyHeaderPath}}"
 #include "{{Codec.OptionsHeaderPath}}"
 #include "{{Codec.RestStubHeaderPath}}"
-{{#Codec.HasRetryTraits}}
 #include "{{Codec.RetryTraitsHeaderPath}}"
-{{/Codec.HasRetryTraits}}
 #include "google/cloud/background_threads.h"
 #include "google/cloud/backoff_policy.h"
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
+{{#Codec.HasPaginatedMethod}}
 #include "google/cloud/stream_range.h"
+{{/Codec.HasPaginatedMethod}}
 #include "google/cloud/version.h"
+{{#Codec.HasGrpcLRO}}
+#include <google/longrunning/operations.pb.h>
+{{/Codec.HasGrpcLRO}}
 #include <memory>
 
 namespace google {
@@ -50,6 +53,38 @@ class {{Codec.RestConnectionImplClassName}}
     Options options);
 
   Options options() override { return options_; }
+{{#Codec.RestMethods}}
+{{#IsPaginated}}
+
+  StreamRange<{{{RangeOutputType}}}>
+  {{Name}}({{RequestType}} request) override;
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsLRO}}
+
+  {{{LroFutureReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+
+  StatusOr<google::longrunning::Operation>
+  {{Name}}(NoAwaitTag,
+      {{RequestType}} const& request) override;
+
+  {{{LroFutureReturnType}}}
+  {{Name}}(
+      google::longrunning::Operation const& operation) override;
+{{/IsLRO}}
+{{^IsLRO}}
+
+  {{{PlainReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+{{/IsLRO}}
+{{/IsPaginated}}
+{{/Codec.RestMethods}}
+{{#Codec.RestAsyncMethods}}
+
+  future<{{{PlainReturnType}}}>
+  Async{{Name}}({{RequestType}} const& request) override;
+{{/Codec.RestAsyncMethods}}
 
  private:
   static std::unique_ptr<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyClassName}}>
@@ -65,12 +100,12 @@ class {{Codec.RestConnectionImplClassName}}
   idempotency_policy(Options const& options) {
     return options.get<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>()->clone();
   }
-{{#Codec.HasLRO}}
+{{#Codec.HasGrpcLRO}}
 
   static std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
     return options.get<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>()->clone();
   }
-{{/Codec.HasLRO}}
+{{/Codec.HasGrpcLRO}}
 
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<{{Codec.InternalNamespace}}::{{Codec.RestStubClassName}}> stub_;

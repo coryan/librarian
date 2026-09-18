@@ -21,6 +21,9 @@
 #include "google/cloud/internal/absl_str_cat_quiet.h"
 #include "google/cloud/internal/rest_stub_helpers.h"
 #include "google/cloud/status_or.h"
+{{#Codec.RestStubCcProtobufIncludes}}
+#include <{{.}}>
+{{/Codec.RestStubCcProtobufIncludes}}
 #include <memory>
 #include <utility>
 
@@ -29,6 +32,23 @@ namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
+{{#Codec.HasGrpcLRO}}
+{{Codec.DefaultRestStubClassName}}::{{Codec.DefaultRestStubClassName}}(Options options)
+    : service_(rest_internal::MakePooledRestClient(
+          options.get<EndpointOption>(), options)),
+      operations_(rest_internal::MakePooledRestClient(
+          options.get<rest_internal::LongrunningEndpointOption>(), options)),
+      options_(std::move(options)) {}
+
+{{Codec.DefaultRestStubClassName}}::{{Codec.DefaultRestStubClassName}}(
+    std::shared_ptr<rest_internal::RestClient> service,
+    std::shared_ptr<rest_internal::RestClient> operations,
+    Options options)
+    : service_(std::move(service)),
+      operations_(std::move(operations)),
+      options_(std::move(options)) {}
+{{/Codec.HasGrpcLRO}}
+{{^Codec.HasGrpcLRO}}
 {{Codec.DefaultRestStubClassName}}::{{Codec.DefaultRestStubClassName}}(Options options)
     : service_(rest_internal::MakePooledRestClient(
           options.get<EndpointOption>(), options)),
@@ -39,6 +59,179 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
     Options options)
     : service_(std::move(service)),
       options_(std::move(options)) {}
+{{/Codec.HasGrpcLRO}}
+{{#Codec.RestMethods}}
+{{#IsLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.DefaultRestStubClassName}}::Async{{Name}}(
+      CompletionQueue& cq,
+      std::unique_ptr<rest_internal::RestContext> rest_context,
+      google::cloud::internal::ImmutableOptions options,
+      {{RequestType}} const& request) {
+  promise<StatusOr<google::longrunning::Operation>> p;
+  future<StatusOr<google::longrunning::Operation>> f = p.get_future();
+  std::thread t{[](
+          auto p, auto service, auto request, auto rest_context, auto options) {
+      std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+      p.set_value(rest_internal::{{RestHttpVerb}}<google::longrunning::Operation>(
+          *service, *rest_context, {{RestRequestResource}},
+          false,
+          {{{RestPathAsync}}}, std::move(query_params)));
+    },
+    std::move(p), service_, request, std::move(rest_context),
+    std::move(options)};
+  return f.then([t = std::move(t), cq](auto f) mutable {
+    cq.RunAsync([t = std::move(t)]() mutable {
+      t.join();
+    });
+    return f.get();
+  });
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.DefaultRestStubClassName}}::{{Name}}(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options,
+      {{RequestType}} const& request) {
+  std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+  return rest_internal::{{RestHttpVerb}}<google::longrunning::Operation>(
+      *service_, rest_context, {{RestRequestResource}}, false,
+      {{{RestPathSync}}}, std::move(query_params));
+}
+{{/IsLRO}}
+{{^IsLRO}}
+{{#IsVoid}}
+
+Status {{Codec.DefaultRestStubClassName}}::{{Name}}(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options,
+      {{RequestType}} const& request) {
+  std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+  return rest_internal::{{RestHttpVerb}}<google::cloud::rest_internal::EmptyResponseType>(
+      *service_, rest_context, {{RestRequestResource}}, false,
+      {{{RestPathSync}}}, std::move(query_params));
+}
+{{/IsVoid}}
+{{^IsVoid}}
+
+StatusOr<{{ResponseType}}>
+{{Codec.DefaultRestStubClassName}}::{{Name}}(
+      google::cloud::rest_internal::RestContext& rest_context,
+      Options const& options,
+      {{RequestType}} const& request) {
+  std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+  return rest_internal::{{RestHttpVerb}}<{{ResponseType}}>(
+      *service_, rest_context, {{RestRequestResource}}, false,
+      {{{RestPathSync}}}, std::move(query_params));
+}
+{{/IsVoid}}
+{{/IsLRO}}
+{{/Codec.RestMethods}}
+{{#Codec.RestAsyncMethods}}
+{{#IsVoid}}
+
+future<Status>
+{{Codec.DefaultRestStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+  promise<StatusOr<google::protobuf::Empty>> p;
+  future<StatusOr<google::protobuf::Empty>> f = p.get_future();
+  std::thread t{[](
+          auto p, auto service, auto request, auto rest_context, auto options) {
+      std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+      p.set_value(rest_internal::{{RestHttpVerb}}<google::protobuf::Empty>(
+          *service, *rest_context, {{RestRequestResource}}, false,
+          {{{RestPathAsync}}}, std::move(query_params)));
+    },
+    std::move(p), service_, request, std::move(rest_context),
+    std::move(options)};
+  return f.then([t = std::move(t), cq](auto f) mutable {
+    cq.RunAsync([t = std::move(t)]() mutable {
+      t.join();
+    });
+    return f.get().status();
+  });
+}
+{{/IsVoid}}
+{{^IsVoid}}
+
+future<StatusOr<{{ResponseType}}>>
+{{Codec.DefaultRestStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+  promise<StatusOr<{{ResponseType}}>> p;
+  future<StatusOr<{{ResponseType}}>> f = p.get_future();
+  std::thread t{[](
+          auto p, auto service, auto request, auto rest_context, auto options) {
+      std::vector<std::pair<std::string, std::string>> query_params;{{{RestQueryParamsCode}}}
+      p.set_value(rest_internal::{{RestHttpVerb}}<{{ResponseType}}>(
+          *service, *rest_context, {{RestRequestResource}}, false,
+          {{{RestPathAsync}}}, std::move(query_params)));
+    },
+    std::move(p), service_, request, std::move(rest_context),
+    std::move(options)};
+  return f.then([t = std::move(t), cq](auto f) mutable {
+    cq.RunAsync([t = std::move(t)]() mutable {
+      t.join();
+    });
+    return f.get();
+  });
+}
+{{/IsVoid}}
+{{/Codec.RestAsyncMethods}}
+{{#Codec.HasGrpcLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.DefaultRestStubClassName}}::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::GetOperationRequest const& request) {
+  promise<StatusOr<google::longrunning::Operation>> p;
+  future<StatusOr<google::longrunning::Operation>> f = p.get_future();
+  std::thread t{[](auto p, auto operations, auto request, auto rest_context, auto options) {
+      p.set_value(rest_internal::Get<google::longrunning::Operation>(
+          *operations, *rest_context, request, false,
+          absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name())));
+    },
+    std::move(p), operations_, request, std::move(rest_context),
+    std::move(options)};
+  return f.then([t = std::move(t), cq](auto f) mutable {
+    cq.RunAsync([t = std::move(t)]() mutable {
+      t.join();
+    });
+    return f.get();
+  });
+}
+
+future<Status>
+{{Codec.DefaultRestStubClassName}}::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::unique_ptr<rest_internal::RestContext> rest_context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::CancelOperationRequest const& request) {
+  promise<StatusOr<google::protobuf::Empty>> p;
+  future<StatusOr<google::protobuf::Empty>> f = p.get_future();
+  std::thread t{[](auto p, auto operations, auto request, auto rest_context, auto options) {
+      p.set_value(rest_internal::Post<google::protobuf::Empty>(
+          *operations, *rest_context, request, false,
+          absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name(), ":cancel")));
+    },
+    std::move(p), operations_, request, std::move(rest_context),
+    std::move(options)};
+  return f.then([t = std::move(t), cq](auto f) mutable {
+    cq.RunAsync([t = std::move(t)]() mutable {
+      t.join();
+    });
+    return f.get().status();
+  });
+}
+{{/Codec.HasGrpcLRO}}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}
