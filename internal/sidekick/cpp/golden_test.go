@@ -632,3 +632,236 @@ func TestGoldenServices_Layer32_IncludesAndGuards(t *testing.T) {
 		}
 	})
 }
+
+func TestGoldenServices_Layer33_Namespaces(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	sinkModel, err := loadTestModel(t, protosDir, googleapisDir, "test.yaml", "test.proto", "backup.proto", "common.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test.proto: %v", err)
+	}
+	if err := Generate(ctx, sinkModel, outdir, cfg.Libraries[0]); err != nil {
+		t.Fatalf("Generate(lib0) failed: %v", err)
+	}
+
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	readFile := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", path, err)
+		}
+		return string(data)
+	}
+
+	goldenDir := filepath.Join("testdata", "golden")
+
+	t.Run("Standard Public Namespaces", func(t *testing.T) {
+		publicFiles := []string{
+			filepath.Join("v1", "golden_kitchen_sink_client.h"),
+			filepath.Join("v1", "golden_kitchen_sink_client.cc"),
+			filepath.Join("v1", "golden_kitchen_sink_connection.h"),
+			filepath.Join("v1", "golden_kitchen_sink_connection.cc"),
+			filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.h"),
+			filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.cc"),
+			filepath.Join("v1", "golden_kitchen_sink_options.h"),
+			filepath.Join("v1", "golden_kitchen_sink_rest_connection.h"),
+			filepath.Join("v1", "golden_kitchen_sink_rest_connection.cc"),
+			filepath.Join("v1", "request_id_client.h"),
+		}
+
+		for _, rel := range publicFiles {
+			gotContent := readFile(filepath.Join(goldenRoot, rel))
+			wantContent := readFile(filepath.Join(goldenDir, rel))
+
+			gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+				t.Errorf("%s namespace opening mismatch (-want +got):\n%s", rel, diff)
+			}
+
+			gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+				t.Errorf("%s namespace closing mismatch (-want +got):\n%s", rel, diff)
+			}
+		}
+	})
+
+	t.Run("Internal Namespaces", func(t *testing.T) {
+		internalFiles := []string{
+			filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_option_defaults.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_option_defaults.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_connection_impl.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_connection_impl.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_logging_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_logging_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_metadata_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_metadata_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_stub.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_stub.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_stub_factory.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_rest_stub_factory.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_retry_traits.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_stub.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_stub.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_stub_factory.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_stub_factory.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.cc"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.h"),
+			filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.cc"),
+		}
+
+		for _, rel := range internalFiles {
+			gotContent := readFile(filepath.Join(goldenRoot, rel))
+			wantContent := readFile(filepath.Join(goldenDir, rel))
+
+			gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+				t.Errorf("%s namespace opening mismatch (-want +got):\n%s", rel, diff)
+			}
+
+			gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+				t.Errorf("%s namespace closing mismatch (-want +got):\n%s", rel, diff)
+			}
+		}
+	})
+
+	t.Run("Mock Namespaces", func(t *testing.T) {
+		mockFiles := []string{
+			filepath.Join("v1", "mocks", "mock_golden_kitchen_sink_connection.h"),
+		}
+
+		for _, rel := range mockFiles {
+			gotContent := readFile(filepath.Join(goldenRoot, rel))
+			wantContent := readFile(filepath.Join(goldenDir, rel))
+
+			gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+				t.Errorf("%s namespace opening mismatch (-want +got):\n%s", rel, diff)
+			}
+
+			gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+				t.Errorf("%s namespace closing mismatch (-want +got):\n%s", rel, diff)
+			}
+		}
+	})
+
+	t.Run("Forwarding Client Namespaces", func(t *testing.T) {
+		rel := "golden_kitchen_sink_client.h"
+		gotContent := readFile(filepath.Join(goldenRoot, rel))
+		wantContent := readFile(filepath.Join(goldenDir, rel))
+
+		gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+		wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+		if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+			t.Errorf("%s forwarding client namespace opening mismatch (-want +got):\n%s", rel, diff)
+		}
+
+		gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+		wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+		if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+			t.Errorf("%s forwarding client namespace closing mismatch (-want +got):\n%s", rel, diff)
+		}
+	})
+
+	t.Run("Forwarding Mock Namespaces", func(t *testing.T) {
+		rel := filepath.Join("mocks", "mock_golden_kitchen_sink_connection.h")
+		gotContent := readFile(filepath.Join(goldenRoot, rel))
+		wantContent := readFile(filepath.Join(goldenDir, rel))
+
+		gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+		wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+		if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+			t.Errorf("%s forwarding mock namespace opening mismatch (-want +got):\n%s", rel, diff)
+		}
+
+		gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+		wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+		if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+			t.Errorf("%s forwarding mock namespace closing mismatch (-want +got):\n%s", rel, diff)
+		}
+	})
+
+	t.Run("Forwarding Connection Namespaces", func(t *testing.T) {
+		forwardingFiles := []string{
+			"golden_kitchen_sink_connection.h",
+			"golden_kitchen_sink_connection_idempotency_policy.h",
+			"golden_kitchen_sink_options.h",
+		}
+
+		for _, rel := range forwardingFiles {
+			gotContent := readFile(filepath.Join(goldenRoot, rel))
+			wantContent := readFile(filepath.Join(goldenDir, rel))
+
+			gotOpen := extractBlock(t, gotContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			wantOpen := extractBlock(t, wantContent, "namespace google {\nnamespace cloud {\n", "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN\n")
+			if diff := cmp.Diff(wantOpen, gotOpen); diff != "" {
+				t.Errorf("%s forwarding namespace opening mismatch (-want +got):\n%s", rel, diff)
+			}
+
+			gotClose := extractBlock(t, gotContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			wantClose := extractBlock(t, wantContent, "GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END\n", "}  // namespace google\n")
+			if diff := cmp.Diff(wantClose, gotClose); diff != "" {
+				t.Errorf("%s forwarding namespace closing mismatch (-want +got):\n%s", rel, diff)
+			}
+		}
+	})
+
+	t.Run("Sources CC Has No Namespaces", func(t *testing.T) {
+		rel := filepath.Join("v1", "internal", "golden_kitchen_sink_sources.cc")
+		gotContent := readFile(filepath.Join(goldenRoot, rel))
+		wantContent := readFile(filepath.Join(goldenDir, rel))
+
+		if strings.Contains(gotContent, "namespace") {
+			t.Errorf("%s unexpectedly contains 'namespace'", rel)
+		}
+		if strings.Contains(wantContent, "namespace") {
+			t.Errorf("%s (golden reference) unexpectedly contains 'namespace'", rel)
+		}
+	})
+}
