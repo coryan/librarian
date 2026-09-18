@@ -215,62 +215,33 @@ func TestServiceAnnotationsAPIVersions(t *testing.T) {
 }
 
 func TestServiceAnnotationsLROTypes(t *testing.T) {
-	create := &api.Message{
-		Name:    "CreateResourceRequest",
-		ID:      ".test.CreateResourceRequest",
-		Package: "test",
-	}
-	delete := &api.Message{
-		Name:    "DeleteResourceRequest",
-		ID:      ".test.DeleteResourceRequest",
-		Package: "test",
-	}
-	resource := &api.Message{
-		Name:    "Resource",
-		ID:      ".test.Resource",
-		Package: "test",
-	}
-	metadata := &api.Message{
-		Name:    "OperationMetadata",
-		ID:      ".test.OperationMetadata",
-		Package: "test",
-	}
-	operation := &api.Message{
-		Name:    "Operation",
-		ID:      ".google.longrunning.Operation",
-		Package: "google.longrunning",
-	}
-	service := &api.Service{
-		Name:    "LroService",
-		ID:      ".test.LroService",
-		Package: "test",
-		Methods: []*api.Method{
-			{
-				Name:         "CreateResource",
-				ID:           ".test.LroService.CreateResource",
-				PathInfo:     &api.PathInfo{},
-				InputType:    create,
-				InputTypeID:  ".test.CreateResourceRequest",
-				OutputTypeID: ".google.longrunning.Operation",
-				OperationInfo: &api.OperationInfo{
-					MetadataTypeID: ".test.OperationMetadata",
-					ResponseTypeID: ".test.Resource",
-				},
-			},
-			{
-				Name:         "DeleteResource",
-				ID:           ".test.LroService.DeleteResource",
-				PathInfo:     &api.PathInfo{},
-				InputType:    delete,
-				InputTypeID:  ".test.DeleteResourceRequest",
-				OutputTypeID: ".google.longrunning.Operation",
-				OperationInfo: &api.OperationInfo{
-					MetadataTypeID: ".test.OperationMetadata",
-					ResponseTypeID: ".google.protobuf.Empty",
-				},
-			},
-		},
-	}
+	create := api.NewTestMessage("CreateResourceRequest")
+	delete := api.NewTestMessage("DeleteResourceRequest")
+	resource := api.NewTestMessage("Resource")
+	metadata := api.NewTestMessage("OperationMetadata")
+	operation := api.NewTestMessage("Operation").WithPackage("google.longrunning")
+
+	methodCreate := api.NewTestMethod("CreateResource").
+		WithInput(create).
+		WithOperationInfo(&api.OperationInfo{
+			MetadataTypeID: ".test.OperationMetadata",
+			ResponseTypeID: ".test.Resource",
+		})
+	methodCreate.PathInfo = &api.PathInfo{}
+	methodCreate.OutputTypeID = ".google.longrunning.Operation"
+
+	methodDelete := api.NewTestMethod("DeleteResource").
+		WithInput(delete).
+		WithOperationInfo(&api.OperationInfo{
+			MetadataTypeID: ".test.OperationMetadata",
+			ResponseTypeID: ".google.protobuf.Empty",
+		})
+	methodDelete.PathInfo = &api.PathInfo{}
+	methodDelete.OutputTypeID = ".google.longrunning.Operation"
+
+	service := api.NewTestService("LroService").
+		WithMethods(methodCreate, methodDelete)
+
 	model := api.NewTestAPI([]*api.Message{create, delete, resource, metadata, operation}, []*api.Enum{}, []*api.Service{service})
 	err := api.CrossReference(model)
 	if err != nil {
@@ -413,87 +384,41 @@ func TestServiceAnnotations(t *testing.T) {
 }
 
 func TestServiceAnnotationsStreaming(t *testing.T) {
-	msg := &api.Message{
-		Name:    "Request",
-		ID:      ".test.v1.Request",
-		Package: "test.v1",
-	}
-	bidiService := &api.Service{
-		Name:    "BidiService",
-		ID:      ".test.v1.BidiService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Chat",
-				ID:                  ".test.v1.BidiService.Chat",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: true,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-			{
-				Name:                "Unary",
-				ID:                  ".test.v1.BidiService.Unary",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: false,
-				ServerSideStreaming: false,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
-	serverService := &api.Service{
-		Name:    "ServerService",
-		ID:      ".test.v1.ServerService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Expand",
-				ID:                  ".test.v1.ServerService.Expand",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: false,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-			{
-				Name:                "Unary",
-				ID:                  ".test.v1.ServerService.Unary",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: false,
-				ServerSideStreaming: false,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
-	unaryService := &api.Service{
-		Name:    "UnaryService",
-		ID:      ".test.v1.UnaryService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Get",
-				ID:                  ".test.v1.UnaryService.Get",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: false,
-				ServerSideStreaming: false,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
+	msg := api.NewTestMessage("Request").WithPackage("test.v1")
+
+	bidiChat := api.NewTestMethod("Chat").
+		WithInput(msg).
+		WithOutput(msg).
+		WithBidiStreaming()
+	bidiChat.PathInfo = &api.PathInfo{}
+	bidiUnary := api.NewTestMethod("Unary").
+		WithInput(msg).
+		WithOutput(msg)
+	bidiUnary.PathInfo = &api.PathInfo{}
+	bidiService := api.NewTestService("BidiService").
+		WithPackage("test.v1").
+		WithMethods(bidiChat, bidiUnary)
+
+	serverExpand := api.NewTestMethod("Expand").
+		WithInput(msg).
+		WithOutput(msg).
+		WithServerSideStreaming()
+	serverExpand.PathInfo = &api.PathInfo{}
+	serverUnary := api.NewTestMethod("Unary").
+		WithInput(msg).
+		WithOutput(msg)
+	serverUnary.PathInfo = &api.PathInfo{}
+	serverService := api.NewTestService("ServerService").
+		WithPackage("test.v1").
+		WithMethods(serverExpand, serverUnary)
+
+	unaryGet := api.NewTestMethod("Get").
+		WithInput(msg).
+		WithOutput(msg)
+	unaryGet.PathInfo = &api.PathInfo{}
+	unaryService := api.NewTestService("UnaryService").
+		WithPackage("test.v1").
+		WithMethods(unaryGet)
 
 	for _, test := range []struct {
 		name          string

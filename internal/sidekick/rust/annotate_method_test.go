@@ -190,87 +190,52 @@ func TestAnnotateMethodInternalBuilders(t *testing.T) {
 
 func annotateMethodModel(t *testing.T) *api.API {
 	t.Helper()
-	request := &api.Message{
-		Name:    "Request",
-		Package: "test.v1",
-		ID:      ".test.v1.Request",
-		Fields: []*api.Field{
-			{Name: "project", ID: ".test.v1.Request.project", Typez: api.TypezString},
-			{Name: "zone", ID: ".test.v1.Request.zone", Typez: api.TypezString},
-			{Name: "type", ID: ".test.v1.Request.type", Typez: api.TypezString},
-			{Name: "name", ID: ".test.v1.Request.name", Typez: api.TypezString},
-			{Name: "location", ID: ".test.v1.Request.location", Typez: api.TypezString},
-			{Name: "cluster", ID: ".test.v1.Request.cluster", Typez: api.TypezString},
-		},
-	}
-	response := &api.Message{
-		Name:    "Response",
-		Package: "test.v1",
-		ID:      ".test.v1.Response",
-	}
-	methodMove := &api.Method{
-		Name:         "move",
-		ID:           ".test.v1.ResourceService.move",
-		InputType:    request,
-		InputTypeID:  ".test.v1.Request",
-		OutputTypeID: ".test.v1.Response",
-		PathInfo: &api.PathInfo{
-			Bindings: []*api.PathBinding{
-				{
-					Verb:         "POST",
-					PathTemplate: &api.PathTemplate{},
-				},
-			},
-		},
-	}
-	methodDelete := &api.Method{
-		Name:         "Delete",
-		ID:           ".test.v1.ResourceService.Delete",
-		InputType:    request,
-		InputTypeID:  ".test.v1.Request",
-		OutputTypeID: ".google.protobuf.Empty",
-		ReturnsEmpty: true,
-		PathInfo: &api.PathInfo{
-			Bindings: []*api.PathBinding{
-				{
-					Verb: "DELETE",
-					PathTemplate: (&api.PathTemplate{}).
-						WithLiteral("projects").
-						WithVariableNamed("project").
-						WithLiteral("zones").
-						WithVariableNamed("zone").
-						// This is unlikely, but want to test variables that
-						// are reserved words.
-						WithLiteral("types").
-						WithVariableNamed("type"),
-				},
-			},
-		},
-		DiscoveryLro: &api.DiscoveryLro{
+	request := api.NewTestMessage("Request").
+		WithPackage("test.v1").
+		WithFields(
+			api.NewTestField("project").WithType(api.TypezString),
+			api.NewTestField("zone").WithType(api.TypezString),
+			api.NewTestField("type").WithType(api.TypezString),
+			api.NewTestField("name").WithType(api.TypezString),
+			api.NewTestField("location").WithType(api.TypezString),
+			api.NewTestField("cluster").WithType(api.TypezString),
+		)
+	response := api.NewTestMessage("Response").
+		WithPackage("test.v1")
+
+	methodMove := api.NewTestMethod("move").
+		WithInput(request).
+		WithOutput(response).
+		WithVerb("POST").
+		WithPathTemplate(&api.PathTemplate{})
+
+	methodDelete := api.NewTestMethod("Delete").
+		WithInput(request).
+		WithVerb("DELETE").
+		WithPathTemplate((&api.PathTemplate{}).
+			WithLiteral("projects").
+			WithVariableNamed("project").
+			WithLiteral("zones").
+			WithVariableNamed("zone").
+			// This is unlikely, but want to test variables that
+			// are reserved words.
+			WithLiteral("types").
+			WithVariableNamed("type")).
+		WithDiscoveryLro(&api.DiscoveryLro{
 			PollingPathParameters: []string{"project", "zone", "type"},
-		},
-	}
-	methodSelf := &api.Method{
-		Name:         "Self",
-		ID:           ".test.v1.ResourceService.Self",
-		InputType:    request,
-		InputTypeID:  ".test.v1.Request",
-		OutputTypeID: ".test.v1.Response",
-		PathInfo: &api.PathInfo{
-			Bindings: []*api.PathBinding{
-				{
-					Verb:         "GET",
-					PathTemplate: &api.PathTemplate{},
-				},
-			},
-		},
-	}
-	service := &api.Service{
-		Name:    "ResourceService",
-		ID:      ".test.v1.ResourceService",
-		Package: "test.v1",
-		Methods: []*api.Method{methodMove, methodDelete, methodSelf},
-	}
+		})
+	methodDelete.ReturnsEmpty = true
+	methodDelete.OutputTypeID = ".google.protobuf.Empty"
+
+	methodSelf := api.NewTestMethod("Self").
+		WithInput(request).
+		WithOutput(response).
+		WithVerb("GET").
+		WithPathTemplate(&api.PathTemplate{})
+
+	service := api.NewTestService("ResourceService").
+		WithPackage("test.v1").
+		WithMethods(methodMove, methodDelete, methodSelf)
 
 	model := api.NewTestAPI(
 		[]*api.Message{request, response},
@@ -439,13 +404,8 @@ func TestFormatResourceNameTemplateFromPath(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Basic",
-			method: &api.Method{
-				Model: &api.API{Name: "test"},
-				Service: &api.Service{
-					DefaultHost: "test.googleapis.com",
-				},
-			},
+			name:   "Basic",
+			method: api.NewTestMethod("method"),
 			binding: &api.PathBinding{
 				TargetResource: &api.TargetResource{
 					Template: api.ParseTemplateForTest("//test.googleapis.com/projects/{project}/zones/{zone}"),
@@ -454,11 +414,8 @@ func TestFormatResourceNameTemplateFromPath(t *testing.T) {
 			want: "//test.googleapis.com/projects/{}/zones/{}",
 		},
 		{
-			name: "With Extended Field Path",
-			method: &api.Method{
-				Model:   &api.API{Name: "test"},
-				Service: &api.Service{},
-			},
+			name:   "With Extended Field Path",
+			method: api.NewTestMethod("method"),
 			binding: &api.PathBinding{
 				TargetResource: &api.TargetResource{
 					Template: api.ParseTemplateForTest("//test.googleapis.com/items/{item.id}"),
@@ -467,13 +424,8 @@ func TestFormatResourceNameTemplateFromPath(t *testing.T) {
 			want: "//test.googleapis.com/items/{}",
 		},
 		{
-			name: "Discovery API Compute V1 Example",
-			method: &api.Method{
-				Model: &api.API{Name: "compute"},
-				Service: &api.Service{
-					DefaultHost: "compute.googleapis.com",
-				},
-			},
+			name:   "Discovery API Compute V1 Example",
+			method: api.NewTestMethod("method"),
 			binding: &api.PathBinding{
 				PathTemplate: (&api.PathTemplate{}).
 					WithLiteral("compute").
@@ -490,11 +442,8 @@ func TestFormatResourceNameTemplateFromPath(t *testing.T) {
 			want: "//compute.googleapis.com/projects/{}/zones/{}",
 		},
 		{
-			name: "Missing TargetResource",
-			method: &api.Method{
-				ID:    "test.method",
-				Model: &api.API{Name: "test"},
-			},
+			name:    "Missing TargetResource",
+			method:  api.NewTestMethod("method"),
 			binding: &api.PathBinding{},
 			wantErr: true,
 		},
@@ -512,27 +461,18 @@ func TestFormatResourceNameTemplateFromPath(t *testing.T) {
 }
 
 func TestAnnotateSampleInfo(t *testing.T) {
-	field := &api.Field{
-		Name:  "name",
-		ID:    ".test.v1.Message.name",
-		Typez: api.TypezString,
-		ResourceNamePattern: &api.ResourceNamePattern{
-			Segments: []api.ResourceNameSegment{
-				{Literal: "projects"},
-				{Variable: "project"},
-			},
+	field := api.NewTestField("name").
+		WithType(api.TypezString)
+	field.ResourceNamePattern = &api.ResourceNamePattern{
+		Segments: []api.ResourceNameSegment{
+			{Literal: "projects"},
+			{Variable: "project"},
 		},
 	}
-	message := &api.Message{
-		Name:    "TestMessage",
-		Package: "test.v1",
-		ID:      ".test.v1.TestMessage",
-		Fields:  []*api.Field{field},
-	}
-	method := &api.Method{
-		Name: "TestMethod",
-		ID:   ".test.v1.Service.TestMethod",
-	}
+	message := api.NewTestMessage("TestMessage").
+		WithPackage("test.v1").
+		WithFields(field)
+	method := api.NewTestMethod("TestMethod")
 	si := &api.SampleInfo{
 		ResourceNameField: field,
 	}

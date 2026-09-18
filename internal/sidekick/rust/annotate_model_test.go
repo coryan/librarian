@@ -314,17 +314,12 @@ func TestQuickstartServiceAnnotation(t *testing.T) {
 		model := newTestAnnotateModelAPI()
 
 		// Create a service that has no methods with bindings, so it will be filtered out.
-		filteredService := &api.Service{
-			Name:    "FilteredService",
-			ID:      "..FilteredService",
-			Package: "test.v1",
-			Methods: []*api.Method{
-				{
-					Name: "noBindings",
-					ID:   "..FilteredService.noBindings",
-				},
-			},
-		}
+		noBindingsMethod := api.NewTestMethod("noBindings")
+		noBindingsMethod.PathInfo = nil
+		filteredService := api.NewTestService("FilteredService").
+			WithPackage("test.v1")
+		filteredService.ID = "..FilteredService"
+		filteredService.WithMethods(noBindingsMethod)
 		model.Services = append(model.Services, filteredService)
 		for _, s := range model.Services {
 			s.Model = model
@@ -383,46 +378,26 @@ func TestQuickstartServiceAnnotation(t *testing.T) {
 }
 
 func newTestAnnotateModelAPI() *api.API {
-	service0 := &api.Service{
-		Name: "Service0",
-		ID:   "..Service0",
-		Methods: []*api.Method{
-			{
-				Name:         "get",
-				ID:           "..Service0.get",
-				InputTypeID:  ".google.protobuf.Empty",
-				OutputTypeID: ".google.protobuf.Empty",
-				PathInfo: &api.PathInfo{
-					Bindings: []*api.PathBinding{
-						{
-							Verb:         "GET",
-							PathTemplate: (&api.PathTemplate{}).WithLiteral("resource"),
-						},
-					},
-				},
-			},
-		},
-	}
-	service1 := &api.Service{
-		Name: "Service1",
-		ID:   "..Service1",
-		Methods: []*api.Method{
-			{
-				Name:         "get",
-				ID:           "..Service1.get",
-				InputTypeID:  ".google.protobuf.Empty",
-				OutputTypeID: ".google.protobuf.Empty",
-				PathInfo: &api.PathInfo{
-					Bindings: []*api.PathBinding{
-						{
-							Verb:         "GET",
-							PathTemplate: (&api.PathTemplate{}).WithLiteral("resource"),
-						},
-					},
-				},
-			},
-		},
-	}
+	method0 := api.NewTestMethod("get").
+		WithVerb("GET").
+		WithPathTemplate((&api.PathTemplate{}).WithLiteral("resource"))
+	method0.InputTypeID = ".google.protobuf.Empty"
+	method0.OutputTypeID = ".google.protobuf.Empty"
+
+	service0 := api.NewTestService("Service0")
+	service0.ID = "..Service0"
+	service0.WithMethods(method0)
+
+	method1 := api.NewTestMethod("get").
+		WithVerb("GET").
+		WithPathTemplate((&api.PathTemplate{}).WithLiteral("resource"))
+	method1.InputTypeID = ".google.protobuf.Empty"
+	method1.OutputTypeID = ".google.protobuf.Empty"
+
+	service1 := api.NewTestService("Service1")
+	service1.ID = "..Service1"
+	service1.WithMethods(method1)
+
 	model := api.NewTestAPI(
 		[]*api.Message{},
 		[]*api.Enum{},
@@ -434,7 +409,7 @@ func newTestAnnotateModelAPI() *api.API {
 func TestPackageNames(t *testing.T) {
 	model := api.NewTestAPI(
 		[]*api.Message{}, []*api.Enum{},
-		[]*api.Service{{Name: "Workflows", Package: "google.cloud.workflows.v1"}})
+		[]*api.Service{api.NewTestService("Workflows").WithPackage("google.cloud.workflows.v1")})
 	err := api.CrossReference(model)
 	if err != nil {
 		t.Fatal(err)
@@ -558,24 +533,13 @@ func TestAnnotateModelWithLroStubOptions(t *testing.T) {
 }
 
 func TestRoutingRequired(t *testing.T) {
-	message := &api.Message{
-		Name:    "Message",
-		ID:      ".test.Message",
-		Package: "test",
-	}
-	method := &api.Method{
-		Name:         "DoFoo",
-		ID:           ".test.Service.DoFoo",
-		InputTypeID:  ".test.Message",
-		OutputTypeID: ".test.Message",
-		PathInfo:     &api.PathInfo{},
-	}
-	service := &api.Service{
-		Name:    "FooService",
-		ID:      ".test.FooService",
-		Package: "test",
-		Methods: []*api.Method{method},
-	}
+	message := api.NewTestMessage("Message")
+	method := api.NewTestMethod("DoFoo").
+		WithInput(message).
+		WithOutput(message)
+	method.PathInfo = &api.PathInfo{}
+	service := api.NewTestService("FooService").
+		WithMethods(method)
 	model := api.NewTestAPI([]*api.Message{message},
 		[]*api.Enum{},
 		[]*api.Service{service})
@@ -616,90 +580,47 @@ func TestGenerateSetterSamples(t *testing.T) {
 }
 
 func TestModelAnnotationsHasStreaming(t *testing.T) {
-	msg := &api.Message{
-		Name:    "Request",
-		ID:      ".test.v1.Request",
-		Package: "test.v1",
-	}
-	bidiService := &api.Service{
-		Name:    "BidiService",
-		ID:      ".test.v1.BidiService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Chat",
-				ID:                  ".test.v1.BidiService.Chat",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: true,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
-	unaryService := &api.Service{
-		Name:    "UnaryService",
-		ID:      ".test.v1.UnaryService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:         "Get",
-				ID:           ".test.v1.UnaryService.Get",
-				InputTypeID:  msg.ID,
-				OutputTypeID: msg.ID,
-				InputType:    msg,
-				OutputType:   msg,
-				PathInfo:     &api.PathInfo{},
-			},
-		},
-	}
-	serverStreamingService := &api.Service{
-		Name:    "ServerStreamingService",
-		ID:      ".test.v1.ServerStreamingService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Expand",
-				ID:                  ".test.v1.ServerStreamingService.Expand",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
-	mixedService := &api.Service{
-		Name:    "MixedService",
-		ID:      ".test.v1.MixedService",
-		Package: "test.v1",
-		Methods: []*api.Method{
-			{
-				Name:                "Chat",
-				ID:                  ".test.v1.MixedService.Chat",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ClientSideStreaming: true,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-			{
-				Name:                "Expand",
-				ID:                  ".test.v1.MixedService.Expand",
-				InputTypeID:         msg.ID,
-				OutputTypeID:        msg.ID,
-				InputType:           msg,
-				OutputType:          msg,
-				ServerSideStreaming: true,
-				PathInfo:            &api.PathInfo{},
-			},
-		},
-	}
+	msg := api.NewTestMessage("Request").WithPackage("test.v1")
+
+	bidiChat := api.NewTestMethod("Chat").
+		WithInput(msg).
+		WithOutput(msg).
+		WithBidiStreaming()
+	bidiChat.PathInfo = &api.PathInfo{}
+	bidiService := api.NewTestService("BidiService").
+		WithPackage("test.v1").
+		WithMethods(bidiChat)
+
+	unaryGet := api.NewTestMethod("Get").
+		WithInput(msg).
+		WithOutput(msg)
+	unaryGet.PathInfo = &api.PathInfo{}
+	unaryService := api.NewTestService("UnaryService").
+		WithPackage("test.v1").
+		WithMethods(unaryGet)
+
+	serverExpand := api.NewTestMethod("Expand").
+		WithInput(msg).
+		WithOutput(msg).
+		WithServerSideStreaming()
+	serverExpand.PathInfo = &api.PathInfo{}
+	serverStreamingService := api.NewTestService("ServerStreamingService").
+		WithPackage("test.v1").
+		WithMethods(serverExpand)
+
+	mixedChat := api.NewTestMethod("Chat").
+		WithInput(msg).
+		WithOutput(msg).
+		WithBidiStreaming()
+	mixedChat.PathInfo = &api.PathInfo{}
+	mixedExpand := api.NewTestMethod("Expand").
+		WithInput(msg).
+		WithOutput(msg).
+		WithServerSideStreaming()
+	mixedExpand.PathInfo = &api.PathInfo{}
+	mixedService := api.NewTestService("MixedService").
+		WithPackage("test.v1").
+		WithMethods(mixedChat, mixedExpand)
 
 	for _, test := range []struct {
 		name                 string
@@ -898,7 +819,7 @@ func TestModelAnnotationsGrpcServices(t *testing.T) {
 
 func TestExternalTypesAnnotations(t *testing.T) {
 	extMsg := api.NewTestMessage("LatLng").WithPackage("google.type")
-	extEnum := &api.Enum{Name: "DayOfWeek", ID: ".google.type.DayOfWeek", Package: "google.type"}
+	extEnum := api.NewTestEnum("DayOfWeek").WithPackage("google.type")
 
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
 	model.ExternalMessages = []*api.Message{extMsg}
@@ -933,7 +854,7 @@ func TestExternalTypesAnnotations(t *testing.T) {
 	}
 	t.Run("with prost-path option", func(t *testing.T) {
 		extMsg2 := api.NewTestMessage("LatLng").WithPackage("google.type")
-		extEnum2 := &api.Enum{Name: "DayOfWeek", ID: ".google.type.DayOfWeek", Package: "google.type"}
+		extEnum2 := api.NewTestEnum("DayOfWeek").WithPackage("google.type")
 		model2 := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
 		model2.ExternalMessages = []*api.Message{extMsg2}
 		model2.ExternalEnums = []*api.Enum{extEnum2}
@@ -964,12 +885,11 @@ func TestGrpcRootTypeIDs(t *testing.T) {
 	req := api.NewTestMessage("Req").WithPackage("google.cloud.test.v1")
 	resp := api.NewTestMessage("Resp").WithPackage("google.cloud.test.v1")
 
-	unaryMethod := api.NewTestMethod("Unary").WithInput(req).WithOutput(resp)
-	unaryMethod.PathInfo = &api.PathInfo{
-		Bindings: []*api.PathBinding{
-			{Verb: "GET", PathTemplate: &api.PathTemplate{}},
-		},
-	}
+	unaryMethod := api.NewTestMethod("Unary").
+		WithInput(req).
+		WithOutput(resp).
+		WithVerb("GET").
+		WithPathTemplate(&api.PathTemplate{})
 	streamMethod := api.NewTestMethod("Stream").WithInput(req).WithOutput(resp).WithBidiStreaming()
 
 	for _, test := range []struct {
