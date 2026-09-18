@@ -22,36 +22,19 @@ import (
 )
 
 func TestProtoMessageAndEnumTypeName(t *testing.T) {
-	parentMsg := &api.Message{
-		Name:    "OuterMessage",
-		ID:      ".test.OuterMessage",
-		Package: "test",
-	}
-	nestedMsg := &api.Message{
-		Name:    "InnerMessage",
-		ID:      ".test.OuterMessage.InnerMessage",
-		Package: "test",
-		Parent:  parentMsg,
-	}
-	topEnum := &api.Enum{
-		Name:    "TopEnum",
-		ID:      ".test.TopEnum",
-		Package: "test",
-	}
-	nestedEnum := &api.Enum{
-		Name:    "NestedEnum",
-		ID:      ".test.OuterMessage.NestedEnum",
-		Package: "test",
-		Parent:  parentMsg,
-	}
-	typeEnum := &api.Enum{
-		Name:    "Type",
-		ID:      ".test.OuterMessage.Type",
-		Package: "test",
-		Parent:  parentMsg,
-	}
+	parentMsg := api.NewTestMessage("OuterMessage")
+	nestedMsg := api.NewTestMessage("InnerMessage").
+		WithID(".test.OuterMessage.InnerMessage")
+	nestedMsg.Parent = parentMsg
+	topEnum := api.NewTestEnum("TopEnum")
+	nestedEnum := api.NewTestEnum("NestedEnum").
+		WithID(".test.OuterMessage.NestedEnum")
+	nestedEnum.Parent = parentMsg
+	typeEnum := api.NewTestEnum("Type").
+		WithID(".test.OuterMessage.Type")
+	typeEnum.Parent = parentMsg
 
-	model := api.NewTestAPI([]*api.Message{parentMsg, nestedMsg}, []*api.Enum{topEnum, nestedEnum, typeEnum}, []*api.Service{})
+	model := api.NewTestAPI([]*api.Message{parentMsg, nestedMsg}, []*api.Enum{topEnum, nestedEnum, typeEnum}, nil)
 	model.PackageName = "test"
 
 	t.Run("with empty ModulePath", func(t *testing.T) {
@@ -121,26 +104,16 @@ func TestProtoMessageAndEnumTypeName(t *testing.T) {
 }
 
 func TestMessageAndEnumFileName(t *testing.T) {
-	parentMsg := &api.Message{
-		Name: "OuterMessage",
-	}
-	nestedMsg := &api.Message{
-		Name:   "InnerMessage",
-		Parent: parentMsg,
-	}
-	doubleNestedMsg := &api.Message{
-		Name:   "LeafMessage",
-		Parent: nestedMsg,
-	}
-	topEnum := &api.Enum{
-		Name: "TopEnum",
-	}
-	nestedEnum := &api.Enum{
-		Name:   "InnerEnum",
-		Parent: parentMsg,
-	}
+	parentMsg := api.NewTestMessage("OuterMessage")
+	nestedMsg := api.NewTestMessage("InnerMessage")
+	nestedMsg.Parent = parentMsg
+	doubleNestedMsg := api.NewTestMessage("LeafMessage")
+	doubleNestedMsg.Parent = nestedMsg
+	topEnum := api.NewTestEnum("TopEnum")
+	nestedEnum := api.NewTestEnum("InnerEnum")
+	nestedEnum.Parent = parentMsg
 
-	model := api.NewTestAPI([]*api.Message{parentMsg, nestedMsg, doubleNestedMsg}, []*api.Enum{topEnum, nestedEnum}, []*api.Service{}).
+	model := api.NewTestAPI([]*api.Message{parentMsg, nestedMsg, doubleNestedMsg}, []*api.Enum{topEnum, nestedEnum}, nil).
 		WithPackageName("test")
 	codec := newTestCodec(t, model, nil)
 
