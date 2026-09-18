@@ -277,21 +277,25 @@ To maintain code quality, maintainability, and architectural consistency with Li
 
 ---
 
-## 7. Phase 3: Discovery Documents, Code Modernization & Full Deprecation
+## 7. Phase 3: Discovery Documents & Compute Engine Parity
 
-### Phase 3 Scope:
-1. **Apply Code Guidelines to C++ Sidekick Engine**:
-   - Make annotation types private (`serviceAnnotations`, `methodAnnotations`, `fieldAnnotations`, `commentAnnotations`, `optionsAnnotations`).
-   - Refactor derived annotation fields to functions/methods.
-   - Eliminate any `vars` or untyped dictionaries; use strongly-typed fields only.
-   - Update tests to use `extractBlock()` for focused assertions.
-   - Refactor pilot tests to use dynamic googleapis SHA without hardcoded `$HOME` paths, driven by `testdata/librarian.yaml`.
-2. **Discovery Documents & Compute Engine**:
+### Phase 3 Progress:
+1. **Apply Code Guidelines to C++ Sidekick Engine (Completed)**:
+   - Made annotation types private (`serviceAnnotations`, `methodAnnotations`, `fieldAnnotations`, `commentAnnotations`, `optionsAnnotations`, `signatureAnnotations`).
+   - Converted derived annotation fields to methods on the annotation structs.
+   - Completely deleted legacy `service_vars.go` and `method_vars.go`; all generators use strongly-typed annotation fields.
+   - Updated tests to use `extractBlock()` for focused assertions.
+   - Refactored pilot test (`TestPilotSecretManagerParity`) with `//go:build integration`, dynamic googleapis SHA loading via `librarian.LoadSources()`, and `testdata/librarian.yaml` with zero hardcoded `$HOME` paths.
+   - All tests passing with 100% byte-for-byte golden and production parity; `golangci-lint` clean with 0 issues. Committed locally in `014929ec`.
+
+2. **Discovery Documents & Compute Engine (In Progress)**:
    - Support nested product path namespace flattening (e.g. `compute/addresses/v1` -> `google::cloud::compute_addresses_v1`).
    - Support map-based pagination (`StreamRange<std::pair<std::string, T>>`).
    - Support Compute LRO operations (`(google.cloud.operation_service)` -> `future<StatusOr<Operation>>`).
    - Validate 100% byte-for-byte parity on `google/cloud/compute/addresses/v1`.
+
 3. **Deprecate and Remove `google-cloud-cpp/generator`**:
    - Document replacement steps and CI workflow updates.
+
 
 
