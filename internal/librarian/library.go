@@ -46,6 +46,8 @@ func fillDefaults(lib *config.Library, d *config.Default) *config.Library {
 		lib.Output = d.Output
 	}
 	switch {
+	case d.Cpp != nil:
+		return fillCpp(lib, d)
 	case d.Go != nil:
 		return fillGo(lib, d)
 	case d.Java != nil:
@@ -425,6 +427,8 @@ func resolvePreview(lib *config.Library, language string) *config.Library {
 		res.SpecificationFormat = p.SpecificationFormat
 	}
 	switch language {
+	case config.LanguageCpp:
+		res.Cpp = mergeCpp(res.Cpp, p.Cpp)
 	case config.LanguageDotnet:
 		res.Dotnet = mergeDotnet(res.Dotnet, p.Dotnet)
 	case config.LanguageDart:
@@ -915,5 +919,161 @@ func mergeSwift(dst, src *config.SwiftPackage) *config.SwiftPackage {
 		res.DefaultTraits = src.DefaultTraits
 	}
 	res.Discovery = mergeCommonDiscovery(res.Discovery, src.Discovery)
+	return &res
+}
+
+// fillCpp populates empty C++-specific fields in lib from the provided default.
+func fillCpp(lib *config.Library, d *config.Default) *config.Library {
+	if d == nil || d.Cpp == nil {
+		return lib
+	}
+	if lib.Cpp == nil {
+		lib.Cpp = &config.CppLibrary{}
+	}
+	if lib.Cpp.ProductPath == "" {
+		lib.Cpp.ProductPath = d.Cpp.ProductPath
+	}
+	if lib.Cpp.ForwardingProductPath == "" {
+		lib.Cpp.ForwardingProductPath = d.Cpp.ForwardingProductPath
+	}
+	if !lib.Cpp.GenerateRestTransport && d.Cpp.GenerateRestTransport {
+		lib.Cpp.GenerateRestTransport = true
+	}
+	if lib.Cpp.GenerateGrpcTransport == nil && d.Cpp.GenerateGrpcTransport != nil {
+		lib.Cpp.GenerateGrpcTransport = d.Cpp.GenerateGrpcTransport
+	}
+	if lib.Cpp.EndpointLocationStyle == "" {
+		lib.Cpp.EndpointLocationStyle = d.Cpp.EndpointLocationStyle
+	}
+	if !lib.Cpp.BackwardsCompatibilityNamespace && d.Cpp.BackwardsCompatibilityNamespace {
+		lib.Cpp.BackwardsCompatibilityNamespace = true
+	}
+	if len(lib.Cpp.RetryableStatusCodes) == 0 && len(d.Cpp.RetryableStatusCodes) > 0 {
+		lib.Cpp.RetryableStatusCodes = append([]string(nil), d.Cpp.RetryableStatusCodes...)
+	}
+	if !lib.Cpp.GenerateRoundRobinDecorator && d.Cpp.GenerateRoundRobinDecorator {
+		lib.Cpp.GenerateRoundRobinDecorator = true
+	}
+	if !lib.Cpp.OmitRepoMetadata && d.Cpp.OmitRepoMetadata {
+		lib.Cpp.OmitRepoMetadata = true
+	}
+	if !lib.Cpp.Experimental && d.Cpp.Experimental {
+		lib.Cpp.Experimental = true
+	}
+	if !lib.Cpp.PreserveProtoFieldNamesInJson && d.Cpp.PreserveProtoFieldNamesInJson {
+		lib.Cpp.PreserveProtoFieldNamesInJson = true
+	}
+	if lib.Cpp.InitialCopyrightYear == "" && d.Cpp.InitialCopyrightYear != "" {
+		lib.Cpp.InitialCopyrightYear = d.Cpp.InitialCopyrightYear
+	}
+	if lib.CopyrightYear == "" && lib.Cpp.InitialCopyrightYear != "" {
+		lib.CopyrightYear = lib.Cpp.InitialCopyrightYear
+	}
+	return lib
+}
+
+// mergeCpp merges two C++ library configurations, with non-empty fields in src overriding dst.
+func mergeCpp(dst, src *config.CppLibrary) *config.CppLibrary {
+	if src == nil {
+		return dst
+	}
+	if dst == nil {
+		return src
+	}
+	res := *dst
+	if src.ProductPath != "" {
+		res.ProductPath = src.ProductPath
+	}
+	if src.ForwardingProductPath != "" {
+		res.ForwardingProductPath = src.ForwardingProductPath
+	}
+	if src.InitialCopyrightYear != "" {
+		res.InitialCopyrightYear = src.InitialCopyrightYear
+	}
+	if src.ServiceEndpointEnvVar != "" {
+		res.ServiceEndpointEnvVar = src.ServiceEndpointEnvVar
+	}
+	if src.EmulatorEndpointEnvVar != "" {
+		res.EmulatorEndpointEnvVar = src.EmulatorEndpointEnvVar
+	}
+	if src.GenerateRestTransport {
+		res.GenerateRestTransport = true
+	}
+	if src.GenerateGrpcTransport != nil {
+		res.GenerateGrpcTransport = src.GenerateGrpcTransport
+	}
+	if src.EndpointLocationStyle != "" {
+		res.EndpointLocationStyle = src.EndpointLocationStyle
+	}
+	if src.BackwardsCompatibilityNamespace {
+		res.BackwardsCompatibilityNamespace = true
+	}
+	if len(src.OmittedRPCs) > 0 {
+		res.OmittedRPCs = src.OmittedRPCs
+	}
+	if len(src.GenAsyncRPCs) > 0 {
+		res.GenAsyncRPCs = src.GenAsyncRPCs
+	}
+	if len(src.OmittedServices) > 0 {
+		res.OmittedServices = src.OmittedServices
+	}
+	if len(src.RetryableStatusCodes) > 0 {
+		res.RetryableStatusCodes = src.RetryableStatusCodes
+	}
+	if len(src.IdempotencyOverrides) > 0 {
+		res.IdempotencyOverrides = src.IdempotencyOverrides
+	}
+	if src.GenerateRoundRobinDecorator {
+		res.GenerateRoundRobinDecorator = true
+	}
+	if src.OmitClient {
+		res.OmitClient = true
+	}
+	if src.OmitConnection {
+		res.OmitConnection = true
+	}
+	if src.OmitStubFactory {
+		res.OmitStubFactory = true
+	}
+	if src.OmitRepoMetadata {
+		res.OmitRepoMetadata = true
+	}
+	if src.Experimental {
+		res.Experimental = true
+	}
+	if src.PreserveProtoFieldNamesInJson {
+		res.PreserveProtoFieldNamesInJson = true
+	}
+	if src.OmitStreamingUpdater {
+		res.OmitStreamingUpdater = true
+	}
+	if src.ProtoFileSource != "" {
+		res.ProtoFileSource = src.ProtoFileSource
+	}
+	if len(src.ServiceNameMapping) > 0 {
+		if res.ServiceNameMapping == nil {
+			res.ServiceNameMapping = make(map[string]string)
+		}
+		for k, v := range src.ServiceNameMapping {
+			res.ServiceNameMapping[k] = v
+		}
+	}
+	if len(src.ServiceNameToComment) > 0 {
+		if res.ServiceNameToComment == nil {
+			res.ServiceNameToComment = make(map[string]string)
+		}
+		for k, v := range src.ServiceNameToComment {
+			res.ServiceNameToComment[k] = v
+		}
+	}
+	if len(src.AdditionalProtoFiles) > 0 {
+		res.AdditionalProtoFiles = src.AdditionalProtoFiles
+	}
+	if src.ServiceConfig != "" {
+		res.ServiceConfig = src.ServiceConfig
+	}
+	if src.OverrideServiceConfigYamlName != "" {
+		res.OverrideServiceConfigYamlName = src.OverrideServiceConfigYamlName
+	}
 	return &res
 }

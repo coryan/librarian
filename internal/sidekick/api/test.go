@@ -438,6 +438,28 @@ func NewTestResource(typez string) *Resource {
 	}
 }
 
+// NewTestEnum creates an enum with defaults and values for testing.
+// Default package is "test".
+func NewTestEnum(name string, values ...string) *Enum {
+	e := (&Enum{Name: name}).WithPackage("test")
+	for _, v := range values {
+		ev := &EnumValue{
+			Name:   v,
+			ID:     fmt.Sprintf("%s.%s", e.ID, v),
+			Parent: e,
+		}
+		e.Values = append(e.Values, ev)
+	}
+	return e
+}
+
+// WithPackage sets the package for the enum and updates its ID.
+func (e *Enum) WithPackage(pkg string) *Enum {
+	e.Package = pkg
+	e.ID = fmt.Sprintf(".%s.%s", pkg, e.Name)
+	return e
+}
+
 // WithPatterns adds patterns to the resource.
 func (r *Resource) WithPatterns(patterns ...ResourcePattern) *Resource {
 	r.Patterns = append(r.Patterns, patterns...)

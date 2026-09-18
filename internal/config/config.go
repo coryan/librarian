@@ -282,6 +282,9 @@ type Default struct {
 
 	// Language-specific fields are below.
 
+	// Cpp contains C++-specific default configuration.
+	Cpp *CppDefault `yaml:"cpp,omitempty"`
+
 	// Dart contains Dart-specific default configuration.
 	Dart *DartPackage `yaml:"dart,omitempty"`
 
@@ -390,6 +393,9 @@ type Library struct {
 	SpecificationFormat string `yaml:"specification_format,omitempty"`
 
 	// Language-specific fields are below.
+
+	// Cpp contains C++-specific library configuration.
+	Cpp *CppLibrary `yaml:"cpp,omitempty"`
 
 	// Dart contains Dart-specific library configuration.
 	Dart *DartPackage `yaml:"dart,omitempty"`

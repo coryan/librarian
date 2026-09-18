@@ -1,0 +1,102 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+language: cpp
+
+libraries:
+  - name: golden_kitchen_sink
+    copyright_year: "2022"
+    output: generator/integration_tests/golden/v1
+    roots:
+      - showcase
+      - googleapis
+    apis:
+      - path: generator/integration_tests/test.proto
+    cpp:
+      product_path: generator/integration_tests/golden/v1
+      forwarding_product_path: generator/integration_tests/golden
+      service_endpoint_env_var: GOLDEN_KITCHEN_SINK_ENDPOINT
+      emulator_endpoint_env_var: GOLDEN_KITCHEN_SINK_EMULATOR_HOST
+      generate_rest_transport: true
+      generate_round_robin_decorator: true
+      omit_repo_metadata: true
+      service_config: generator/integration_tests/test.yaml
+      additional_proto_files:
+        - generator/integration_tests/backup.proto
+      omitted_rpcs:
+        - Omitted1
+        - GoldenKitchenSink.Omitted2
+        - Deprecated1
+        - Deprecated2(std::string const&)
+      gen_async_rpcs:
+        - GetDatabase
+        - DropDatabase
+        - StreamingRead
+        - StreamingWrite
+      retryable_status_codes:
+        - GoldenKitchenSink.kInternal
+        - kUnavailable
+        - GoldenThingAdmin.kDeadlineExceeded
+      idempotency_overrides:
+        - rpc_name: GoldenThingAdmin.DropDatabase
+          idempotency: IDEMPOTENT
+        - rpc_name: GoldenKitchenSink.ListLogs
+          idempotency: NON_IDEMPOTENT
+
+  - name: golden_rest_only
+    copyright_year: "2023"
+    output: generator/integration_tests/golden/v1
+    roots:
+      - showcase
+      - googleapis
+    apis:
+      - path: generator/integration_tests/test2.proto
+    cpp:
+      product_path: generator/integration_tests/golden/v1
+      generate_rest_transport: true
+      generate_grpc_transport: false
+      endpoint_location_style: LOCATION_OPTIONALLY_DEPENDENT
+      retryable_status_codes:
+        - kUnavailable
+
+  - name: request_id
+    copyright_year: "2024"
+    output: generator/integration_tests/golden/v1
+    roots:
+      - showcase
+      - googleapis
+    apis:
+      - path: generator/integration_tests/test_request_id.proto
+    cpp:
+      product_path: generator/integration_tests/golden/v1
+      service_config: generator/integration_tests/test_request_id.yaml
+      gen_async_rpcs:
+        - CreateFoo
+      retryable_status_codes:
+        - kUnavailable
+
+  - name: deprecated
+    copyright_year: "2024"
+    output: generator/integration_tests/golden/v1
+    roots:
+      - showcase
+      - googleapis
+    apis:
+      - path: generator/integration_tests/test_deprecated.proto
+    cpp:
+      product_path: generator/integration_tests/golden/v1
+      generate_rest_transport: true
+      generate_grpc_transport: true
+      retryable_status_codes:
+        - kUnavailable

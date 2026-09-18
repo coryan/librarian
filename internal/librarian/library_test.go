@@ -223,6 +223,82 @@ func TestFillDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "cpp defaults",
+			defaults: &config.Default{
+				Cpp: &config.CppDefault{
+					ProductPath:                   "generator/integration_tests/golden/v1",
+					ForwardingProductPath:         "generator/integration_tests/golden",
+					GenerateRestTransport:         true,
+					RetryableStatusCodes:          []string{"kUnavailable"},
+					Experimental:                  true,
+					PreserveProtoFieldNamesInJson: true,
+					InitialCopyrightYear:          "2022",
+				},
+			},
+			lib: &config.Library{Output: "foo/"},
+			want: &config.Library{
+				Output:        "foo/",
+				CopyrightYear: "2022",
+				Cpp: &config.CppLibrary{
+					CppDefault: config.CppDefault{
+						ProductPath:                   "generator/integration_tests/golden/v1",
+						ForwardingProductPath:         "generator/integration_tests/golden",
+						GenerateRestTransport:         true,
+						RetryableStatusCodes:          []string{"kUnavailable"},
+						Experimental:                  true,
+						PreserveProtoFieldNamesInJson: true,
+						InitialCopyrightYear:          "2022",
+					},
+				},
+			},
+		},
+		{
+			name: "cpp defaults do not override library params",
+			defaults: &config.Default{
+				Cpp: &config.CppDefault{
+					ProductPath:                   "generator/integration_tests/golden/v1",
+					ForwardingProductPath:         "generator/integration_tests/golden",
+					GenerateRestTransport:         false,
+					RetryableStatusCodes:          []string{"kUnavailable"},
+					Experimental:                  false,
+					PreserveProtoFieldNamesInJson: false,
+					InitialCopyrightYear:          "2020",
+				},
+			},
+			lib: &config.Library{
+				Output:        "foo/",
+				CopyrightYear: "2024",
+				Cpp: &config.CppLibrary{
+					CppDefault: config.CppDefault{
+						ProductPath:                   "custom/path",
+						ForwardingProductPath:         "custom/forwarding",
+						GenerateRestTransport:         true,
+						RetryableStatusCodes:          []string{"kInternal"},
+						Experimental:                  true,
+						PreserveProtoFieldNamesInJson: true,
+						InitialCopyrightYear:          "2024",
+					},
+					ServiceEndpointEnvVar: "CUSTOM_ENDPOINT",
+				},
+			},
+			want: &config.Library{
+				Output:        "foo/",
+				CopyrightYear: "2024",
+				Cpp: &config.CppLibrary{
+					CppDefault: config.CppDefault{
+						ProductPath:                   "custom/path",
+						ForwardingProductPath:         "custom/forwarding",
+						GenerateRestTransport:         true,
+						RetryableStatusCodes:          []string{"kInternal"},
+						Experimental:                  true,
+						PreserveProtoFieldNamesInJson: true,
+						InitialCopyrightYear:          "2024",
+					},
+					ServiceEndpointEnvVar: "CUSTOM_ENDPOINT",
+				},
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := fillDefaults(test.lib, test.defaults)
@@ -1066,6 +1142,28 @@ func TestResolvePreview(t *testing.T) {
 				Preview: nil,
 			},
 		},
+		{
+			name:     "overrides all supported fields Cpp",
+			language: config.LanguageCpp,
+			lib: &config.Library{
+				Name: "golden",
+				Cpp: &config.CppLibrary{
+					ServiceEndpointEnvVar: "BASE_ENDPOINT",
+				},
+				Preview: &config.Library{
+					Cpp: &config.CppLibrary{
+						ServiceEndpointEnvVar: "PREVIEW_ENDPOINT",
+					},
+				},
+			},
+			want: &config.Library{
+				Name: "golden",
+				Cpp: &config.CppLibrary{
+					ServiceEndpointEnvVar: "PREVIEW_ENDPOINT",
+				},
+				Preview: nil,
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := resolvePreview(test.lib, test.language)
@@ -1841,6 +1939,145 @@ func TestMergeSwift(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := mergeSwift(test.dst, test.src)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestMergeCpp(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		dst  *config.CppLibrary
+		src  *config.CppLibrary
+		want *config.CppLibrary
+	}{
+		{
+			name: "both nil",
+			dst:  nil,
+			src:  nil,
+			want: nil,
+		},
+		{
+			name: "dst nil",
+			dst:  nil,
+			src: &config.CppLibrary{
+				ServiceEndpointEnvVar: "TEST_ENDPOINT",
+			},
+			want: &config.CppLibrary{
+				ServiceEndpointEnvVar: "TEST_ENDPOINT",
+			},
+		},
+		{
+			name: "src nil",
+			dst: &config.CppLibrary{
+				ServiceEndpointEnvVar: "TEST_ENDPOINT",
+			},
+			src: nil,
+			want: &config.CppLibrary{
+				ServiceEndpointEnvVar: "TEST_ENDPOINT",
+			},
+		},
+		{
+			name: "merges all fields",
+			dst: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath:                     "p1",
+					ForwardingProductPath:           "fp1",
+					GenerateRestTransport:           false,
+					EndpointLocationStyle:           "style1",
+					BackwardsCompatibilityNamespace: false,
+					RetryableStatusCodes:            []string{"code1"},
+					GenerateRoundRobinDecorator:     false,
+					OmitRepoMetadata:                false,
+					Experimental:                    false,
+					PreserveProtoFieldNamesInJson:   false,
+					InitialCopyrightYear:            "y1",
+				},
+				ServiceEndpointEnvVar:         "env1",
+				EmulatorEndpointEnvVar:        "emu1",
+				OmittedRPCs:                   []string{"rpc1"},
+				GenAsyncRPCs:                  []string{"async1"},
+				OmittedServices:               []string{"svc1"},
+				IdempotencyOverrides:          []config.IdempotencyRule{{RPCName: "r1", Idempotency: "NON_IDEMPOTENT"}},
+				OmitClient:                    false,
+				OmitConnection:                false,
+				OmitStubFactory:               false,
+				OmitStreamingUpdater:          false,
+				ServiceNameMapping:            map[string]string{"s1": "m1"},
+				ServiceNameToComment:          map[string]string{"s1": "c1"},
+				AdditionalProtoFiles:          []string{"f1.proto"},
+				ServiceConfig:                 "sc1.yaml",
+				OverrideServiceConfigYamlName: "sc1_override.yaml",
+				ProtoFileSource:               "s1",
+			},
+			src: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath:                     "p2",
+					ForwardingProductPath:           "fp2",
+					GenerateRestTransport:           true,
+					EndpointLocationStyle:           "style2",
+					BackwardsCompatibilityNamespace: true,
+					RetryableStatusCodes:            []string{"code2"},
+					GenerateRoundRobinDecorator:     true,
+					OmitRepoMetadata:                true,
+					Experimental:                    true,
+					PreserveProtoFieldNamesInJson:   true,
+					InitialCopyrightYear:            "y2",
+				},
+				ServiceEndpointEnvVar:         "env2",
+				EmulatorEndpointEnvVar:        "emu2",
+				OmittedRPCs:                   []string{"rpc2"},
+				GenAsyncRPCs:                  []string{"async2"},
+				OmittedServices:               []string{"svc2"},
+				IdempotencyOverrides:          []config.IdempotencyRule{{RPCName: "r2", Idempotency: "IDEMPOTENT"}},
+				OmitClient:                    true,
+				OmitConnection:                true,
+				OmitStubFactory:               true,
+				OmitStreamingUpdater:          true,
+				ServiceNameMapping:            map[string]string{"s2": "m2"},
+				ServiceNameToComment:          map[string]string{"s2": "c2"},
+				AdditionalProtoFiles:          []string{"f2.proto"},
+				ServiceConfig:                 "sc2.yaml",
+				OverrideServiceConfigYamlName: "sc2_override.yaml",
+				ProtoFileSource:               "s2",
+			},
+			want: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath:                     "p2",
+					ForwardingProductPath:           "fp2",
+					GenerateRestTransport:           true,
+					EndpointLocationStyle:           "style2",
+					BackwardsCompatibilityNamespace: true,
+					RetryableStatusCodes:            []string{"code2"},
+					GenerateRoundRobinDecorator:     true,
+					OmitRepoMetadata:                true,
+					Experimental:                    true,
+					PreserveProtoFieldNamesInJson:   true,
+					InitialCopyrightYear:            "y2",
+				},
+				ServiceEndpointEnvVar:         "env2",
+				EmulatorEndpointEnvVar:        "emu2",
+				OmittedRPCs:                   []string{"rpc2"},
+				GenAsyncRPCs:                  []string{"async2"},
+				OmittedServices:               []string{"svc2"},
+				IdempotencyOverrides:          []config.IdempotencyRule{{RPCName: "r2", Idempotency: "IDEMPOTENT"}},
+				OmitClient:                    true,
+				OmitConnection:                true,
+				OmitStubFactory:               true,
+				OmitStreamingUpdater:          true,
+				ServiceNameMapping:            map[string]string{"s1": "m1", "s2": "m2"},
+				ServiceNameToComment:          map[string]string{"s1": "c1", "s2": "c2"},
+				AdditionalProtoFiles:          []string{"f2.proto"},
+				ServiceConfig:                 "sc2.yaml",
+				OverrideServiceConfigYamlName: "sc2_override.yaml",
+				ProtoFileSource:               "s2",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := mergeCpp(test.dst, test.src)
 			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
