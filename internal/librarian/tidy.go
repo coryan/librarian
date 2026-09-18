@@ -118,7 +118,11 @@ func tidyLibrary(cfg *config.Config, lib *config.Library) (*config.Library, erro
 }
 
 func isDerivableOutput(cfg *config.Config, lib *config.Library) bool {
-	derivedOutput := defaultOutput(cfg.Language, lib.Name, lib.APIs[0].Path, cfg.Default.Output)
+	var defaultOut string
+	if cfg.Default != nil {
+		defaultOut = cfg.Default.Output
+	}
+	derivedOutput := defaultOutput(cfg.Language, lib.Name, lib.APIs[0].Path, defaultOut)
 	return lib.Output == derivedOutput
 }
 
@@ -160,7 +164,8 @@ func validateLibraries(cfg *config.Config) error {
 		// API paths with the versioned libraries they wrap.
 		// Relax unique API path validation for Java here and validate in Java
 		// language validation because some specific paths are intentionally duplicated.
-		if count > 1 && cfg.Language != config.LanguageRuby && cfg.Language != config.LanguageJava {
+		// Relax unique API path validation for C++ because multiple services share the same proto file.
+		if count > 1 && cfg.Language != config.LanguageRuby && cfg.Language != config.LanguageJava && cfg.Language != config.LanguageCpp {
 			errs = append(errs, fmt.Errorf("%w: %s (appears %d times)", errDuplicateAPIPath, path, count))
 		}
 	}
