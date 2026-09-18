@@ -139,6 +139,111 @@ func (ann *methodAnnotations) RangeOutputType() string {
 	return "std::string"
 }
 
+func (ann *methodAnnotations) RangeOutputFieldName() string {
+	if ann.Method != nil && ann.Method.OutputType != nil {
+		if ann.Method.OutputType.Pagination != nil && ann.Method.OutputType.Pagination.PageableItem != nil {
+			return cppFieldName(ann.Method.OutputType.Pagination.PageableItem.Name)
+		}
+		for _, f := range ann.Method.OutputType.Fields {
+			if f.Repeated {
+				return cppFieldName(f.Name)
+			}
+		}
+	}
+	return ""
+}
+
+func (ann *methodAnnotations) HasRequestId() bool {
+	return ann.Method != nil && len(ann.Method.AutoPopulated) > 0
+}
+
+func (ann *methodAnnotations) RequestIdFieldName() string {
+	if !ann.HasRequestId() {
+		return ""
+	}
+	return cppFieldName(ann.Method.AutoPopulated[0].Name)
+}
+
+func (ann *methodAnnotations) IsSetIamPolicy() bool {
+	if ann.Method == nil || ann.Method.Name != "SetIamPolicy" {
+		return false
+	}
+	in := strings.TrimPrefix(ann.Method.InputTypeID, ".")
+	out := strings.TrimPrefix(ann.Method.OutputTypeID, ".")
+	return in == "google.iam.v1.SetIamPolicyRequest" && out == "google.iam.v1.Policy"
+}
+
+func (ann *methodAnnotations) GrpcStub() string {
+	if ann.Method != nil && ann.Method.SourceService != nil && ann.Method.Service != nil && ann.Method.SourceService.Name != ann.Method.Service.Name {
+		switch ann.Method.SourceService.Name {
+		case "Locations":
+			return "locations_stub_"
+		case "IAMPolicy":
+			return "iampolicy_stub_"
+		case "Operations":
+			return "operations_stub_"
+		}
+	}
+	return "grpc_stub_"
+}
+
+func (ann *methodAnnotations) IsLongrunningMetadataTypeUsedAsResponse() bool {
+	if !ann.IsLRO || ann.Method == nil || ann.Method.OperationInfo == nil {
+		return false
+	}
+	res := ann.Method.OperationInfo.ResponseTypeID
+	return res == "" || res == "google.protobuf.Empty" || res == ".google.protobuf.Empty"
+}
+
+func (ann *methodAnnotations) ExtractLongRunningResultFunction() string {
+	if ann.IsLongrunningMetadataTypeUsedAsResponse() {
+		return "&google::cloud::internal::ExtractLongRunningResultMetadata<" + ann.DeducedResponseType() + ">,"
+	}
+	return "&google::cloud::internal::ExtractLongRunningResultResponse<" + ann.DeducedResponseType() + ">,"
+}
+
+func (ann *methodAnnotations) OperationMetadataType() string {
+	if ann.Method != nil && ann.Method.OperationInfo != nil && ann.Method.OperationInfo.MetadataTypeID != "" {
+		return protoNameToCppName(ann.Method.OperationInfo.MetadataTypeID)
+	}
+	return ""
+}
+
+func (ann *methodAnnotations) StreamingUpdaterFunctionName() string {
+	serviceName := ""
+	if ann.Service != nil {
+		serviceName = ann.Service.Name
+	}
+	return serviceName + ann.Name + "StreamingUpdater"
+}
+
+func (ann *methodAnnotations) MetadataDecoratorSetMetadata(contextVar, optionsVar string) string {
+	return formatMetadataDecoratorSetMetadata(ann, contextVar, optionsVar)
+}
+
+func (ann *methodAnnotations) SyncSetMetadata() string {
+	return ann.MetadataDecoratorSetMetadata("context", "options")
+}
+
+func (ann *methodAnnotations) AsyncSetMetadata() string {
+	return ann.MetadataDecoratorSetMetadata("*context", "*options")
+}
+
+func (sig *signatureAnnotations) RequestSetters() string {
+	var b strings.Builder
+	for _, p := range sig.Params {
+		fName := cppFieldName(p.Name)
+		if p.Field != nil && (p.Field.Repeated || p.Field.Map) {
+			fmt.Fprintf(&b, "  *request.mutable_%s() = {%s.begin(), %s.end()};\n", fName, p.Name, p.Name)
+		} else if p.Field != nil && p.Field.Typez == api.TypezMessage {
+			fmt.Fprintf(&b, "  *request.mutable_%s() = %s;\n", fName, p.Name)
+		} else {
+			fmt.Fprintf(&b, "  request.set_%s(%s);\n", fName, p.Name)
+		}
+	}
+	return b.String()
+}
+
 func (ann *methodAnnotations) HasSignatures() bool {
 	return len(ann.Signatures) > 0
 }
@@ -500,4 +605,8 @@ func isMethodPaginated(m *api.Method) bool {
 		}
 	}
 	return repeatedMessageCount == 0 && repeatedStringCount == 1
+}
+
+func (ann *methodAnnotations) HasExplicitRouting() bool {
+	return ann.Method != nil && ann.Method.HasRouting()
 }

@@ -18,11 +18,16 @@
 #include "{{Codec.MetadataDecoratorHeaderPath}}"
 #include "google/cloud/grpc_options.h"
 #include "google/cloud/internal/absl_str_cat_quiet.h"
+{{#Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/internal/absl_str_join_quiet.h"
+{{/Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/internal/api_client_header.h"
+{{#Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/internal/routing_matcher.h"
+{{/Codec.HasExplicitRoutingMethod}}
 #include "google/cloud/internal/url_encode.h"
 #include "google/cloud/status_or.h"
+#include <{{Codec.ProtoGrpcHeaderPath}}>
 #include <memory>
 #include <string>
 #include <utility>
@@ -43,6 +48,182 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
           api_client_header.empty()
               ? google::cloud::internal::GeneratedLibClientHeader()
               : std::move(api_client_header)) {}
+{{#Codec.StubMethods}}
+{{#IsStreamingWrite}}
+
+std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.MetadataDecoratorClassName}}::{{Name}}(
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options) {
+  SetMetadata(*context, options);
+  return child_->{{Name}}(std::move(context), options);
+}
+{{/IsStreamingWrite}}
+{{#IsBidiStreaming}}
+
+std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->Async{{Name}}(cq, std::move(context), std::move(options));
+}
+{{/IsBidiStreaming}}
+{{#IsLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+{{{AsyncSetMetadata}}}
+  return child_->Async{{Name}}(cq, std::move(context), std::move(options), request);
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.MetadataDecoratorClassName}}::{{Name}}(
+    grpc::ClientContext& context,
+    Options options,
+    {{RequestType}} const& request) {
+{{{SyncSetMetadata}}}
+  return child_->{{Name}}(context, options, request);
+}
+{{/IsLRO}}
+{{#IsStreamingRead}}
+
+std::unique_ptr<google::cloud::internal::StreamingReadRpc<{{{ResponseType}}}>>
+{{Codec.MetadataDecoratorClassName}}::{{Name}}(
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const& options,
+    {{RequestType}} const& request) {
+  SetMetadata(*context, options);
+  return child_->{{Name}}(std::move(context), options, request);
+}
+{{/IsStreamingRead}}
+{{#IsPlainUnary}}
+
+{{{PlainReturnType}}}
+{{Codec.MetadataDecoratorClassName}}::{{Name}}(
+    grpc::ClientContext& context,
+    Options const& options,
+    {{RequestType}} const& request) {
+{{{SyncSetMetadata}}}
+  return child_->{{Name}}(context, options, request);
+}
+{{/IsPlainUnary}}
+{{#IsPaginated}}
+
+{{{PlainReturnType}}}
+{{Codec.MetadataDecoratorClassName}}::{{Name}}(
+    grpc::ClientContext& context,
+    Options const& options,
+    {{RequestType}} const& request) {
+{{{SyncSetMetadata}}}
+  return child_->{{Name}}(context, options, request);
+}
+{{/IsPaginated}}
+{{/Codec.StubMethods}}
+{{#Codec.AsyncStubMethods}}
+{{#IsStreamingRead}}
+
+std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
+    {{{ResponseType}}}>>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+  SetMetadata(*context, *options);
+  return child_->Async{{Name}}(
+      cq, std::move(context), std::move(options), request);
+}
+{{/IsStreamingRead}}
+{{#IsStreamingWrite}}
+
+std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
+    {{RequestType}}, {{ResponseType}}>>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  SetMetadata(*context, *options);
+  return child_->Async{{Name}}(cq, std::move(context), std::move(options));
+}
+{{/IsStreamingWrite}}
+{{#IsPlainUnary}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+{{{AsyncSetMetadata}}}
+  return child_->Async{{Name}}(
+      cq, std::move(context), std::move(options), request);
+}
+{{/IsPlainUnary}}
+{{#IsPaginated}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.MetadataDecoratorClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+{{{AsyncSetMetadata}}}
+  return child_->Async{{Name}}(
+      cq, std::move(context), std::move(options), request);
+}
+{{/IsPaginated}}
+{{/Codec.AsyncStubMethods}}
+{{#Codec.HasGrpcLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.MetadataDecoratorClassName}}::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::GetOperationRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncGetOperation(
+      cq, std::move(context), std::move(options), request);
+}
+
+future<Status> {{Codec.MetadataDecoratorClassName}}::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    google::longrunning::CancelOperationRequest const& request) {
+  SetMetadata(*context, *options,
+              absl::StrCat("name=", internal::UrlEncode(request.name())));
+  return child_->AsyncCancelOperation(
+      cq, std::move(context), std::move(options), request);
+}
+{{/Codec.HasGrpcLRO}}
+
+void {{Codec.MetadataDecoratorClassName}}::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options,
+                                        std::string const& request_params) {
+  context.AddMetadata("x-goog-request-params", request_params);
+  SetMetadata(context, options);
+}
+
+void {{Codec.MetadataDecoratorClassName}}::SetMetadata(grpc::ClientContext& context,
+                                        Options const& options) {
+{{#Codec.ApiVersion}}
+  context.AddMetadata("x-goog-api-version", "{{Codec.ApiVersion}}");
+{{/Codec.ApiVersion}}
+  google::cloud::internal::SetMetadata(
+      context, options, fixed_metadata_, api_client_header_);
+}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

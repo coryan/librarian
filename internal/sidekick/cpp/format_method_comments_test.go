@@ -111,10 +111,10 @@ func TestFormatMethodCommentsProtobufRequest_LRO(t *testing.T) {
 		WithDocumentation("Creates a new database.").
 		WithInput(in).
 		WithOutput(out).
-		WithOperationInfo(&api.OperationInfo{
-			ResponseTypeID: ".google.test.admin.database.v1.Database",
-			MetadataTypeID: ".google.test.admin.database.v1.CreateDatabaseMetadata",
-		})
+		WithOperationInfo(api.NewTestOperationInfo(
+			".google.test.admin.database.v1.Database",
+			".google.test.admin.database.v1.CreateDatabaseMetadata",
+		))
 	got := formatMethodCommentsProtobufRequest(m, false)
 	if !strings.Contains(got, "@return A [`future`] that becomes satisfied when the LRO") {
 		t.Errorf("missing LRO return comment: %s", got)

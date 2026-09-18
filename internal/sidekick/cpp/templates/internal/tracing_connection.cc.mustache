@@ -17,7 +17,9 @@
 
 #include "{{Codec.TracingConnectionHeaderPath}}"
 #include "google/cloud/internal/opentelemetry.h"
+{{#Codec.HasTracedStreamRange}}
 #include "google/cloud/internal/traced_stream_range.h"
+{{/Codec.HasTracedStreamRange}}
 #include <memory>
 #include <utility>
 
@@ -31,11 +33,99 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 {{Codec.TracingConnectionClassName}}::{{Codec.TracingConnectionClassName}}(
     std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> child)
     : child_(std::move(child)) {}
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.TracingConnectionClassName}}::Async{{Name}}() {
+  return child_->Async{{Name}}();
+}
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsStreamingRead}}
+
+StreamRange<{{{ResponseType}}}>
+{{Codec.TracingConnectionClassName}}::{{Name}}({{RequestType}} const& request) {
+  auto span = internal::MakeSpan("{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  internal::OTelScope scope(span);
+  auto sr = child_->{{Name}}(request);
+  return internal::MakeTracedStreamRange<{{{ResponseType}}}>(
+        std::move(span), std::move(sr));
+}
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+{{#IsPaginated}}
+
+StreamRange<{{{RangeOutputType}}}>
+{{Codec.TracingConnectionClassName}}::{{Name}}({{RequestType}} request) {
+  auto span = internal::MakeSpan("{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  internal::OTelScope scope(span);
+  auto sr = child_->{{Name}}(std::move(request));
+  return internal::MakeTracedStreamRange<{{{RangeOutputType}}}>(
+        std::move(span), std::move(sr));
+}
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsLRO}}
+
+{{{LroFutureReturnType}}}
+{{Codec.TracingConnectionClassName}}::{{Name}}({{RequestType}} const& request) {
+  auto span = internal::MakeSpan(
+      "{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  internal::OTelScope scope(span);
+  return internal::EndSpan(std::move(span), child_->{{Name}}(request));
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.TracingConnectionClassName}}::{{Name}}(
+    NoAwaitTag, {{RequestType}} const& request) {
+  auto span = internal::MakeSpan(
+      "{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  opentelemetry::trace::Scope scope(span);
+  return internal::EndSpan(*span, child_->{{Name}}(
+      NoAwaitTag{}, request));
+}
+
+{{{LroFutureReturnType}}}
+{{Codec.TracingConnectionClassName}}::{{Name}}(
+    google::longrunning::Operation const& operation) {
+  auto span = internal::MakeSpan(
+      "{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  internal::OTelScope scope(span);
+  return internal::EndSpan(std::move(span),
+      child_->{{Name}}(operation));
+}
+{{/IsLRO}}
+{{^IsLRO}}
+
+{{{PlainReturnType}}}
+{{Codec.TracingConnectionClassName}}::{{Name}}({{RequestType}} const& request) {
+  auto span = internal::MakeSpan("{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
+  auto scope = opentelemetry::trace::Scope(span);
+  return internal::EndSpan(*span, child_->{{Name}}(request));
+}
+{{/IsLRO}}
+{{/IsPaginated}}
+{{/IsStreamingRead}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+
+future<{{{PlainReturnType}}}>
+{{Codec.TracingConnectionClassName}}::Async{{Name}}({{RequestType}} const& request) {
+  auto span = internal::MakeSpan(
+      "{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::Async{{Name}}");
+  internal::OTelScope scope(span);
+  return internal::EndSpan(std::move(span), child_->Async{{Name}}(request));
+}
+{{/Codec.AsyncMethods}}
 
 #endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
 
 std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}>
-{{Codec.MakeTracingConnectionFunctionName}}(
+Make{{Codec.TracingConnectionClassName}}(
     std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> conn) {
 #ifdef GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY
   if (internal::TracingEnabled(conn->options())) {

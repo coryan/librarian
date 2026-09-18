@@ -32,16 +32,45 @@ namespace {
 auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
+Options {{Codec.Name}}DefaultOptions({{#Codec.HasEndpointLocation}}std::string const& location, {{/Codec.HasEndpointLocation}}Options options) {
+  options = internal::PopulateCommonOptions(
+      std::move(options), "{{Codec.ServiceEndpointEnvVar}}",
+      "{{Codec.EmulatorEndpointEnvVar}}", "{{Codec.ServiceAuthorityEnvVar}}",
 {{#Codec.HasEndpointLocation}}
-Options {{Codec.DefaultOptionsFunctionName}}(std::string const& location, Options options) {
-  return options;
-}
+      absl::StrCat(location, location.empty() ? "" : "-", "{{Codec.DefaultEndpoint}}"));
 {{/Codec.HasEndpointLocation}}
 {{^Codec.HasEndpointLocation}}
-Options {{Codec.DefaultOptionsFunctionName}}(Options options) {
+      "{{Codec.DefaultEndpoint}}");
+{{/Codec.HasEndpointLocation}}
+  options = internal::PopulateGrpcOptions(std::move(options));
+  if (!options.has<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>()) {
+    options.set<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>(
+        {{Codec.PackageNamespace}}::{{Codec.LimitedTimeRetryPolicyClassName}}(
+            std::chrono::minutes(30)).clone());
+  }
+  if (!options.has<{{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}}>()) {
+    options.set<{{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}}>(
+        ExponentialBackoffPolicy(std::chrono::seconds(0), std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling, kBackoffScaling).clone());
+  }
+{{#Codec.HasGrpcLRO}}
+  if (!options.has<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>()) {
+    options.set<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>(
+        GenericPollingPolicy<
+            {{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}::Type,
+            {{Codec.PackageNamespace}}::{{Codec.BackoffPolicyOptionClassName}}::Type>(
+            options.get<{{Codec.PackageNamespace}}::{{Codec.RetryPolicyOptionClassName}}>()->clone(),
+            ExponentialBackoffPolicy(std::chrono::seconds(1),
+            std::chrono::minutes(5), kBackoffScaling).clone()).clone());
+  }
+{{/Codec.HasGrpcLRO}}
+  if (!options.has<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>()) {
+    options.set<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>(
+        {{Codec.PackageNamespace}}::MakeDefault{{Codec.IdempotencyPolicyClassName}}());
+  }
+
   return options;
 }
-{{/Codec.HasEndpointLocation}}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

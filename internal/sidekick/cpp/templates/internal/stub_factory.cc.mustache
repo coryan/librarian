@@ -27,6 +27,21 @@
 #include "google/cloud/internal/opentelemetry.h"
 #include "google/cloud/log.h"
 #include "google/cloud/options.h"
+#include <{{Codec.ProtoGrpcHeaderPath}}>
+{{#Codec.HasLocationsMixin}}
+#include <google/cloud/location/locations.grpc.pb.h>
+{{/Codec.HasLocationsMixin}}
+{{#Codec.HasIamMixin}}
+#include <google/iam/v1/iam_policy.grpc.pb.h>
+{{/Codec.HasIamMixin}}
+{{#Codec.HasOperationsMixin}}
+#include <google/longrunning/operations.grpc.pb.h>
+{{/Codec.HasOperationsMixin}}
+{{^Codec.HasOperationsMixin}}
+{{#Codec.HasGrpcLRO}}
+#include <google/longrunning/operations.grpc.pb.h>
+{{/Codec.HasGrpcLRO}}
+{{/Codec.HasOperationsMixin}}
 #include <memory>
 #include <utility>
 
@@ -41,10 +56,7 @@ std::shared_ptr<{{Codec.StubClassName}}>
     Options const& options) {
   auto channel = auth->CreateChannel(
     options.get<EndpointOption>(), internal::MakeChannelArguments(options));
-  auto service_grpc_stub = {{Codec.GrpcStubType}}::NewStub(channel);
-  std::shared_ptr<{{Codec.StubClassName}}> stub =
-    std::make_shared<{{Codec.DefaultStubClassName}}>(std::move(service_grpc_stub));
-
+{{{Codec.StubFactoryMakeDefaultStub}}}
   if (auth->RequiresConfigureContext()) {
     stub = std::make_shared<{{Codec.AuthDecoratorClassName}}>(
         std::move(auth), std::move(stub));

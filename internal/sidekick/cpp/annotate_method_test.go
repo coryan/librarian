@@ -100,10 +100,7 @@ func TestMethodAnnotations_LRO(t *testing.T) {
 	m := api.NewTestMethod("CreateFoo").
 		WithInput(in).
 		WithOutput(out).
-		WithOperationInfo(&api.OperationInfo{
-			ResponseTypeID: ".test.Foo",
-			MetadataTypeID: ".test.CreateFooMetadata",
-		})
+		WithOperationInfo(api.NewTestOperationInfo(".test.Foo", ".test.CreateFooMetadata"))
 
 	c := &codec{}
 	sAnn := &serviceAnnotations{Name: "TestService", Service: svc}
@@ -124,10 +121,7 @@ func TestMethodAnnotations_LRO(t *testing.T) {
 	mEmpty := api.NewTestMethod("UpdateDdl").
 		WithInput(inEmpty).
 		WithOutput(out).
-		WithOperationInfo(&api.OperationInfo{
-			ResponseTypeID: ".google.protobuf.Empty",
-			MetadataTypeID: ".test.UpdateDdlMetadata",
-		})
+		WithOperationInfo(api.NewTestOperationInfo(".google.protobuf.Empty", ".test.UpdateDdlMetadata"))
 	mEmptyAnn := c.annotateMethod(svc, mEmpty, sAnn)
 	if mEmptyAnn.IsLroVoid() {
 		t.Errorf("expected IsLroVoid to be false when metadata is present")
@@ -141,10 +135,7 @@ func TestMethodAnnotations_LRO(t *testing.T) {
 	mVoid := api.NewTestMethod("DeleteDdl").
 		WithInput(inVoid).
 		WithOutput(out).
-		WithOperationInfo(&api.OperationInfo{
-			ResponseTypeID: ".google.protobuf.Empty",
-			MetadataTypeID: ".google.protobuf.Empty",
-		})
+		WithOperationInfo(api.NewTestOperationInfo(".google.protobuf.Empty", ".google.protobuf.Empty"))
 	mVoidAnn := c.annotateMethod(svc, mVoid, sAnn)
 	if !mVoidAnn.IsLroVoid() {
 		t.Errorf("expected IsLroVoid to be true when both response and metadata are empty")
@@ -216,13 +207,14 @@ func TestMethodAnnotations_SignaturesAndConflictResolution(t *testing.T) {
 		api.NewTestField("count").WithType(api.TypezInt32),
 		api.NewTestField("tag").WithType(api.TypezString),
 	)
-	m := api.NewTestMethod("DoFoo").WithInput(in)
-	m.Signatures = []*api.MethodSignature{
-		{Names: []string{"name"}},
-		{Names: []string{"tag"}},   // Same type (std::string const&) -> should be dropped (first match wins)!
-		{Names: []string{"count"}}, // Omitted via Cpp.OmittedRPCs!
-		{Names: []string{"name", "count"}},
-	}
+	m := api.NewTestMethod("DoFoo").
+		WithInput(in).
+		WithSignatures(
+			api.NewTestMethodSignature("name"),
+			api.NewTestMethodSignature("tag"),   // Same type (std::string const&) -> should be dropped (first match wins)!
+			api.NewTestMethodSignature("count"), // Omitted via Cpp.OmittedRPCs!
+			api.NewTestMethodSignature("name", "count"),
+		)
 
 	mAnn := c.annotateMethod(svc, m, sAnn)
 	if len(mAnn.Signatures) != 2 {
@@ -294,12 +286,12 @@ func TestMethodAnnotations_IAMOptimisticConcurrency(t *testing.T) {
 	getM := api.NewTestMethod("GetIamPolicy").
 		WithInput(inGet).
 		WithOutput(outPolicy).
-		WithSignatures(&api.MethodSignature{Names: []string{"resource"}})
+		WithSignatures(api.NewTestMethodSignature("resource"))
 
 	setM := api.NewTestMethod("SetIamPolicy").
 		WithInput(inSet).
 		WithOutput(outPolicy).
-		WithSignatures(&api.MethodSignature{Names: []string{"resource", "policy"}})
+		WithSignatures(api.NewTestMethodSignature("resource", "policy"))
 
 	svc := api.NewTestService("DatabaseAdmin").WithMethods(getM, setM)
 	sAnn := &serviceAnnotations{Name: "DatabaseAdmin", Service: svc}
@@ -313,5 +305,120 @@ func TestMethodAnnotations_IAMOptimisticConcurrency(t *testing.T) {
 	}
 	if diff := cmp.Diff("google::iam::v1::Policy", setAnn.IamUpdaterResponse()); diff != "" {
 		t.Errorf("IamUpdaterResponse mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestMethodAnnotations_Layer36_Helpers(t *testing.T) {
+	// RangeOutputFieldName
+	outMsg := api.NewTestMessage("Response").WithPagination(nil, api.NewTestField("items"))
+	paginatedM := &methodAnnotations{
+		Method: api.NewTestMethod("List").WithOutput(outMsg),
+	}
+	if got := paginatedM.RangeOutputFieldName(); got != "items" {
+		t.Errorf("RangeOutputFieldName: want 'items', got %q", got)
+	}
+
+	// HasRequestId and RequestIdFieldName
+	mWithReqId := &methodAnnotations{
+		Method: api.NewTestMethod("Create").WithAutoPopulated(api.NewTestField("request_id")),
+	}
+	if !mWithReqId.HasRequestId() {
+		t.Errorf("HasRequestId: want true, got false")
+	}
+	if got := mWithReqId.RequestIdFieldName(); got != "request_id" {
+		t.Errorf("RequestIdFieldName: want 'request_id', got %q", got)
+	}
+
+	mNoReqId := &methodAnnotations{Method: api.NewTestMethod("Create")}
+	if mNoReqId.HasRequestId() {
+		t.Errorf("HasRequestId: want false, got true")
+	}
+
+	// IsSetIamPolicy
+	svc := &serviceAnnotations{Name: "TestService"}
+	mSetIam := &methodAnnotations{
+		Name: "SetIamPolicy",
+		Method: api.NewTestMethod("SetIamPolicy").
+			WithInputTypeID("google.iam.v1.SetIamPolicyRequest").
+			WithOutputTypeID("google.iam.v1.Policy"),
+		RequestType:  "google::iam::v1::SetIamPolicyRequest",
+		ResponseType: "google::iam::v1::Policy",
+		Service:      svc,
+	}
+	if !mSetIam.IsSetIamPolicy() {
+		t.Errorf("IsSetIamPolicy: want true, got false")
+	}
+
+	// GrpcStub
+	sourceLocations := api.NewTestService("Locations")
+	parentSvc := api.NewTestService("ParentService")
+	mLocations := &methodAnnotations{
+		Method: api.NewTestMethod("LocationsOp").
+			WithSourceService(sourceLocations).
+			WithService(parentSvc),
+	}
+	if got := mLocations.GrpcStub(); got != "locations_stub_" {
+		t.Errorf("GrpcStub: want 'locations_stub_', got %q", got)
+	}
+
+	mParent := &methodAnnotations{
+		Method: api.NewTestMethod("ParentOp").
+			WithSourceService(parentSvc).
+			WithService(parentSvc),
+	}
+	if got := mParent.GrpcStub(); got != "grpc_stub_" {
+		t.Errorf("GrpcStub: want 'grpc_stub_', got %q", got)
+	}
+
+	// LRO helpers
+	mLro := &methodAnnotations{
+		IsLRO: true,
+		Method: api.NewTestMethod("LroOp").
+			WithOperationInfo(api.NewTestOperationInfo(".google.test.v1.TestResponse", ".google.test.v1.TestMetadata")),
+		ResponseType: "google::test::v1::TestResponse",
+	}
+	if mLro.IsLongrunningMetadataTypeUsedAsResponse() {
+		t.Errorf("IsLongrunningMetadataTypeUsedAsResponse: want false, got true")
+	}
+	if got := mLro.OperationMetadataType(); got != "google::test::v1::TestMetadata" {
+		t.Errorf("OperationMetadataType: want 'google::test::v1::TestMetadata', got %q", got)
+	}
+	if got := mLro.ExtractLongRunningResultFunction(); got != "&google::cloud::internal::ExtractLongRunningResultResponse<google::test::v1::TestResponse>," {
+		t.Errorf("ExtractLongRunningResultFunction: want ExtractLongRunningResultResponse, got %q", got)
+	}
+
+	mLroEmptyRes := &methodAnnotations{
+		IsLRO: true,
+		Method: api.NewTestMethod("LroOpEmpty").
+			WithOperationInfo(api.NewTestOperationInfo("google.protobuf.Empty", ".google.test.v1.TestMetadata")),
+		ResponseType: "google::test::v1::TestMetadata",
+	}
+	if !mLroEmptyRes.IsLongrunningMetadataTypeUsedAsResponse() {
+		t.Errorf("IsLongrunningMetadataTypeUsedAsResponse: want true, got false")
+	}
+	if got := mLroEmptyRes.ExtractLongRunningResultFunction(); got != "&google::cloud::internal::ExtractLongRunningResultMetadata<google::test::v1::TestMetadata>," {
+		t.Errorf("ExtractLongRunningResultFunction: want ExtractLongRunningResultMetadata, got %q", got)
+	}
+
+	// StreamingUpdaterFunctionName
+	mStream := &methodAnnotations{
+		Name:    "ReadRows",
+		Service: &serviceAnnotations{Name: "BigQueryRead"},
+	}
+	if got := mStream.StreamingUpdaterFunctionName(); got != "BigQueryReadReadRowsStreamingUpdater" {
+		t.Errorf("StreamingUpdaterFunctionName: want 'BigQueryReadReadRowsStreamingUpdater', got %q", got)
+	}
+
+	// RequestSetters
+	sig := &signatureAnnotations{
+		Params: []*signatureParamAnnotations{
+			{Name: "parent", Field: api.NewTestField("parent").WithType(api.TypezString)},
+			{Name: "tags", Field: api.NewTestField("tags").WithType(api.TypezString).WithRepeated()},
+			{Name: "config", Field: api.NewTestField("config").WithType(api.TypezMessage)},
+		},
+	}
+	wantSetters := "  request.set_parent(parent);\n  *request.mutable_tags() = {tags.begin(), tags.end()};\n  *request.mutable_config() = config;\n"
+	if got := sig.RequestSetters(); got != wantSetters {
+		t.Errorf("RequestSetters mismatch (-want +got):\n%s", cmp.Diff(wantSetters, got))
 	}
 }

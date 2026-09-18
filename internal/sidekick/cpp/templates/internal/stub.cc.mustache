@@ -22,6 +22,10 @@
 #include "google/cloud/internal/async_streaming_write_rpc_impl.h"
 #include "google/cloud/internal/streaming_write_rpc_impl.h"
 #include "google/cloud/status_or.h"
+#include <{{Codec.ProtoGrpcHeaderPath}}>
+{{#Codec.HasGrpcLRO}}
+#include <google/longrunning/operations.grpc.pb.h>
+{{/Codec.HasGrpcLRO}}
 #include <memory>
 #include <utility>
 
@@ -31,6 +35,235 @@ namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 {{Codec.StubClassName}}::~{{Codec.StubClassName}}() = default;
+{{#Codec.StubMethods}}
+{{#IsStreamingWrite}}
+
+std::unique_ptr<::google::cloud::internal::StreamingWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::{{Name}}(
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const&) {
+  auto response = std::make_unique<{{ResponseType}}>();
+  auto stream = {{{GrpcStub}}}->{{Name}}(context.get(), response.get());
+  return std::make_unique<::google::cloud::internal::StreamingWriteRpcImpl<
+      {{RequestType}}, {{ResponseType}}>>(
+    std::move(context), std::move(response), std::move(stream));
+}
+{{/IsStreamingWrite}}
+{{#IsBidiStreaming}}
+
+std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  return google::cloud::internal::MakeStreamingReadWriteRpc<{{RequestType}}, {{ResponseType}}>(
+      cq, std::move(context), std::move(options),
+      [this](grpc::ClientContext* context, grpc::CompletionQueue* cq) {
+        return {{{GrpcStub}}}->PrepareAsync{{Name}}(context, cq);
+      });
+}
+{{/IsBidiStreaming}}
+{{#IsLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+      google::cloud::CompletionQueue& cq,
+      std::shared_ptr<grpc::ClientContext> context,
+      google::cloud::internal::ImmutableOptions,
+      {{RequestType}} const& request) {
+  return internal::MakeUnaryRpcImpl<{{RequestType}},
+                                    google::longrunning::Operation>(
+      cq,
+      [this](grpc::ClientContext* context,
+             {{RequestType}} const& request,
+             grpc::CompletionQueue* cq) {
+        return {{{GrpcStub}}}->Async{{Name}}(context, request, cq);
+      },
+      request, std::move(context));
+}
+
+StatusOr<google::longrunning::Operation>
+{{Codec.DefaultStubClassName}}::{{Name}}(
+      grpc::ClientContext& context,
+      Options,
+      {{RequestType}} const& request) {
+    {{ResponseType}} response;
+    auto status =
+        {{{GrpcStub}}}->{{Name}}(&context, request, &response);
+    if (!status.ok()) {
+      return google::cloud::MakeStatusFromRpcError(status);
+    }
+    return response;
+}
+{{/IsLRO}}
+{{#IsStreamingRead}}
+
+std::unique_ptr<google::cloud::internal::StreamingReadRpc<{{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::{{Name}}(
+    std::shared_ptr<grpc::ClientContext> context,
+    Options const&,
+    {{RequestType}} const& request) {
+  auto stream = {{{GrpcStub}}}->{{Name}}(context.get(), request);
+  return std::make_unique<google::cloud::internal::StreamingReadRpcImpl<
+      {{ResponseType}}>>(
+      std::move(context), std::move(stream));
+}
+{{/IsStreamingRead}}
+{{#IsPlainUnary}}
+{{#IsVoid}}
+
+Status
+{{Codec.DefaultStubClassName}}::{{Name}}(
+  grpc::ClientContext& context, Options const&,
+  {{RequestType}} const& request) {
+    {{ResponseType}} response;
+    auto status =
+        {{{GrpcStub}}}->{{Name}}(&context, request, &response);
+    if (!status.ok()) {
+      return google::cloud::MakeStatusFromRpcError(status);
+    }
+    return google::cloud::Status();
+}
+{{/IsVoid}}
+{{^IsVoid}}
+
+StatusOr<{{ResponseType}}>
+{{Codec.DefaultStubClassName}}::{{Name}}(
+  grpc::ClientContext& context, Options const&,
+  {{RequestType}} const& request) {
+    {{ResponseType}} response;
+    auto status =
+        {{{GrpcStub}}}->{{Name}}(&context, request, &response);
+    if (!status.ok()) {
+      return google::cloud::MakeStatusFromRpcError(status);
+    }
+    return response;
+}
+{{/IsVoid}}
+{{/IsPlainUnary}}
+{{/Codec.StubMethods}}
+{{#Codec.AsyncStubMethods}}
+{{#IsStreamingRead}}
+
+std::unique_ptr<::google::cloud::internal::AsyncStreamingReadRpc<
+    {{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options,
+    {{RequestType}} const& request) {
+  return google::cloud::internal::MakeStreamingReadRpc<{{RequestType}}, {{ResponseType}}>(
+    cq, std::move(context), std::move(options), request,
+    [this](grpc::ClientContext* context, {{RequestType}} const& request, grpc::CompletionQueue* cq) {
+      return {{{GrpcStub}}}->PrepareAsync{{Name}}(context, request, cq);
+    });
+}
+{{/IsStreamingRead}}
+{{#IsStreamingWrite}}
+
+std::unique_ptr<::google::cloud::internal::AsyncStreamingWriteRpc<
+    {{RequestType}}, {{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue const& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    google::cloud::internal::ImmutableOptions options) {
+  return google::cloud::internal::MakeStreamingWriteRpc<{{RequestType}}, {{ResponseType}}>(
+    cq, std::move(context), std::move(options),
+    [this](grpc::ClientContext* context, {{ResponseType}}* response, grpc::CompletionQueue* cq) {
+      return {{{GrpcStub}}}->PrepareAsync{{Name}}(context, response, cq);
+    });
+}
+{{/IsStreamingWrite}}
+{{^IsStreaming}}
+{{#IsVoid}}
+
+future<Status>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
+    {{RequestType}} const& request) {
+  return internal::MakeUnaryRpcImpl<{{RequestType}},
+                                    {{ResponseType}}>(
+      cq,
+      [this](grpc::ClientContext* context,
+             {{RequestType}} const& request,
+             grpc::CompletionQueue* cq) {
+        return {{{GrpcStub}}}->Async{{Name}}(context, request, cq);
+      },
+      request, std::move(context))
+          .then([](future<StatusOr<google::protobuf::Empty>> f) {
+            return f.get().status();
+          });
+}
+{{/IsVoid}}
+{{^IsVoid}}
+
+future<StatusOr<{{ResponseType}}>>
+{{Codec.DefaultStubClassName}}::Async{{Name}}(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
+    {{RequestType}} const& request) {
+  return internal::MakeUnaryRpcImpl<{{RequestType}},
+                                    {{ResponseType}}>(
+      cq,
+      [this](grpc::ClientContext* context,
+             {{RequestType}} const& request,
+             grpc::CompletionQueue* cq) {
+        return {{{GrpcStub}}}->Async{{Name}}(context, request, cq);
+      },
+      request, std::move(context));
+}
+{{/IsVoid}}
+{{/IsStreaming}}
+{{/Codec.AsyncStubMethods}}
+{{#Codec.HasGrpcLRO}}
+
+future<StatusOr<google::longrunning::Operation>>
+{{Codec.DefaultStubClassName}}::AsyncGetOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
+    google::longrunning::GetOperationRequest const& request) {
+  return internal::MakeUnaryRpcImpl<google::longrunning::GetOperationRequest,
+                                    google::longrunning::Operation>(
+      cq,
+      [this](grpc::ClientContext* context,
+             google::longrunning::GetOperationRequest const& request,
+             grpc::CompletionQueue* cq) {
+        return operations_stub_->AsyncGetOperation(context, request, cq);
+      },
+      request, std::move(context));
+}
+
+future<Status> {{Codec.DefaultStubClassName}}::AsyncCancelOperation(
+    google::cloud::CompletionQueue& cq,
+    std::shared_ptr<grpc::ClientContext> context,
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    google::cloud::internal::ImmutableOptions,
+    google::longrunning::CancelOperationRequest const& request) {
+  return internal::MakeUnaryRpcImpl<google::longrunning::CancelOperationRequest,
+                                    google::protobuf::Empty>(
+      cq,
+      [this](grpc::ClientContext* context,
+             google::longrunning::CancelOperationRequest const& request,
+             grpc::CompletionQueue* cq) {
+        return operations_stub_->AsyncCancelOperation(context, request, cq);
+      },
+      request, std::move(context))
+      .then([](future<StatusOr<google::protobuf::Empty>> f) {
+        return f.get().status();
+      });
+}
+{{/Codec.HasGrpcLRO}}
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END
 }  // namespace {{Codec.InternalNamespace}}

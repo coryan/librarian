@@ -167,10 +167,10 @@ func (m *Message) WithEnums(enums ...*Enum) *Message {
 
 // WithPagination items and page token fields for a pagination response.
 func (m *Message) WithPagination(nextPageToken *Field, items *Field) *Message {
-	if nextPageToken.Parent != m {
+	if nextPageToken != nil && nextPageToken.Parent != m {
 		m.WithFields(nextPageToken)
 	}
-	if items.Parent != m {
+	if items != nil && items.Parent != m {
 		m.WithFields(items)
 	}
 	m.Pagination = &PaginationInfo{
@@ -178,6 +178,14 @@ func (m *Message) WithPagination(nextPageToken *Field, items *Field) *Message {
 		PageableItem:  items,
 	}
 	return m
+}
+
+// NewTestPaginationInfo creates a PaginationInfo with pageable item.
+func NewTestPaginationInfo(nextPageToken, items *Field) *PaginationInfo {
+	return &PaginationInfo{
+		NextPageToken: nextPageToken,
+		PageableItem:  items,
+	}
 }
 
 // WithResource sets the resource definition on the message.
@@ -205,6 +213,12 @@ func NewTestService(name string) *Service {
 func (s *Service) WithPackage(pkg string) *Service {
 	s.Package = pkg
 	s.ID = fmt.Sprintf(".%s.%s", pkg, s.Name)
+	return s
+}
+
+// WithDefaultHost sets the default host for the service.
+func (s *Service) WithDefaultHost(host string) *Service {
+	s.DefaultHost = host
 	return s
 }
 
@@ -251,6 +265,12 @@ func (m *Method) WithInput(msg *Message) *Method {
 	return m
 }
 
+// WithInputTypeID sets the input type ID for the method.
+func (m *Method) WithInputTypeID(id string) *Method {
+	m.InputTypeID = id
+	return m
+}
+
 // WithOutput sets the output type message for the method.
 // It sets both OutputType and OutputTypeID.
 func (m *Method) WithOutput(msg *Message) *Method {
@@ -258,6 +278,18 @@ func (m *Method) WithOutput(msg *Message) *Method {
 	if msg != nil {
 		m.OutputTypeID = msg.ID
 	}
+	return m
+}
+
+// WithOutputTypeID sets the output type ID for the method.
+func (m *Method) WithOutputTypeID(id string) *Method {
+	m.OutputTypeID = id
+	return m
+}
+
+// WithService sets the service for the method.
+func (m *Method) WithService(svc *Service) *Method {
+	m.Service = svc
 	return m
 }
 
@@ -280,6 +312,15 @@ func (m *Method) WithSourceMethod(source *Method) *Method {
 	return m
 }
 
+// WithSourceService sets the source service for the method.
+func (m *Method) WithSourceService(source *Service) *Method {
+	m.SourceService = source
+	if source != nil {
+		m.SourceServiceID = source.ID
+	}
+	return m
+}
+
 // WithPagination sets the page token field for the request.
 func (m *Method) WithPagination(pageToken *Field) *Method {
 	m.IsList = true
@@ -292,6 +333,14 @@ func (m *Method) WithOperationInfo(info *OperationInfo) *Method {
 	m.IsLRO = true
 	m.OperationInfo = info
 	return m
+}
+
+// NewTestOperationInfo creates an OperationInfo with response and metadata types.
+func NewTestOperationInfo(responseTypeID, metadataTypeID string) *OperationInfo {
+	return &OperationInfo{
+		ResponseTypeID: responseTypeID,
+		MetadataTypeID: metadataTypeID,
+	}
 }
 
 // WithBidiStreaming sets the method as bidirectional streaming.
@@ -321,6 +370,13 @@ func (m *Method) WithClientSideStreaming() *Method {
 func (m *Method) WithDiscoveryLro(info *DiscoveryLro) *Method {
 	m.DiscoveryLro = info
 	return m
+}
+
+// NewTestMethodSignature creates a MethodSignature with defaults for testing.
+func NewTestMethodSignature(names ...string) *MethodSignature {
+	return &MethodSignature{
+		Names: names,
+	}
 }
 
 // WithSignatures adds method signatures.
@@ -356,6 +412,24 @@ func (m *Method) WithDocumentation(doc string) *Method {
 // WithDeprecated sets whether the method is deprecated.
 func (m *Method) WithDeprecated(deprecated bool) *Method {
 	m.Deprecated = deprecated
+	return m
+}
+
+// WithAutoPopulated adds auto-populated fields to the method.
+func (m *Method) WithAutoPopulated(fields ...*Field) *Method {
+	m.AutoPopulated = append(m.AutoPopulated, fields...)
+	return m
+}
+
+// WithAPIVersion sets the API version on the method.
+func (m *Method) WithAPIVersion(version string) *Method {
+	m.APIVersion = version
+	return m
+}
+
+// WithRouting sets the routing annotations for the method.
+func (m *Method) WithRouting(routing ...*RoutingInfo) *Method {
+	m.Routing = append(m.Routing, routing...)
 	return m
 }
 
@@ -465,6 +539,44 @@ func (f *Field) WithChildTypeReference(childType string) *Field {
 func (f *Field) WithDocumentation(doc string) *Field {
 	f.Documentation = doc
 	return f
+}
+
+// WithDeprecated sets whether the field is deprecated.
+func (f *Field) WithDeprecated(deprecated bool) *Field {
+	f.Deprecated = deprecated
+	return f
+}
+
+// NewTestPathTemplate creates a PathTemplate with defaults for testing.
+func NewTestPathTemplate(segments ...PathSegment) *PathTemplate {
+	return &PathTemplate{
+		Segments: segments,
+	}
+}
+
+// NewTestPathVariable creates a PathVariable with defaults for testing.
+func NewTestPathVariable(fieldPath ...string) *PathVariable {
+	return &PathVariable{
+		FieldPath: fieldPath,
+	}
+}
+
+// NewTestRoutingInfo creates a RoutingInfo with defaults for testing.
+func NewTestRoutingInfo(name string, variants ...*RoutingInfoVariant) *RoutingInfo {
+	return &RoutingInfo{
+		Name:     name,
+		Variants: variants,
+	}
+}
+
+// NewTestRoutingInfoVariant creates a RoutingInfoVariant with defaults for testing.
+func NewTestRoutingInfoVariant(fieldPath []string, prefix, matching, suffix []string) *RoutingInfoVariant {
+	return &RoutingInfoVariant{
+		FieldPath: fieldPath,
+		Prefix:    RoutingPathSpec{Segments: prefix},
+		Matching:  RoutingPathSpec{Segments: matching},
+		Suffix:    RoutingPathSpec{Segments: suffix},
+	}
 }
 
 // NewTestResource creates a resource with defaults.

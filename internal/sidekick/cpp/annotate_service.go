@@ -15,33 +15,38 @@
 package cpp
 
 import (
+	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/language"
 )
 
 type serviceAnnotations struct {
-	Name                  string
-	BaseFileName          string
-	ProductPath           string
-	ForwardingPath        string
-	HasGrpc               bool
-	HasRest               bool
-	HasRoundRobin         bool
-	HasRetryTraits        bool
-	RetryableStatusCodes  []string
-	EndpointLocationStyle string
-	OmitClient            bool
-	OmitConnection        bool
-	OmitStubFactory       bool
-	CopyrightYear         string
-	Service               *api.Service
-	Methods               []*methodAnnotations
-	StubMethods           []*methodAnnotations
-	AsyncMethods          []*methodAnnotations
-	AsyncStubMethods      []*methodAnnotations
+	Name                   string
+	BaseFileName           string
+	ProductPath            string
+	ForwardingPath         string
+	HasGrpc                bool
+	HasRest                bool
+	HasRoundRobin          bool
+	HasRetryTraits         bool
+	RetryableStatusCodes   []string
+	EndpointLocationStyle  string
+	OmitClient             bool
+	OmitConnection         bool
+	OmitStubFactory        bool
+	CopyrightYear          string
+	Service                *api.Service
+	Methods                []*methodAnnotations
+	StubMethods            []*methodAnnotations
+	AsyncMethods           []*methodAnnotations
+	AsyncStubMethods       []*methodAnnotations
+	ProtoGrpcHeaderPath    string
+	ServiceEndpointEnvVar  string
+	EmulatorEndpointEnvVar string
 }
 
 func (ann *serviceAnnotations) isDiscovery() bool {
@@ -105,6 +110,40 @@ func (ann *serviceAnnotations) HasAsyncMethod() bool {
 	return len(ann.AsyncMethods) > 0
 }
 
+func (ann *serviceAnnotations) HasStreamingMethod() bool {
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.IsStreaming()
+	})
+}
+
+func (ann *serviceAnnotations) HasStreamingWriteMethod() bool {
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.IsStreamingWrite()
+	})
+}
+
+func (ann *serviceAnnotations) HasAsynchronousStreamingReadMethod() bool {
+	return slices.ContainsFunc(ann.AsyncStubMethods, func(m *methodAnnotations) bool {
+		return m.IsStreamingRead()
+	})
+}
+
+func (ann *serviceAnnotations) HasAsynchronousStreamingWriteMethod() bool {
+	return slices.ContainsFunc(ann.AsyncStubMethods, func(m *methodAnnotations) bool {
+		return m.IsStreamingWrite()
+	})
+}
+
+func (ann *serviceAnnotations) HasExplicitRoutingMethod() bool {
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.HasExplicitRouting()
+	})
+}
+
+func (ann *serviceAnnotations) HasTracedStreamRange() bool {
+	return ann.HasPaginatedMethod() || ann.HasStreamingReadMethod()
+}
+
 func (ann *serviceAnnotations) HasRequestId() bool {
 	if ann.Service == nil {
 		return false
@@ -149,6 +188,112 @@ func (ann *serviceAnnotations) HasLRO() bool {
 	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
 		return m.OperationInfo != nil
 	})
+}
+
+func (ann *serviceAnnotations) MethodSignatureUsesDeprecatedField() bool {
+	for _, m := range ann.Methods {
+		for _, s := range m.Signatures {
+			for _, p := range s.Params {
+				if p.Field != nil && p.Field.Deprecated {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (ann *serviceAnnotations) ServiceAuthorityEnvVar() string {
+	return strings.TrimSuffix(ann.ServiceEndpointEnvVar, "_ENDPOINT") + "_AUTHORITY"
+}
+
+func (ann *serviceAnnotations) DefaultEndpoint() string {
+	if ann.Service != nil && ann.Service.DefaultHost != "" {
+		return ann.Service.DefaultHost
+	}
+	return ""
+}
+
+func (ann *serviceAnnotations) ServiceGrpcFqn() string {
+	if ann.Service == nil || ann.Service.Package == "" {
+		return ann.Name
+	}
+	return ann.Service.Package + "." + ann.Name
+}
+
+func (ann *serviceAnnotations) StreamingUpdaterFunctionName() string {
+	return ann.Name + "StreamingReadStreamingUpdater"
+}
+
+func (ann *serviceAnnotations) ApiVersion() string {
+	for _, m := range ann.Methods {
+		if m.Method != nil && m.Method.APIVersion != "" {
+			return m.Method.APIVersion
+		}
+	}
+	return ""
+}
+
+func (ann *serviceAnnotations) HasLocationsMixin() bool {
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.Method != nil && m.Method.SourceService != nil && m.Method.Service != nil &&
+			m.Method.SourceService.Name != m.Method.Service.Name && m.Method.SourceService.Name == "Locations"
+	})
+}
+
+func (ann *serviceAnnotations) HasIamMixin() bool {
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.Method != nil && m.Method.SourceService != nil && m.Method.Service != nil &&
+			m.Method.SourceService.Name != m.Method.Service.Name && m.Method.SourceService.Name == "IAMPolicy"
+	})
+}
+
+func (ann *serviceAnnotations) HasOperationsMixin() bool {
+	if ann.HasLRO() {
+		return false
+	}
+	return slices.ContainsFunc(ann.StubMethods, func(m *methodAnnotations) bool {
+		return m.Method != nil && m.Method.SourceService != nil && m.Method.Service != nil &&
+			m.Method.SourceService.Name != m.Method.Service.Name && m.Method.SourceService.Name == "Operations"
+	})
+}
+
+func (ann *serviceAnnotations) StubFactoryMakeDefaultStub() string {
+	var b strings.Builder
+	cppStubType := protoNameToCppName(ann.ServiceGrpcFqn())
+	fmt.Fprintf(&b, "  auto service_grpc_stub = %s::NewStub(channel);\n", cppStubType)
+	if ann.HasOperationsMixin() {
+		b.WriteString("  auto service_operations_stub = google::longrunning::Operations::NewStub(channel);\n")
+	}
+	if ann.HasIamMixin() {
+		b.WriteString("  auto service_iampolicy_stub = google::iam::v1::IAMPolicy::NewStub(channel);\n")
+	}
+	if ann.HasLocationsMixin() {
+		b.WriteString("  auto service_locations_stub = google::cloud::location::Locations::NewStub(channel);\n")
+	}
+
+	if !ann.HasGrpcLRO() {
+		moves := "std::move(service_grpc_stub)"
+		if ann.HasOperationsMixin() {
+			moves += ", std::move(service_operations_stub)"
+		}
+		if ann.HasIamMixin() {
+			moves += ", std::move(service_iampolicy_stub)"
+		}
+		if ann.HasLocationsMixin() {
+			moves += ", std::move(service_locations_stub)"
+		}
+		fmt.Fprintf(&b, "  std::shared_ptr<%s> stub =\n    std::make_shared<%s>(%s);\n",
+			ann.StubClassName(), ann.DefaultStubClassName(), moves)
+	} else {
+		moves := "std::move(service_grpc_stub)"
+		if ann.HasLocationsMixin() {
+			moves += ", std::move(service_locations_stub)"
+		}
+		fmt.Fprintf(&b, "  std::shared_ptr<%s> stub =\n    std::make_shared<%s>(\n      %s,\n      google::longrunning::Operations::NewStub(channel));\n",
+			ann.StubClassName(), ann.DefaultStubClassName(), moves)
+	}
+	return b.String()
 }
 
 func (ann *serviceAnnotations) ClientHeader() string {
@@ -499,22 +644,41 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 	if c.Cpp != nil {
 		endpointLocationStyle = c.Cpp.EndpointLocationStyle
 	}
+	protoGrpcPath := ""
+	if c.Library != nil && len(c.Library.APIs) > 0 && c.Library.APIs[0].Path != "" {
+		protoGrpcPath = strings.TrimSuffix(c.Library.APIs[0].Path, ".proto") + ".grpc.pb.h"
+	}
+
+	serviceEndpointEnvVar := "GOOGLE_CLOUD_CPP_" + strings.ToUpper(camelCaseToSnakeCase(service.Name)) + "_ENDPOINT"
+	emulatorEndpointEnvVar := ""
+	if c.Cpp != nil {
+		if c.Cpp.ServiceEndpointEnvVar != "" {
+			serviceEndpointEnvVar = c.Cpp.ServiceEndpointEnvVar
+		}
+		if c.Cpp.EmulatorEndpointEnvVar != "" {
+			emulatorEndpointEnvVar = c.Cpp.EmulatorEndpointEnvVar
+		}
+	}
+
 	ann := &serviceAnnotations{
-		Name:                  service.Name,
-		BaseFileName:          serviceNameToFileName(service.Name),
-		ProductPath:           c.Cpp.ProductPath,
-		ForwardingPath:        c.Cpp.ForwardingProductPath,
-		HasGrpc:               c.hasGrpc(),
-		HasRest:               c.hasRest(),
-		HasRoundRobin:         c.hasRoundRobin(),
-		HasRetryTraits:        len(codes) > 0,
-		RetryableStatusCodes:  codes,
-		EndpointLocationStyle: endpointLocationStyle,
-		OmitClient:            c.Cpp.OmitClient,
-		OmitConnection:        c.Cpp.OmitConnection,
-		OmitStubFactory:       c.Cpp.OmitStubFactory,
-		CopyrightYear:         c.copyrightYear(),
-		Service:               service,
+		Name:                   service.Name,
+		BaseFileName:           serviceNameToFileName(service.Name),
+		ProductPath:            c.Cpp.ProductPath,
+		ForwardingPath:         c.Cpp.ForwardingProductPath,
+		HasGrpc:                c.hasGrpc(),
+		HasRest:                c.hasRest(),
+		HasRoundRobin:          c.hasRoundRobin(),
+		HasRetryTraits:         len(codes) > 0,
+		RetryableStatusCodes:   codes,
+		EndpointLocationStyle:  endpointLocationStyle,
+		OmitClient:             c.Cpp.OmitClient,
+		OmitConnection:         c.Cpp.OmitConnection,
+		OmitStubFactory:        c.Cpp.OmitStubFactory,
+		CopyrightYear:          c.copyrightYear(),
+		Service:                service,
+		ProtoGrpcHeaderPath:    protoGrpcPath,
+		ServiceEndpointEnvVar:  serviceEndpointEnvVar,
+		EmulatorEndpointEnvVar: emulatorEndpointEnvVar,
 	}
 
 	var methods []*methodAnnotations

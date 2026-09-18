@@ -95,7 +95,7 @@ func TestClassAndFunctionNamingHelpers(t *testing.T) {
 	if ann.HasLRO() {
 		t.Errorf("HasLRO() for service without LRO: want false, got true")
 	}
-	method := api.NewTestMethod("TestLRO").WithOperationInfo(&api.OperationInfo{ResponseTypeID: "google.protobuf.Empty"})
+	method := api.NewTestMethod("TestLRO").WithOperationInfo(api.NewTestOperationInfo("google.protobuf.Empty", ""))
 	svc.WithMethods(method)
 	if !ann.HasLRO() {
 		t.Errorf("HasLRO() for service with LRO: want true, got false")

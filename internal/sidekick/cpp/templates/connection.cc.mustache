@@ -44,6 +44,102 @@ namespace {{Codec.PackageNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 
 {{Codec.ConnectionClassName}}::~{{Codec.ConnectionClassName}}() = default;
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+    {{RequestType}},
+    {{ResponseType}}>>
+{{Codec.ConnectionClassName}}::Async{{Name}}() {
+  return std::make_unique<
+      ::google::cloud::internal::AsyncStreamingReadWriteRpcError<
+          {{RequestType}},
+          {{ResponseType}}>>(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsLRO}}
+
+{{{LroFutureReturnType}}}
+{{Codec.ConnectionClassName}}::{{Name}}(
+    {{RequestType}} const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<{{DeducedResponseType}}>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+{{{LroStartReturnType}}}
+{{Codec.ConnectionClassName}}::{{Name}}(
+    NoAwaitTag,
+    {{RequestType}} const&) {
+  return StatusOr<google::longrunning::Operation>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+
+{{{LroFutureReturnType}}}
+{{Codec.ConnectionClassName}}::{{Name}}(
+    google::longrunning::Operation const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<{{DeducedResponseType}}>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+{{/IsLRO}}
+{{^IsLRO}}
+{{#IsPaginated}}
+
+StreamRange<{{{RangeOutputType}}}> {{Codec.ConnectionClassName}}::{{Name}}(
+    {{RequestType}}) {  // NOLINT(performance-unnecessary-value-param)
+  return google::cloud::internal::MakeUnimplementedPaginationRange<
+      StreamRange<{{{RangeOutputType}}}>>();
+}
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsStreamingRead}}
+
+StreamRange<{{{ResponseType}}}> {{Codec.ConnectionClassName}}::{{Name}}(
+    {{RequestType}} const&) {
+  return google::cloud::internal::MakeStreamRange<
+      {{{ResponseType}}}>(
+      []() -> absl::variant<Status,
+      {{{ResponseType}}}>{
+        return Status(StatusCode::kUnimplemented, "not implemented");}
+      );
+}
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+
+{{{PlainReturnType}}}
+{{Codec.ConnectionClassName}}::{{Name}}(
+    {{RequestType}} const&) {
+  return Status(StatusCode::kUnimplemented, "not implemented");
+}
+{{/IsStreamingRead}}
+{{/IsPaginated}}
+{{/IsLRO}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+{{#IsVoid}}
+
+future<Status>
+{{Codec.ConnectionClassName}}::Async{{Name}}(
+    {{RequestType}} const&) {
+  return google::cloud::make_ready_future(
+      Status(StatusCode::kUnimplemented, "not implemented"));
+}
+{{/IsVoid}}
+{{^IsVoid}}
+
+future<StatusOr<{{ResponseType}}>>
+{{Codec.ConnectionClassName}}::Async{{Name}}(
+    {{RequestType}} const&) {
+  return google::cloud::make_ready_future<
+    StatusOr<{{ResponseType}}>>(
+    Status(StatusCode::kUnimplemented, "not implemented"));
+}
+{{/IsVoid}}
+{{/Codec.AsyncMethods}}
 
 {{#Codec.HasGrpc}}
 std::shared_ptr<{{Codec.ConnectionClassName}}> {{Codec.MakeConnectionFunctionName}}(

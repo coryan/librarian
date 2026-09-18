@@ -222,3 +222,69 @@ func TestAnnotateService_NonStreamingMethods(t *testing.T) {
 		t.Errorf("HasBidirStreamingMethod() want true, got false")
 	}
 }
+
+func TestServiceAnnotations_Layer36_Helpers(t *testing.T) {
+	testSvc := api.NewTestService("TestService").
+		WithPackage("google.test.v1").
+		WithDefaultHost("test.googleapis.com")
+	locSvc := api.NewTestService("Locations")
+
+	s := &serviceAnnotations{
+		Name:                  "TestService",
+		BaseFileName:          "test_service",
+		ServiceEndpointEnvVar: "GOOGLE_CLOUD_CPP_TEST_SERVICE_ENDPOINT",
+		Service:               testSvc,
+		Methods: []*methodAnnotations{
+			{
+				Method: api.NewTestMethod("Method1").WithAPIVersion("v1_20240101"),
+				Signatures: []*signatureAnnotations{
+					{
+						Params: []*signatureParamAnnotations{
+							{Field: api.NewTestField("dep_field").WithDeprecated(true)},
+						},
+					},
+				},
+			},
+		},
+		StubMethods: []*methodAnnotations{
+			{
+				Method: api.NewTestMethod("LocationMethod").
+					WithSourceService(locSvc).
+					WithService(testSvc),
+			},
+		},
+	}
+
+	if !s.MethodSignatureUsesDeprecatedField() {
+		t.Errorf("MethodSignatureUsesDeprecatedField: want true, got false")
+	}
+	if got := s.ServiceAuthorityEnvVar(); got != "GOOGLE_CLOUD_CPP_TEST_SERVICE_AUTHORITY" {
+		t.Errorf("ServiceAuthorityEnvVar: want 'GOOGLE_CLOUD_CPP_TEST_SERVICE_AUTHORITY', got %q", got)
+	}
+	if got := s.DefaultEndpoint(); got != "test.googleapis.com" {
+		t.Errorf("DefaultEndpoint: want 'test.googleapis.com', got %q", got)
+	}
+	if got := s.ServiceGrpcFqn(); got != "google.test.v1.TestService" {
+		t.Errorf("ServiceGrpcFqn: want 'google.test.v1.TestService', got %q", got)
+	}
+	if got := s.StreamingUpdaterFunctionName(); got != "TestServiceStreamingReadStreamingUpdater" {
+		t.Errorf("StreamingUpdaterFunctionName: want 'TestServiceStreamingReadStreamingUpdater', got %q", got)
+	}
+	if got := s.ApiVersion(); got != "v1_20240101" {
+		t.Errorf("ApiVersion: want 'v1_20240101', got %q", got)
+	}
+	if !s.HasLocationsMixin() {
+		t.Errorf("HasLocationsMixin: want true, got false")
+	}
+	if s.HasIamMixin() {
+		t.Errorf("HasIamMixin: want false, got true")
+	}
+	if s.HasOperationsMixin() {
+		t.Errorf("HasOperationsMixin: want false, got true")
+	}
+
+	stubCode := s.StubFactoryMakeDefaultStub()
+	if !strings.Contains(stubCode, "service_locations_stub") {
+		t.Errorf("StubFactoryMakeDefaultStub expected to contain service_locations_stub, got:\n%s", stubCode)
+	}
+}

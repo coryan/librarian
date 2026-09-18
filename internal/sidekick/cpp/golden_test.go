@@ -589,6 +589,10 @@ func TestGoldenServices_Layer32_IncludesAndGuards(t *testing.T) {
 
 		for _, tc := range sources {
 			content := readFile(filepath.Join(goldenRoot, tc.ccPath))
+			const disableWarnings = "#include \"google/cloud/internal/disable_deprecation_warnings.inc\"\n"
+			if idx := strings.Index(content, disableWarnings); idx != -1 {
+				content = content[idx+len(disableWarnings):]
+			}
 			gotFirstInclude := extractBlock(t, content, `#include "`, `"`+"\n")
 			wantFirstInclude := `#include "` + tc.wantHeader + `"` + "\n"
 			if gotFirstInclude != wantFirstInclude {
@@ -1529,5 +1533,304 @@ func TestGoldenServices_Layer35_MethodDeclarations(t *testing.T) {
 		compareBlock(t, filepath.Join("v1", "internal", "request_id_connection_impl.h"),
 			"  StatusOr<google::test::requestid::v1::Foo>\n  CreateFoo(",
 			"invocation_id_generator_ =\n          std::make_shared<google::cloud::internal::InvocationIdGenerator>();\n")
+	})
+}
+
+func TestGoldenServices_Layer36_MethodDefinitions(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	// 1. GoldenKitchenSink & GoldenThingAdmin (Library 0: golden)
+	sinkModel, err := loadTestModel(t, protosDir, googleapisDir, "test.yaml", "test.proto", "backup.proto", "common.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test.proto: %v", err)
+	}
+	if err := Generate(ctx, sinkModel, outdir, cfg.Libraries[0]); err != nil {
+		t.Fatalf("Generate(lib0) failed: %v", err)
+	}
+
+	// 2. GoldenRestOnly (Library 1: golden-test2)
+	restModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test2.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test2.proto: %v", err)
+	}
+	if err := Generate(ctx, restModel, outdir, cfg.Libraries[1]); err != nil {
+		t.Fatalf("Generate(lib1) failed: %v", err)
+	}
+
+	// 3. RequestIdService (Library 2: test-request-id)
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	// 4. DeprecatedService (Library 3: test-deprecated)
+	depModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test_deprecated.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_deprecated.proto: %v", err)
+	}
+	if err := Generate(ctx, depModel, outdir, cfg.Libraries[3]); err != nil {
+		t.Fatalf("Generate(lib3) failed: %v", err)
+	}
+
+	readFile := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", path, err)
+		}
+		return string(data)
+	}
+
+	goldenDir := filepath.Join("testdata", "golden")
+
+	compareBlock := func(t *testing.T, rel, startStr, endStr string) {
+		t.Helper()
+		gotContent := readFile(filepath.Join(goldenRoot, rel))
+		wantContent := readFile(filepath.Join(goldenDir, rel))
+
+		gotBlock := extractBlock(t, gotContent, startStr, endStr)
+		wantBlock := extractBlock(t, wantContent, startStr, endStr)
+		if diff := cmp.Diff(wantBlock, gotBlock); diff != "" {
+			t.Errorf("%s block [%q ... %q] mismatch (-want +got):\n%s", rel, startStr, endStr, diff)
+		}
+	}
+
+	t.Run("Client Method Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkClient: GenerateAccessToken method
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_client.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>\nGoldenKitchenSinkClient::GenerateAccessToken(std::string const& name, std::string const& not_used_anymore, Options opts) {\n",
+			"  return connection_->GenerateAccessToken(request);\n}\n")
+
+		// GoldenKitchenSinkClient: DoNothing
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_client.cc"),
+			"Status\nGoldenKitchenSinkClient::DoNothing(Options opts) {\n",
+			"  return connection_->DoNothing(request);\n}\n")
+
+		// GoldenThingAdminClient: CreateDatabase (LRO future)
+		compareBlock(t, filepath.Join("v1", "golden_thing_admin_client.cc"),
+			"future<StatusOr<google::test::admin::database::v1::Database>>\nGoldenThingAdminClient::CreateDatabase(std::string const& parent, std::string const& create_statement, Options opts) {\n",
+			"  return connection_->CreateDatabase(request);\n}\n")
+
+		// GoldenThingAdminClient: SetIamPolicy (with IAM updater)
+		compareBlock(t, filepath.Join("v1", "golden_thing_admin_client.cc"),
+			"StatusOr<google::iam::v1::Policy>\nGoldenThingAdminClient::SetIamPolicy(std::string const& resource, IamUpdater const& updater, Options opts) {\n",
+			"    std::this_thread::sleep_for(backoff_policy->OnCompletion());\n  }\n}\n")
+
+		// RequestIdServiceClient: CreateFoo
+		compareBlock(t, filepath.Join("v1", "request_id_client.cc"),
+			"StatusOr<google::test::requestid::v1::Foo>\nRequestIdServiceClient::CreateFoo(std::string const& parent, std::string const& foo_id, Options opts) {\n",
+			"  return connection_->CreateFoo(request);\n}\n")
+
+		// DeprecatedServiceClient: Noop
+		compareBlock(t, filepath.Join("v1", "deprecated_client.cc"),
+			"Status\nDeprecatedServiceClient::Noop(google::test::deprecated::v1::DeprecatedServiceRequest const& request, Options opts) {\n",
+			"  return connection_->Noop(request);\n}\n")
+	})
+
+	t.Run("Connection Method Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkConnection: AsyncStreamingReadWrite
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection.cc"),
+			"std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<\n    google::test::admin::database::v1::Request,\n    google::test::admin::database::v1::Response>>\nGoldenKitchenSinkConnection::AsyncStreamingReadWrite() {\n",
+			"      Status(StatusCode::kUnimplemented, \"not implemented\"));\n}\n")
+
+		// GoldenThingAdminConnection: CreateDatabase (LRO defaults)
+		compareBlock(t, filepath.Join("v1", "golden_thing_admin_connection.cc"),
+			"future<StatusOr<google::test::admin::database::v1::Database>>\nGoldenThingAdminConnection::CreateDatabase(\n    google::test::admin::database::v1::CreateDatabaseRequest const&) {\n",
+			"      Status(StatusCode::kUnimplemented, \"not implemented\"));\n}\n")
+	})
+
+	t.Run("Connection Idempotency Policy Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkConnectionIdempotencyPolicy: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "golden_kitchen_sink_connection_idempotency_policy.cc"),
+			"Idempotency GoldenKitchenSinkConnectionIdempotencyPolicy::GenerateAccessToken(google::test::admin::database::v1::GenerateAccessTokenRequest const&) {\n",
+			"  return Idempotency::kNonIdempotent;\n}\n")
+
+		// GoldenThingAdminConnectionIdempotencyPolicy: MakeDefault
+		compareBlock(t, filepath.Join("v1", "golden_thing_admin_connection_idempotency_policy.cc"),
+			"std::unique_ptr<GoldenThingAdminConnectionIdempotencyPolicy>\n    MakeDefaultGoldenThingAdminConnectionIdempotencyPolicy() {\n",
+			"  return std::make_unique<GoldenThingAdminConnectionIdempotencyPolicy>();\n}\n")
+	})
+
+	t.Run("Stub Definitions", func(t *testing.T) {
+		// DefaultGoldenKitchenSinkStub: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>\nDefaultGoldenKitchenSinkStub::GenerateAccessToken(\n",
+			"  return response;\n}\n")
+
+		// DefaultGoldenThingAdminStub: AsyncCreateDatabase & CreateDatabase
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_stub.cc"),
+			"future<StatusOr<google::longrunning::Operation>>\nDefaultGoldenThingAdminStub::AsyncCreateDatabase(\n",
+			"  return response;\n}\n")
+
+		// DefaultRequestIdServiceStub: CreateFoo
+		compareBlock(t, filepath.Join("v1", "internal", "request_id_stub.cc"),
+			"StatusOr<google::test::requestid::v1::Foo>\nDefaultRequestIdServiceStub::CreateFoo(\n",
+			"  return response;\n}\n")
+	})
+
+	t.Run("Stub Factory Definitions", func(t *testing.T) {
+		// CreateDefaultGoldenKitchenSinkStub
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_stub_factory.cc"),
+			"std::shared_ptr<GoldenKitchenSinkStub>\nCreateDefaultGoldenKitchenSinkStub(\n",
+			"  return stub;\n}\n")
+
+		// CreateDefaultGoldenThingAdminStub
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_stub_factory.cc"),
+			"std::shared_ptr<GoldenThingAdminStub>\nCreateDefaultGoldenThingAdminStub(\n",
+			"  return stub;\n}\n")
+	})
+
+	t.Run("Connection Implementation Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkConnectionImpl: StreamingUpdater & GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.cc"),
+			"void GoldenKitchenSinkStreamingReadStreamingUpdater(\n    google::test::admin::database::v1::Response const&,\n    google::test::admin::database::v1::Request&) {}\n",
+			"      *current, request, __func__);\n}\n")
+
+		// GoldenKitchenSinkConnectionImpl: StreamingRead
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_connection_impl.cc"),
+			"StreamRange<google::test::admin::database::v1::Response>\nGoldenKitchenSinkConnectionImpl::StreamingRead(google::test::admin::database::v1::Request const& request) {\n",
+			"        return response;\n      });\n}\n")
+
+		// GoldenThingAdminConnectionImpl: CreateDatabase (LRO overloads)
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_connection_impl.cc"),
+			"future<StatusOr<google::test::admin::database::v1::Database>>\nGoldenThingAdminConnectionImpl::CreateDatabase(google::test::admin::database::v1::CreateDatabaseRequest const& request) {\n",
+			"    polling_policy(*current), __func__);\n}\n")
+
+		// RequestIdServiceConnectionImpl: CreateFoo with invocation_id_generator
+		compareBlock(t, filepath.Join("v1", "internal", "request_id_connection_impl.cc"),
+			"StatusOr<google::test::requestid::v1::Foo>\nRequestIdServiceConnectionImpl::CreateFoo(google::test::requestid::v1::CreateFooRequest const& request) {\n",
+			"      *current, request_copy, __func__);\n}\n")
+	})
+
+	t.Run("Auth Decorator Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkAuth: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_auth_decorator.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GoldenKitchenSinkAuth::GenerateAccessToken(\n",
+			"  return child_->GenerateAccessToken(context, options, request);\n}\n")
+
+		// GoldenThingAdminAuth: AsyncCreateDatabase & CreateDatabase
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_auth_decorator.cc"),
+			"future<StatusOr<google::longrunning::Operation>>\nGoldenThingAdminAuth::AsyncCreateDatabase(\n",
+			"  return child_->CreateDatabase(context, options, request);\n}\n")
+
+		// GoldenThingAdminAuth: AsyncGetOperation & AsyncCancelOperation
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_auth_decorator.cc"),
+			"future<StatusOr<google::longrunning::Operation>>\nGoldenThingAdminAuth::AsyncGetOperation(\n",
+			"        return child->AsyncCancelOperation(\n            cq, *std::move(context), std::move(options), request);\n      });\n}\n")
+	})
+
+	t.Run("Logging Decorator Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkLogging: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_logging_decorator.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>\nGoldenKitchenSinkLogging::GenerateAccessToken(\n",
+			"      context, options, request, __func__, tracing_options_);\n}\n")
+
+		// GoldenThingAdminLogging: AsyncCreateDatabase & CreateDatabase
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_logging_decorator.cc"),
+			"future<StatusOr<google::longrunning::Operation>>\nGoldenThingAdminLogging::AsyncCreateDatabase(\n",
+			"      context, options, request, __func__, tracing_options_);\n}\n")
+	})
+
+	t.Run("Metadata Decorator Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkMetadata: GenerateAccessToken (url-encoded routing)
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>\nGoldenKitchenSinkMetadata::GenerateAccessToken(\n",
+			"  return child_->GenerateAccessToken(context, options, request);\n}\n")
+
+		// GoldenKitchenSinkMetadata: SetMetadata overloads
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_metadata_decorator.cc"),
+			"void GoldenKitchenSinkMetadata::SetMetadata(grpc::ClientContext& context,\n",
+			"      context, options, fixed_metadata_, api_client_header_);\n}\n")
+
+		// GoldenThingAdminMetadata: AsyncGetOperation & AsyncCancelOperation
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_metadata_decorator.cc"),
+			"future<StatusOr<google::longrunning::Operation>>\nGoldenThingAdminMetadata::AsyncGetOperation(\n",
+			"  return child_->AsyncCancelOperation(\n      cq, std::move(context), std::move(options), request);\n}\n")
+	})
+
+	t.Run("Round Robin Decorator Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkRoundRobin: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GoldenKitchenSinkRoundRobin::GenerateAccessToken(\n",
+			"  return Child()->GenerateAccessToken(context, options, request);\n}\n")
+
+		// GoldenKitchenSinkRoundRobin: Child helper
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_round_robin_decorator.cc"),
+			"std::shared_ptr<GoldenKitchenSinkStub>\nGoldenKitchenSinkRoundRobin::Child() {\n",
+			"  return children_[current];\n}\n")
+	})
+
+	t.Run("Tracing Stub Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkTracingStub: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse> GoldenKitchenSinkTracingStub::GenerateAccessToken(\n",
+			"                           child_->GenerateAccessToken(context, options, request));\n}\n")
+
+		// RequestIdServiceTracingStub: CreateFoo (request_id attribute)
+		compareBlock(t, filepath.Join("v1", "internal", "request_id_tracing_stub.cc"),
+			"StatusOr<google::test::requestid::v1::Foo> RequestIdServiceTracingStub::CreateFoo(\n",
+			"                           child_->CreateFoo(context, options, request));\n}\n")
+
+		// MakeGoldenKitchenSinkTracingStub factory
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_stub.cc"),
+			"std::shared_ptr<GoldenKitchenSinkStub> MakeGoldenKitchenSinkTracingStub(\n",
+			"#endif  // GOOGLE_CLOUD_CPP_HAVE_OPENTELEMETRY\n}\n")
+	})
+
+	t.Run("Tracing Connection Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkTracingConnection: GenerateAccessToken
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.cc"),
+			"StatusOr<google::test::admin::database::v1::GenerateAccessTokenResponse>\nGoldenKitchenSinkTracingConnection::GenerateAccessToken(google::test::admin::database::v1::GenerateAccessTokenRequest const& request) {\n",
+			"  return internal::EndSpan(*span, child_->GenerateAccessToken(request));\n}\n")
+
+		// GoldenThingAdminTracingConnection: CreateDatabase (LRO)
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_tracing_connection.cc"),
+			"future<StatusOr<google::test::admin::database::v1::Database>>\nGoldenThingAdminTracingConnection::CreateDatabase(google::test::admin::database::v1::CreateDatabaseRequest const& request) {\n",
+			"  return internal::EndSpan(std::move(span), child_->CreateDatabase(request));\n}\n")
+
+		// MakeGoldenKitchenSinkTracingConnection factory
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_tracing_connection.cc"),
+			"std::shared_ptr<golden_v1::GoldenKitchenSinkConnection>\nMakeGoldenKitchenSinkTracingConnection(\n",
+			"  return conn;\n}\n")
+	})
+
+	t.Run("Option Defaults Definitions", func(t *testing.T) {
+		// GoldenKitchenSinkDefaultOptions
+		compareBlock(t, filepath.Join("v1", "internal", "golden_kitchen_sink_option_defaults.cc"),
+			"Options GoldenKitchenSinkDefaultOptions(Options options) {\n",
+			"  return options;\n}\n")
+
+		// GoldenThingAdminDefaultOptions (with PollingPolicy)
+		compareBlock(t, filepath.Join("v1", "internal", "golden_thing_admin_option_defaults.cc"),
+			"Options GoldenThingAdminDefaultOptions(Options options) {\n",
+			"  return options;\n}\n")
+
+		// RequestIdServiceDefaultOptions
+		compareBlock(t, filepath.Join("v1", "internal", "request_id_option_defaults.cc"),
+			"Options RequestIdServiceDefaultOptions(Options options) {\n",
+			"  return options;\n}\n")
 	})
 }

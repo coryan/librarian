@@ -31,6 +31,48 @@ std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>
 {{Codec.IdempotencyPolicyClassName}}::clone() const {
   return std::make_unique<{{Codec.IdempotencyPolicyClassName}}>(*this);
 }
+{{#Codec.NonStreamingMethods}}
+{{#IsSetIamPolicy}}
+
+Idempotency {{Codec.IdempotencyPolicyClassName}}::{{Name}}(
+    google::iam::v1::SetIamPolicyRequest const& request) {
+  return request.policy().etag().empty() ? Idempotency::kNonIdempotent
+                                         : Idempotency::kIdempotent;
+}
+{{/IsSetIamPolicy}}
+{{^IsSetIamPolicy}}
+{{#IsPaginated}}
+{{#HasRequestId}}
+
+Idempotency {{Codec.IdempotencyPolicyClassName}}::{{Name}}({{RequestType}} request) { // NOLINT
+  if (!request.{{RequestIdFieldName}}().empty()) return Idempotency::kIdempotent;
+  return Idempotency::{{Idempotency}};
+}
+{{/HasRequestId}}
+{{^HasRequestId}}
+
+Idempotency {{Codec.IdempotencyPolicyClassName}}::{{Name}}({{RequestType}}) {  // NOLINT
+  return Idempotency::{{Idempotency}};
+}
+{{/HasRequestId}}
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#HasRequestId}}
+
+Idempotency {{Codec.IdempotencyPolicyClassName}}::{{Name}}({{RequestType}} const& request) {
+  if (!request.{{RequestIdFieldName}}().empty()) return Idempotency::kIdempotent;
+  return Idempotency::{{Idempotency}};
+}
+{{/HasRequestId}}
+{{^HasRequestId}}
+
+Idempotency {{Codec.IdempotencyPolicyClassName}}::{{Name}}({{RequestType}} const&) {
+  return Idempotency::{{Idempotency}};
+}
+{{/HasRequestId}}
+{{/IsPaginated}}
+{{/IsSetIamPolicy}}
+{{/Codec.NonStreamingMethods}}
 
 std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>
     {{Codec.MakeDefaultIdempotencyPolicyFunctionName}}() {
