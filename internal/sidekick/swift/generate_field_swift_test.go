@@ -29,32 +29,23 @@ func TestGenerateField_InitFromDecoder(t *testing.T) {
 	outDir := t.TempDir()
 
 	// Field 1: Normal field with JSONName override to trigger CustomSerialization
-	field1 := &api.Field{
-		Name:          "normal_field",
-		Documentation: "A normal field.",
-		ID:            ".test.TestMessage.normal_field",
-		Typez:         api.TypezString,
-		JSONName:      "normal_field", // Differs from camelCase "normalField"
-	}
+	field1 := api.NewTestField("normal_field").
+		WithType(api.TypezString)
+	field1.Documentation = "A normal field."
+	field1.JSONName = "normal_field" // Differs from camelCase "normalField"
 
 	// Field 2: Optional field with JSONName override
-	field2 := &api.Field{
-		Name:          "optional_field",
-		Documentation: "An optional field.",
-		ID:            ".test.TestMessage.optional_field",
-		Typez:         api.TypezString,
-		Optional:      true,
-		JSONName:      "optional_field", // Differs from camelCase "optionalField"
-	}
+	field2 := api.NewTestField("optional_field").
+		WithType(api.TypezString).
+		WithOptional()
+	field2.Documentation = "An optional field."
+	field2.JSONName = "optional_field" // Differs from camelCase "optionalField"
 
-	msg := &api.Message{
-		Name:    "TestMessage",
-		Package: "google.cloud.test.v1",
-		ID:      ".google.cloud.test.v1.TestMessage",
-		Fields:  []*api.Field{field1, field2},
-	}
+	msg := api.NewTestMessage("TestMessage").
+		WithPackage("google.cloud.test.v1").
+		WithFields(field1, field2)
 
-	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{})
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
 	model.PackageName = "google.cloud.test.v1"
 
 	library := &config.Library{
@@ -95,37 +86,24 @@ func TestGenerateField_InitFromDecoder(t *testing.T) {
 func TestGenerateField_DocComments(t *testing.T) {
 	outDir := t.TempDir()
 
-	field1 := &api.Field{
-		Name:          "normal_field",
-		Documentation: "Documentation for normal_field.",
-		ID:            ".google.cloud.test.v1.TestMessage.normal_field",
-		Typez:         api.TypezString,
-	}
+	field1 := api.NewTestField("normal_field").
+		WithType(api.TypezString)
+	field1.Documentation = "Documentation for normal_field."
 
-	field2 := &api.Field{
-		Name:          "oneof_field",
-		Documentation: "Documentation for oneof_field.",
-		ID:            ".google.cloud.test.v1.TestMessage.oneof_field",
-		Typez:         api.TypezString,
-		IsOneOf:       true,
-	}
+	field2 := api.NewTestField("oneof_field").
+		WithType(api.TypezString)
+	field2.Documentation = "Documentation for oneof_field."
 
-	oneof := &api.OneOf{
-		Name:          "my_oneof",
-		Documentation: "Documentation for my_oneof.",
-		Fields:        []*api.Field{field2},
-	}
-	field2.Group = oneof
+	oneof := api.NewTestOneOf("my_oneof").
+		WithFields(field2)
+	oneof.Documentation = "Documentation for my_oneof."
 
-	msg := &api.Message{
-		Name:    "TestMessage",
-		Package: "google.cloud.test.v1",
-		ID:      ".google.cloud.test.v1.TestMessage",
-		Fields:  []*api.Field{field1, field2},
-		OneOfs:  []*api.OneOf{oneof},
-	}
+	msg := api.NewTestMessage("TestMessage").
+		WithPackage("google.cloud.test.v1").
+		WithFields(field1).
+		WithOneOfs(oneof)
 
-	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{})
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
 	model.PackageName = "google.cloud.test.v1"
 
 	library := &config.Library{}
