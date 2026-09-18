@@ -49,10 +49,7 @@ func TestLibraryToModelConfig(t *testing.T) {
 		Path: "generator/integration_tests/test.proto",
 	}
 
-	got, err := libraryToModelConfig(lib, apiCfg, nil, nil)
-	if err != nil {
-		t.Fatalf("libraryToModelConfig failed: %v", err)
-	}
+	got := libraryToModelConfig(lib, apiCfg, nil, nil)
 
 	want := &parser.ModelConfig{
 		Language:            config.LanguageCpp,

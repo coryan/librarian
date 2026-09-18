@@ -136,6 +136,8 @@ func paginationResponseItem(overrides []PaginationOverride, methodID string, res
 	}
 
 	var mapItems *Field
+	var repeatedString *Field
+	var repeatedStringCount int
 	for _, field := range response.Fields {
 		if field.Map && mapItems == nil {
 			mapItems = field
@@ -143,6 +145,13 @@ func paginationResponseItem(overrides []PaginationOverride, methodID string, res
 		if field.Repeated && field.Typez == TypezMessage {
 			return field
 		}
+		if field.Repeated && field.Typez == TypezString {
+			repeatedString = field
+			repeatedStringCount++
+		}
+	}
+	if repeatedStringCount == 1 {
+		return repeatedString
 	}
 	return mapItems
 }

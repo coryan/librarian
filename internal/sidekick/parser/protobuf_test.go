@@ -69,7 +69,7 @@ func TestProtobuf_PartialInfo(t *testing.T) {
 		Title:       "Secret Manager API",
 		Description: "",
 	}
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(api.API{}, "Services", "Messages", "Enums"), cmpopts.IgnoreUnexported(api.API{})); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(api.API{}, "Services", "Messages", "Enums", "DefinitionLocations"), cmpopts.IgnoreUnexported(api.API{})); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -2277,5 +2277,27 @@ func requireProtoc(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("protoc"); err != nil {
 		t.Skip("skipping test because protoc is not installed")
+	}
+}
+
+func TestProtobuf_DefinitionLocations(t *testing.T) {
+	requireProtoc(t)
+	apiModel, err := makeAPIForProtobuf(nil, newTestCodeGeneratorRequest(t, "scalar.proto"))
+	if err != nil {
+		t.Fatalf("Failed to make API for Protobuf: %v", err)
+	}
+	loc, ok := apiModel.DefinitionLocation("test.Fake")
+	if !ok {
+		t.Fatalf("expected definition location for test.Fake")
+	}
+	if loc.Filename != "scalar.proto" || loc.Line != 19 {
+		t.Errorf("got location %+v, want filename scalar.proto, line 19", loc)
+	}
+	fLoc, ok := apiModel.DefinitionLocation("test.Fake.f_bool")
+	if !ok {
+		t.Fatalf("expected definition location for test.Fake.f_bool")
+	}
+	if fLoc.Filename != "scalar.proto" || fLoc.Line != 42 {
+		t.Errorf("got location %+v, want filename scalar.proto, line 42", fLoc)
 	}
 }

@@ -42,12 +42,16 @@ func newCodec(model *api.API, library *config.Library, outdir string) (*Codec, e
 }
 
 // annotateModel enriches the API model with C++ specific metadata and types.
-func (c *Codec) annotateModel() error {
-	// Annotation passes will be implemented in subsequent phases:
-	// - annotate_service.go
-	// - annotate_method.go
-	// - annotate_field.go
-	// - annotate_comments.go
-	// - annotate_options.go
-	return nil
+func (c *Codec) annotateModel() {
+	for _, m := range c.Model.Messages {
+		for _, f := range m.Fields {
+			annotateField(f)
+		}
+	}
+	for _, svc := range c.Model.Services {
+		for _, m := range svc.Methods {
+			annotateMethod(m, svc, c.Library, c.Model)
+		}
+		annotateService(svc, c.Library, c.Model)
+	}
 }

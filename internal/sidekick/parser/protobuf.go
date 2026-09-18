@@ -294,6 +294,7 @@ func makeAPIForProtobuf(serviceConfig *serviceconfig.Service, req *pluginpb.Code
 	// to generate these elements, but we need them to be available to generate
 	// any RPC that uses them.
 	for _, f := range append(req.GetProtoFile(), mixinFileDesc...) {
+		recordDefinitionLocations(result, f)
 		fFQN := "." + f.GetPackage()
 		for _, m := range f.MessageType {
 			mFQN := fFQN + "." + m.GetName()
@@ -890,6 +891,112 @@ func addEnumDocumentation(model *api.API, p []int32, doc string, eFQN string) {
 		// A comment for a reserved range, ignore, it does not emit any generated code.
 	default:
 		slog.Warn("enum dropped documentation", "loc", p, "docs", doc)
+	}
+}
+
+// recordDefinitionLocations extracts definition source locations from FileDescriptorProto.
+func recordDefinitionLocations(model *api.API, f *descriptorpb.FileDescriptorProto) {
+	if f.GetSourceCodeInfo() == nil {
+		return
+	}
+	filename := f.GetName()
+	pkg := f.GetPackage()
+	prefix := pkg
+	if prefix != "" {
+		prefix += "."
+	}
+
+	for _, loc := range f.GetSourceCodeInfo().GetLocation() {
+		p := loc.GetPath()
+		if len(p) == 0 || len(loc.GetSpan()) == 0 {
+			continue
+		}
+		line := int(loc.GetSpan()[0]) + 1
+
+		switch p[0] {
+		case fileDescriptorMessageType:
+			if len(p) >= 2 && int(p[1]) < len(f.MessageType) {
+				m := f.MessageType[p[1]]
+				recordMessageDefinitionLocation(model, m, p[2:], filename, line, prefix+m.GetName())
+			}
+		case fileDescriptorEnumType:
+			if len(p) >= 2 && int(p[1]) < len(f.EnumType) {
+				e := f.EnumType[p[1]]
+				recordEnumDefinitionLocation(model, e, p[2:], filename, line, prefix+e.GetName(), pkg)
+			}
+		case fileDescriptorService:
+			if len(p) >= 2 && int(p[1]) < len(f.Service) {
+				s := f.Service[p[1]]
+				recordServiceDefinitionLocation(model, s, p[2:], filename, line, prefix+s.GetName())
+			}
+		case fileDescriptorExtension:
+			if len(p) >= 2 && int(p[1]) < len(f.Extension) {
+				ext := f.Extension[p[1]]
+				model.AddDefinitionLocation(prefix+ext.GetName(), api.SourceLocation{Filename: filename, Line: line})
+			}
+		}
+	}
+}
+
+// recordMessageDefinitionLocation recursively records locations for message and nested definitions.
+func recordMessageDefinitionLocation(model *api.API, m *descriptorpb.DescriptorProto, p []int32, filename string, line int, mFQN string) {
+	if len(p) == 0 {
+		model.AddDefinitionLocation(mFQN, api.SourceLocation{Filename: filename, Line: line})
+		return
+	}
+	switch p[0] {
+	case messageDescriptorNestedType:
+		if len(p) >= 2 && int(p[1]) < len(m.NestedType) {
+			nested := m.NestedType[p[1]]
+			recordMessageDefinitionLocation(model, nested, p[2:], filename, line, mFQN+"."+nested.GetName())
+		}
+	case messageDescriptorField:
+		if len(p) == 2 && int(p[1]) < len(m.Field) {
+			field := m.Field[p[1]]
+			model.AddDefinitionLocation(mFQN+"."+field.GetName(), api.SourceLocation{Filename: filename, Line: line})
+		}
+	case messageDescriptorEnum:
+		if len(p) >= 2 && int(p[1]) < len(m.EnumType) {
+			e := m.EnumType[p[1]]
+			recordEnumDefinitionLocation(model, e, p[2:], filename, line, mFQN+"."+e.GetName(), mFQN)
+		}
+	case messageDescriptorOneOf:
+		if len(p) == 2 && int(p[1]) < len(m.OneofDecl) {
+			oneof := m.OneofDecl[p[1]]
+			model.AddDefinitionLocation(mFQN+"."+oneof.GetName(), api.SourceLocation{Filename: filename, Line: line})
+		}
+	case messageDescriptorExtension:
+		if len(p) == 2 && int(p[1]) < len(m.Extension) {
+			ext := m.Extension[p[1]]
+			model.AddDefinitionLocation(mFQN+"."+ext.GetName(), api.SourceLocation{Filename: filename, Line: line})
+		}
+	}
+}
+
+// recordEnumDefinitionLocation records definition locations for enum types and enum values.
+func recordEnumDefinitionLocation(model *api.API, e *descriptorpb.EnumDescriptorProto, p []int32, filename string, line int, eFQN string, scope string) {
+	if len(p) == 0 {
+		model.AddDefinitionLocation(eFQN, api.SourceLocation{Filename: filename, Line: line})
+		return
+	}
+	if p[0] == enumDescriptorValue && len(p) == 2 && int(p[1]) < len(e.Value) {
+		val := e.Value[p[1]]
+		model.AddDefinitionLocation(eFQN+"."+val.GetName(), api.SourceLocation{Filename: filename, Line: line})
+		if scope != "" {
+			model.AddDefinitionLocation(scope+"."+val.GetName(), api.SourceLocation{Filename: filename, Line: line})
+		}
+	}
+}
+
+// recordServiceDefinitionLocation records definition locations for services and methods.
+func recordServiceDefinitionLocation(model *api.API, s *descriptorpb.ServiceDescriptorProto, p []int32, filename string, line int, sFQN string) {
+	if len(p) == 0 {
+		model.AddDefinitionLocation(sFQN, api.SourceLocation{Filename: filename, Line: line})
+		return
+	}
+	if p[0] == serviceDescriptorProtoMethod && len(p) == 2 && int(p[1]) < len(s.Method) {
+		m := s.Method[p[1]]
+		model.AddDefinitionLocation(sFQN+"."+m.GetName(), api.SourceLocation{Filename: filename, Line: line})
 	}
 }
 

@@ -543,6 +543,7 @@ func TestPaginationResponseItemMatching(t *testing.T) {
 	}{
 		{false, true, TypezMessage, "items"},
 		{true, false, TypezMessage, "items"},
+		{true, false, TypezString, "items"},
 	} {
 		response := &Message{
 			Name: "Response",
@@ -635,7 +636,7 @@ func TestPaginationResponseItemNotMatching(t *testing.T) {
 		Overrides []PaginationOverride
 	}{
 		{"badRepeated", false, TypezMessage, nil},
-		{"badType", true, TypezString, nil},
+		{"badType", true, TypezInt32, nil},
 		{"bothBad", false, TypezEnum, nil},
 		{"badOverride", true, TypezMessage, overrides},
 	} {

@@ -130,6 +130,7 @@ This document describes the schema for the librarian.yaml.
 | `keep` | list of string | Lists files and directories to preserve during regeneration. These represent critical custom handwritten files (e.g., package.json, custom configs, and handwritten tests) and semi-handmade documentation files (README.md, CHANGELOG.md, .readme-partials.yaml) that are not natively generated from proto schemas but are strictly required by the post-processor's markdown generation and release tracking passes. |
 | `output` | string | Is the directory where code is written. For example, for Rust this is src/generated. |
 | `tag_format` | string | Is the template for git tags, such as "{name}/v{version}". |
+| `cpp` | [CppDefault](#cppdefault-configuration) (optional) | Contains C++-specific default configuration. |
 | `dart` | [DartPackage](#dartpackage-configuration) (optional) | Contains Dart-specific default configuration. |
 | `dotnet` | [DotnetPackage](#dotnetpackage-configuration) (optional) | Contains .NET-specific default configuration. |
 | `go` | [GoDefault](#godefault-configuration) (optional) | Contains Go-specific default configuration. |
@@ -158,6 +159,7 @@ This document describes the schema for the librarian.yaml.
 | `skip_generate` | bool | Disables code generation for this library. |
 | `skip_release` | bool | Disables release for this library. |
 | `specification_format` | string | Specifies the API specification format. Valid values are "protobuf" (default) or "discovery". |
+| `cpp` | [CppLibrary](#cpplibrary-configuration) (optional) | Contains C++-specific library configuration. |
 | `dart` | [DartPackage](#dartpackage-configuration) (optional) | Contains Dart-specific library configuration. |
 | `dotnet` | [DotnetPackage](#dotnetpackage-configuration) (optional) | Contains .NET-specific library configuration. |
 | `go` | [GoModule](#gomodule-configuration) (optional) | Contains Go-specific library configuration. |
@@ -250,6 +252,45 @@ This document describes the schema for the librarian.yaml.
 | :--- | :--- | :--- |
 | `prefix` | string | Is an acceptable prefix for the URL path (e.g., "compute/v1/projects/{project}/zones/{zone}"). |
 | `method_id` | string | Is the corresponding method ID (e.g., ".google.cloud.compute.v1.zoneOperations.get"). |
+
+## CppDefault Configuration
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `product_path` | string | Is the relative path where generated source and headers are placed. |
+| `forwarding_product_path` | string | Is the relative path for top-level forwarding headers. |
+| `generate_rest_transport` | bool | Indicates whether REST transport code should be generated. |
+| `generate_grpc_transport` | bool (optional) | Indicates whether gRPC transport code should be generated. When nil, defaults to true. |
+| `endpoint_location_style` | string | Specifies the endpoint location resolution style. |
+| `backwards_compatibility_namespace_alias` | bool | Enables backwards compatibility namespace aliases. |
+| `retryable_status_codes` | list of string | Lists the gRPC status codes considered retryable. |
+| `generate_round_robin_decorator` | bool | Indicates whether to generate the round robin decorator. |
+| `omit_repo_metadata` | bool | Disables generating .repo-metadata.json for the library. |
+| `experimental` | bool | Indicates whether the service is experimental, adding ExperimentalTag parameters to client constructors and connection factory functions. |
+| `preserve_proto_field_names_in_json` | bool | Indicates whether REST services expect JSON field names in snake_case (proto field names) rather than camelCase. |
+| `initial_copyright_year` | string | Specifies the initial copyright year to use in generated files. |
+
+## CppLibrary Configuration
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| (embedded) | [CppDefault](#cppdefault-configuration) |  |
+| `service_endpoint_env_var` | string | Is the name of the environment variable used to override the service endpoint. |
+| `emulator_endpoint_env_var` | string | Is the name of the environment variable used to configure an emulator endpoint. |
+| `omitted_rpcs` | list of string | Is a list of RPC names to omit from code generation. |
+| `gen_async_rpcs` | list of string | Is a list of RPC names for which asynchronous client methods should be generated. |
+| `omitted_services` | list of string | Is a list of service names to omit from code generation. |
+| `idempotency_overrides` | list of [IdempotencyRule](#idempotencyrule-configuration) | Defines custom idempotency settings for specific RPCs. |
+| `omit_client` | bool | Disables generating the high-level Client class. |
+| `omit_connection` | bool | Disables generating the Connection interface and implementation. |
+| `omit_stub_factory` | bool | Disables generating the StubFactory. |
+| `omit_streaming_updater` | bool | Disables the generated resumption function for client-streaming RPCs. |
+| `service_name_mapping` | map[string]string | Maps upstream service names to custom library class names. |
+| `service_name_to_comment` | map[string]string | Maps upstream service names to custom replacement comments. |
+| `additional_proto_files` | list of string | Lists extra proto files to include in generation. |
+| `service_config` | string | Is the path to the service configuration YAML file. |
+| `override_service_config_yaml_name` | string | Is an alias for ServiceConfig matching generator_config.proto. |
+| `proto_file_source` | string | Specifies the source type of proto files (e.g. GOOGLEAPIS, DISCOVERY_DOCUMENT). |
 
 ## DartPackage Configuration
 
@@ -370,6 +411,13 @@ This document describes the schema for the librarian.yaml.
 | `delete_generation_output_paths` | list of string | Is a list of paths to delete before generation. |
 | `module_path_version` | string | Is the version of the Go module path. |
 | `nested_module` | string | Is the name of a nested module directory. |
+
+## IdempotencyRule Configuration
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `rpc_name` | string | Is the name of the RPC (e.g. "GoldenThingAdmin.DropDatabase"). |
+| `idempotency` | string | Is the idempotency level (e.g. "IDEMPOTENT", "NON_IDEMPOTENT"). |
 
 ## JavaAPI Configuration
 

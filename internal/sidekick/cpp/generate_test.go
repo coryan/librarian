@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/googleapis/librarian/internal/config"
@@ -49,6 +50,34 @@ func TestGenerate(t *testing.T) {
 
 	if err := Generate(t.Context(), model, tempDir, lib); err != nil {
 		t.Fatalf("Generate failed: %v", err)
+	}
+}
+
+func TestGenerate_NilLibrary(t *testing.T) {
+	reqMsg := api.NewTestMessage("Request")
+	respMsg := api.NewTestMessage("Response")
+	method := api.NewTestMethod("Method").WithInput(reqMsg).WithOutput(respMsg)
+	svc := api.NewTestService("Service").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{reqMsg, respMsg}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatalf("api.CrossReference failed: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	// Should return nil without crashing when library is nil
+	if err := Generate(t.Context(), model, tempDir, nil); err != nil {
+		t.Fatalf("Generate with nil library failed: %v", err)
+	}
+
+	// Should return nil without crashing when library.Cpp is nil
+	if err := Generate(t.Context(), model, tempDir, &config.Library{Name: "test"}); err != nil {
+		t.Fatalf("Generate with nil Cpp failed: %v", err)
+	}
+
+	// getValidSignatures should not panic with nil library
+	sigs := getValidSignatures(svc, method, nil)
+	if len(sigs) != 0 {
+		t.Errorf("expected 0 signatures, got %d", len(sigs))
 	}
 }
 
@@ -274,6 +303,166 @@ func TestFromProtobuf_GoldenProtos(t *testing.T) {
 			}
 			if err := Generate(t.Context(), model, outDir, lib); err != nil {
 				t.Fatalf("Generate failed on parsed model: %v", err)
+			}
+		})
+	}
+}
+
+func TestParityWithGolden(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	testdataDir, err := filepath.Abs("testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootTestdata, err := filepath.Abs("../../testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	yamlPath := filepath.Join(testdataDir, "golden_librarian.yaml")
+	content, err := os.ReadFile(yamlPath)
+	if err != nil {
+		t.Fatalf("reading golden_librarian.yaml: %v", err)
+	}
+	cfg, err := yaml.Unmarshal[config.Config](content)
+	if err != nil {
+		t.Fatalf("unmarshaling golden_librarian.yaml: %v", err)
+	}
+
+	libMap := make(map[string]*config.Library)
+	for _, l := range cfg.Libraries {
+		libMap[l.Name] = l
+	}
+
+	src := &sources.Sources{
+		Googleapis: filepath.Join(rootTestdata, "googleapis"),
+		Showcase:   filepath.Join(testdataDir, "protos"),
+	}
+
+	cases := []struct {
+		name          string
+		libName       string
+		includeList   []string
+		serviceConfig string
+		goldenSubdir  string
+		expectedFiles int
+	}{
+		{
+			name:          "request_id",
+			libName:       "request_id",
+			includeList:   []string{"test_request_id.proto"},
+			serviceConfig: "generator/integration_tests/test_request_id.yaml",
+			goldenSubdir:  "v1",
+			expectedFiles: 27,
+		},
+		{
+			name:          "deprecated",
+			libName:       "deprecated",
+			includeList:   []string{"test_deprecated.proto"},
+			goldenSubdir:  "v1",
+			expectedFiles: 27,
+		},
+		{
+			name:          "golden_kitchen_sink",
+			libName:       "golden_kitchen_sink",
+			includeList:   []string{"test.proto", "backup.proto"},
+			serviceConfig: "generator/integration_tests/test.yaml",
+			goldenSubdir:  "",
+			expectedFiles: 68,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lib := libMap[tc.libName]
+			if lib == nil {
+				t.Fatalf("library config not found: %s", tc.libName)
+			}
+
+			sourceCfg := &sources.SourceConfig{
+				Sources:     src,
+				ActiveRoots: []string{"googleapis", "showcase"},
+				IncludeList: tc.includeList,
+			}
+
+			modelCfg := &parser.ModelConfig{
+				Language:            config.LanguageCpp,
+				SpecificationFormat: config.SpecProtobuf,
+				SpecificationSource: "generator/integration_tests",
+				Source:              sourceCfg,
+				ServiceConfig:       tc.serviceConfig,
+			}
+
+			model, err := parser.CreateModel(modelCfg)
+			if err != nil {
+				t.Fatalf("parser.CreateModel failed: %v", err)
+			}
+
+			outDir := t.TempDir()
+			if err := Generate(t.Context(), model, outDir, lib); err != nil {
+				t.Fatalf("Generate failed: %v", err)
+			}
+
+			goldenBase := filepath.Join(testdataDir, "golden", tc.goldenSubdir)
+
+			var generatedFiles []string
+			err = filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if !info.IsDir() {
+					rel, rErr := filepath.Rel(outDir, path)
+					if rErr != nil {
+						return rErr
+					}
+					generatedFiles = append(generatedFiles, rel)
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("walking generated dir: %v", err)
+			}
+
+			if len(generatedFiles) != tc.expectedFiles {
+				t.Errorf("%s: generated %d files, want %d", tc.name, len(generatedFiles), tc.expectedFiles)
+			}
+
+			for _, rel := range generatedFiles {
+				genPath := filepath.Join(outDir, rel)
+				goldPath := filepath.Join(goldenBase, rel)
+
+				genBytes, err := os.ReadFile(genPath)
+				if err != nil {
+					t.Errorf("reading generated file %s: %v", rel, err)
+					continue
+				}
+				goldBytes, err := os.ReadFile(goldPath)
+				if err != nil {
+					t.Errorf("reading golden file %s: %v", rel, err)
+					continue
+				}
+
+				if string(genBytes) != string(goldBytes) {
+					t.Errorf("diff in %s (size gen=%d, gold=%d)", rel, len(genBytes), len(goldBytes))
+					// Write both to temp files or show first difference
+					genLines := strings.Split(string(genBytes), "\n")
+					goldLines := strings.Split(string(goldBytes), "\n")
+					minLines := min(len(genLines), len(goldLines))
+					diffReported := false
+					for i := range minLines {
+						if genLines[i] != goldLines[i] {
+							t.Errorf("  first diff at line %d:\n    got:  %q\n    want: %q", i+1, genLines[i], goldLines[i])
+							diffReported = true
+							break
+						}
+					}
+					if !diffReported {
+						t.Errorf("  line count mismatch: got %d lines, want %d lines", len(genLines), len(goldLines))
+					}
+				}
 			}
 		})
 	}

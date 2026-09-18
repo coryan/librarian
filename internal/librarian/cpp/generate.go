@@ -40,10 +40,7 @@ func Generate(ctx context.Context, cfg *config.Config, library *config.Library, 
 	}
 
 	for _, apiCfg := range library.APIs {
-		modelConfig, err := libraryToModelConfig(library, apiCfg, src, pc)
-		if err != nil {
-			return err
-		}
+		modelConfig := libraryToModelConfig(library, apiCfg, src, pc)
 		model, err := parser.CreateModel(modelConfig)
 		if err != nil {
 			return err
@@ -85,7 +82,7 @@ func Format(ctx context.Context, library *config.Library) error {
 }
 
 // libraryToModelConfig constructs a ModelConfig for parser.CreateModel.
-func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sources.Sources, pc *config.Protoc) (*parser.ModelConfig, error) {
+func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sources.Sources, pc *config.Protoc) *parser.ModelConfig {
 	specFormat := config.SpecProtobuf
 	if library.SpecificationFormat != "" {
 		specFormat = library.SpecificationFormat
@@ -128,7 +125,7 @@ func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sou
 		skippedIDs = library.Cpp.OmittedServices
 	}
 
-	modelCfg := &parser.ModelConfig{
+	return &parser.ModelConfig{
 		Language:            config.LanguageCpp,
 		SpecificationFormat: specFormat,
 		SpecificationSource: specSource,
@@ -140,5 +137,4 @@ func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sou
 			SkippedIDs: skippedIDs,
 		},
 	}
-	return modelCfg, nil
 }

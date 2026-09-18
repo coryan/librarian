@@ -100,6 +100,12 @@ func (a *API) WithRubyPackage(name string) *API {
 	return a
 }
 
+// WithDefinitionLocation associates an entity name with its source location.
+func (a *API) WithDefinitionLocation(name, filename string, line int) *API {
+	a.AddDefinitionLocation(name, SourceLocation{Filename: filename, Line: line})
+	return a
+}
+
 // parentName returns the parent's name from a fully qualified identifier.
 func parentName(id string) string {
 	if lastIndex := strings.LastIndex(id, "."); lastIndex != -1 {

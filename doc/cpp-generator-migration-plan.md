@@ -28,6 +28,7 @@ flowchart LR
 | **Development & Test Workflow** | **Librarian-contained first** | Protos and reference golden outputs are housed inside `librarian/internal/sidekick/cpp/testdata` so `go test` runs hermetically in Librarian CI before touching `google-cloud-cpp`. |
 | **Implementation Sequencing** | **gRPC end-to-end first, then REST** | Complete all files for gRPC services (public APIs, internal stubs, decorators, mocks, sources, forwarding headers) before implementing REST transports. |
 | **Tooling Dependencies** | **System `clang-format` with optional configuration** | Finds `clang-format` on `$PATH` by default, with optional path/version configuration in `librarian.yaml` under `tools:`. |
+| **Review & Commit Protocol** | **Always use `review-pr` from Librarian repository** | Review every phase using the local `review-pr` skill from `.agents/skills/review-pr/SKILL.md` with the consistency prompt, then commit with a very brief comment. |
 
 ---
 
@@ -193,6 +194,12 @@ internal/sidekick/cpp/
 - **Unit Testing Data Models**: Always use Librarian's `api.NewTest*()` constructors (`api.NewTestAPI`, `api.NewTestService`, `api.NewTestMessage`, `api.NewTestMethod`, `api.NewTestField`, etc.) together with `api.CrossReference(model)` to construct synthetic data models when writing unit tests for annotations (`annotate_*.go`) and template rendering. Avoid manual struct initialization or hand-rolled cross-referencing maps.
 - **Extending Test Helpers**: If testing requires constructing API features not yet covered by the existing test constructors in `internal/sidekick/api/test.go`, extend the `api.NewTest*()` suite with new helpers or builder methods rather than writing one-off synthetic fixtures.
 - **Test Coverage**: Every annotation pass and template element must have accompanying unit tests in `*_test.go` files alongside the end-to-end golden parity tests.
+
+### Phase 1F: Review and Commit Protocol
+- **Always use `review-pr` skill from Librarian repository**: For each phase, run the code review using `.agents/skills/review-pr/SKILL.md` located in the Librarian repository (`.agents/skills/review-pr/SKILL.md`).
+- **Consistency Prompt**: Run the review with the specific consistency check:
+  > "Review the change for consistency. Make sure the comments for all files touched by the change match the code. Make sure the names use consistent names."
+- **Verification & Commit**: Verify all tests and linters pass (`gofmt`, `goimports`, `golangci-lint`, `go test`), address any findings, and commit the change with a very brief commit message.
 
 ---
 

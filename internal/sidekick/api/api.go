@@ -106,6 +106,15 @@ type API struct {
 	// from the standard name, and (2) there is no override in the
 	// `librarian.yaml` file.
 	CsharpNamespace string
+
+	// DefinitionLocations maps fully-qualified entity names to their definition location.
+	DefinitionLocations map[string]SourceLocation
+}
+
+// SourceLocation contains the source file and 1-based line number of an entity definition.
+type SourceLocation struct {
+	Filename string
+	Line     int
 }
 
 // ModelOverride holds configuration overrides for an API model.
@@ -230,4 +239,21 @@ func (a *API) AddResource(r *Resource) {
 		a.resourceByType = make(map[string]*Resource)
 	}
 	a.resourceByType[r.Type] = r
+}
+
+// DefinitionLocation returns the source location for the entity with the given name, if known.
+func (a *API) DefinitionLocation(name string) (SourceLocation, bool) {
+	if a.DefinitionLocations == nil {
+		return SourceLocation{}, false
+	}
+	loc, ok := a.DefinitionLocations[name]
+	return loc, ok
+}
+
+// AddDefinitionLocation associates an entity name with its source location.
+func (a *API) AddDefinitionLocation(name string, loc SourceLocation) {
+	if a.DefinitionLocations == nil {
+		a.DefinitionLocations = make(map[string]SourceLocation)
+	}
+	a.DefinitionLocations[name] = loc
 }
