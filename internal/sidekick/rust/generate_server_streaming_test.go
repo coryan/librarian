@@ -29,23 +29,12 @@ import (
 func TestGenerateServerStreaming(t *testing.T) {
 	outDir := t.TempDir()
 
-	request := api.NewTestMessage("ExpandRequest").WithPackage("test.v1")
-	requestId := &api.Field{
-		Name:          "request_id",
-		JSONName:      "requestId",
-		ID:            ".test.v1.ExpandRequest.request_id",
-		Typez:         api.TypezString,
-		AutoPopulated: true,
-	}
-	request.Fields = []*api.Field{
-		{
-			Name:     "content",
-			JSONName: "content",
-			ID:       ".test.v1.ExpandRequest.content",
-			Typez:    api.TypezString,
-		},
-		requestId,
-	}
+	requestId := api.NewTestField("request_id").WithType(api.TypezString)
+	requestId.AutoPopulated = true
+	content := api.NewTestField("content").WithType(api.TypezString)
+	request := api.NewTestMessage("ExpandRequest").
+		WithPackage("test.v1").
+		WithFields(content, requestId)
 	response := api.NewTestMessage("EchoResponse").WithPackage("test.v1")
 
 	serverMethod := api.NewTestMethod("Expand").WithInput(request).WithOutput(response).WithServerSideStreaming()
@@ -355,15 +344,11 @@ prost.workspace      = true
 func TestGenerateGrpcClientServerStreaming(t *testing.T) {
 	outDir := t.TempDir()
 
-	request := api.NewTestMessage("ExpandRequest").WithPackage("test.v1")
-	request.Fields = []*api.Field{
-		{
-			Name:     "content",
-			JSONName: "content",
-			ID:       ".test.v1.ExpandRequest.content",
-			Typez:    api.TypezString,
-		},
-	}
+	request := api.NewTestMessage("ExpandRequest").
+		WithPackage("test.v1").
+		WithFields(
+			api.NewTestField("content").WithType(api.TypezString),
+		)
 	response := api.NewTestMessage("EchoResponse").WithPackage("test.v1")
 
 	serverMethod := api.NewTestMethod("Expand").WithInput(request).WithOutput(response).WithServerSideStreaming()

@@ -24,10 +24,8 @@ import (
 )
 
 func TestUsedByServicesWithServices(t *testing.T) {
-	service := &api.Service{
-		Name: "TestService",
-		ID:   ".test.Service",
-	}
+	service := api.NewTestService("TestService")
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:tracing":  "used-if=services,package=tracing",
@@ -84,15 +82,10 @@ func TestUsedByServicesNoServices(t *testing.T) {
 }
 
 func TestUsedByLROsWithLRO(t *testing.T) {
-	method := &api.Method{
-		Name:          "CreateResource",
-		OperationInfo: &api.OperationInfo{},
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("CreateResource")
+	method.OperationInfo = &api.OperationInfo{}
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -121,14 +114,9 @@ func TestUsedByLROsWithLRO(t *testing.T) {
 }
 
 func TestUsedByLROsWithoutLRO(t *testing.T) {
-	method := &api.Method{
-		Name: "CreateResource",
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("CreateResource")
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -157,18 +145,12 @@ func TestUsedByLROsWithoutLRO(t *testing.T) {
 }
 
 func TestUsedByUuidWithAutoPopulation(t *testing.T) {
-	request_id := &api.Field{
-		AutoPopulated: true,
-	}
-	method := &api.Method{
-		Name:          "CreateResource",
-		AutoPopulated: []*api.Field{request_id},
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	requestId := api.NewTestField("request_id")
+	requestId.AutoPopulated = true
+	method := api.NewTestMethod("CreateResource")
+	method.AutoPopulated = []*api.Field{requestId}
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -198,14 +180,9 @@ func TestUsedByUuidWithAutoPopulation(t *testing.T) {
 }
 
 func TestUsedByUuidWithoutAutoPopulation(t *testing.T) {
-	method := &api.Method{
-		Name: "CreateResource",
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("CreateResource")
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -235,16 +212,9 @@ func TestUsedByUuidWithoutAutoPopulation(t *testing.T) {
 }
 
 func TestUsedByStreamingWithStreaming(t *testing.T) {
-	method := &api.Method{
-		Name:                "Chat",
-		ClientSideStreaming: true,
-		ServerSideStreaming: true,
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("Chat").WithBidiStreaming()
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -273,14 +243,9 @@ func TestUsedByStreamingWithStreaming(t *testing.T) {
 }
 
 func TestUsedByStreamingWithoutStreaming(t *testing.T) {
-	method := &api.Method{
-		Name: "CreateResource",
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("CreateResource")
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -309,16 +274,9 @@ func TestUsedByStreamingWithoutStreaming(t *testing.T) {
 }
 
 func TestUsedByStreamingServerStreamingOnly(t *testing.T) {
-	method := &api.Method{
-		Name:                "ServerStream",
-		ClientSideStreaming: false,
-		ServerSideStreaming: true,
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("ServerStream").WithServerSideStreaming()
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:location": "package=gcp-sdk-location,source=google.cloud.location",
@@ -347,16 +305,9 @@ func TestUsedByStreamingServerStreamingOnly(t *testing.T) {
 }
 
 func TestUsedByStreamingBidiDisabled(t *testing.T) {
-	method := &api.Method{
-		Name:                "Chat",
-		ClientSideStreaming: true,
-		ServerSideStreaming: true,
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("Chat").WithBidiStreaming()
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"template-override": "templates/http-client",
@@ -430,38 +381,28 @@ func TestRequiredPackagesLocal(t *testing.T) {
 }
 
 func TestFindUsedPackages(t *testing.T) {
-	service := &api.Service{
-		Name:    "LroService",
-		ID:      ".test.LroService",
-		Package: "test",
-		Methods: []*api.Method{
-			{
-				Name:         "CreateResource",
-				ID:           ".test.LroService.CreateResource",
-				InputTypeID:  ".test.CreateResourceRequest",
-				OutputTypeID: ".google.longrunning.Operation",
-				OperationInfo: &api.OperationInfo{
-					MetadataTypeID: ".google.cloud.common.OperationMetadata",
-					ResponseTypeID: ".test.Resource",
-				},
-			},
-		},
-	}
+	method := api.NewTestMethod("CreateResource").
+		WithOperationInfo(&api.OperationInfo{
+			MetadataTypeID: ".google.cloud.common.OperationMetadata",
+			ResponseTypeID: ".test.Resource",
+		})
+	method.InputTypeID = ".test.CreateResourceRequest"
+	method.OutputTypeID = ".google.longrunning.Operation"
+	service := api.NewTestService("LroService").
+		WithPackage("test").
+		WithMethods(method)
+
 	model := api.NewTestAPI([]*api.Message{
-		{Name: "Resource", ID: ".test.Resource"},
-		{Name: "CreateResource", ID: ".test.Resource"},
+		api.NewTestMessage("Resource").WithID(".test.Resource"),
+		api.NewTestMessage("CreateResource").WithID(".test.Resource"),
 	}, []*api.Enum{}, []*api.Service{service})
 
-	model.AddMessage(&api.Message{
-		Name:    "Operation",
-		ID:      ".google.longrunning.Operation",
-		Package: "google.longrunning",
-	})
-	model.AddMessage(&api.Message{
-		Name:    "OperationMetadata",
-		ID:      ".google.cloud.common.OperationMetadata",
-		Package: "google.cloud.common",
-	})
+	model.AddMessage(api.NewTestMessage("Operation").
+		WithPackage("google.longrunning").
+		WithID(".google.longrunning.Operation"))
+	model.AddMessage(api.NewTestMessage("OperationMetadata").
+		WithPackage("google.cloud.common").
+		WithID(".google.cloud.common.OperationMetadata"))
 
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"package:common":      "package=google-cloud-common,source=google.cloud.common",
@@ -490,44 +431,27 @@ func TestFindUsedPackages(t *testing.T) {
 }
 
 func TestFindUsedPackages_MapFields(t *testing.T) {
-	externalMessage := &api.Message{
-		Name:    "ExternalMessage",
-		ID:      ".external.ExternalMessage",
-		Package: "external",
-	}
+	externalMessage := api.NewTestMessage("ExternalMessage").
+		WithPackage("external").
+		WithID(".external.ExternalMessage")
 
-	mapEntry := &api.Message{
-		Name:    "FakeMapEntry",
-		ID:      ".test.Fake.FakeMapEntry",
-		Package: "test",
-		IsMap:   true,
-		Fields: []*api.Field{
-			{
-				Name:    "key",
-				Typez:   api.TypezString,
-				TypezID: "string",
-			},
-			{
-				Name:    "value",
-				Typez:   api.TypezMessage,
-				TypezID: ".external.ExternalMessage",
-			},
-		},
-	}
+	mapEntry := api.NewTestMessage("FakeMapEntry").
+		WithPackage("test").
+		WithID(".test.Fake.FakeMapEntry").
+		WithFields(
+			api.NewTestField("key").WithType(api.TypezString).WithTypezID("string"),
+			api.NewTestField("value").WithType(api.TypezMessage).WithTypezID(".external.ExternalMessage"),
+		)
+	mapEntry.IsMap = true
 
-	message := &api.Message{
-		Name:    "Fake",
-		ID:      ".test.Fake",
-		Package: "test",
-		Fields: []*api.Field{
-			{
-				Name:    "map_field",
-				Typez:   api.TypezMessage,
-				TypezID: ".test.Fake.FakeMapEntry",
-				Map:     true,
-			},
-		},
-	}
+	mapField := api.NewTestField("map_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.Fake.FakeMapEntry").
+		WithMap()
+
+	message := api.NewTestMessage("Fake").
+		WithPackage("test").
+		WithFields(mapField)
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	model.AddMessage(externalMessage)
@@ -556,14 +480,9 @@ func TestFindUsedPackages_MapFields(t *testing.T) {
 }
 
 func TestUsedByGrpcWithDefaultTransport(t *testing.T) {
-	method := &api.Method{
-		Name: "GetResource",
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("GetResource")
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"default-transport": "grpc",
@@ -593,14 +512,9 @@ func TestUsedByGrpcWithDefaultTransport(t *testing.T) {
 }
 
 func TestUsedByGrpcNamedFeature(t *testing.T) {
-	method := &api.Method{
-		Name: "GetResource",
-	}
-	service := &api.Service{
-		Name:    "TestService",
-		ID:      ".test.Service",
-		Methods: []*api.Method{method},
-	}
+	method := api.NewTestMethod("GetResource")
+	service := api.NewTestService("TestService").WithMethods(method)
+	service.ID = ".test.Service"
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{service})
 	c, err := newCodec(libconfig.SpecProtobuf, map[string]string{
 		"default-transport": "grpc",

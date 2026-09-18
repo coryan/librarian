@@ -37,23 +37,17 @@ func TestBigQueryQueryFieldOverride(t *testing.T) {
 	}
 
 	newTestMsg := func(msgName string) *api.Message {
-		queryField := &api.Field{
-			ID:    fmt.Sprintf(".google.cloud.bigquery.v2.%s.query", msgName),
-			Name:  "query",
-			Codec: &fieldAnnotations{},
-		}
-		overrideField := &api.Field{
-			ID:    fmt.Sprintf(".google.cloud.bigquery.v2.%s.bad_query", msgName),
-			Name:  "bad_query",
-			Codec: &fieldAnnotations{},
-		}
+		queryField := api.NewTestField("query")
+		queryField.ID = fmt.Sprintf(".google.cloud.bigquery.v2.%s.query", msgName)
+		queryField.Codec = &fieldAnnotations{}
 
-		return &api.Message{
-			ID:      ".google.cloud.bigquery.v2." + msgName,
-			Name:    msgName,
-			Package: "google.cloud.bigquery.v2",
-			Fields:  []*api.Field{queryField, overrideField},
-		}
+		overrideField := api.NewTestField("bad_query")
+		overrideField.ID = fmt.Sprintf(".google.cloud.bigquery.v2.%s.bad_query", msgName)
+		overrideField.Codec = &fieldAnnotations{}
+
+		return api.NewTestMessage(msgName).
+			WithPackage("google.cloud.bigquery.v2").
+			WithFields(queryField, overrideField)
 	}
 
 	qrMsg := newTestMsg("QueryRequest")
@@ -113,24 +107,18 @@ func TestBigQueryFiltering(t *testing.T) {
 	}
 
 	newTestField := func(name, id string, outputOnly bool) *api.Field {
-		b := []api.FieldBehavior{}
+		f := api.NewTestField(name)
+		f.ID = id
 		if outputOnly {
-			b = append(b, api.FieldBehaviorOutputOnly)
+			f.WithBehavior(api.FieldBehaviorOutputOnly)
 		}
-		return &api.Field{
-			ID:       id,
-			Name:     name,
-			Behavior: b,
-			Codec:    &fieldAnnotations{},
-		}
+		f.Codec = &fieldAnnotations{}
+		return f
 	}
 	newTestMsg := func(msgName string, fields []*api.Field) *api.Message {
-		return &api.Message{
-			ID:      ".google.cloud.bigquery.v2." + msgName,
-			Name:    msgName,
-			Package: "google.cloud.bigquery.v2",
-			Fields:  fields,
-		}
+		return api.NewTestMessage(msgName).
+			WithPackage("google.cloud.bigquery.v2").
+			WithFields(fields...)
 	}
 
 	qrMsg := newTestMsg("QueryRequest", []*api.Field{
@@ -174,41 +162,27 @@ func TestBigQuerySyntheticMessages(t *testing.T) {
 	// this causes stable sort order to matter and de-duplication to be exercised.
 	for i := range 40 {
 		name := fmt.Sprintf("field_%02d", i)
-		qrFields = append(qrFields, &api.Field{
-			ID:    fmt.Sprintf(".google.cloud.bigquery.v2.QueryRequest.%s", name),
-			Name:  name,
-			Typez: api.TypezBool,
-			Codec: &fieldAnnotations{FieldName: name, FieldType: "bool"},
-		})
+		f1 := api.NewTestField(name).WithType(api.TypezBool)
+		f1.ID = fmt.Sprintf(".google.cloud.bigquery.v2.QueryRequest.%s", name)
+		f1.Codec = &fieldAnnotations{FieldName: name, FieldType: "bool"}
+		qrFields = append(qrFields, f1)
 		if i < 20 {
-			jcFields = append(jcFields, &api.Field{
-				ID:    fmt.Sprintf(".google.cloud.bigquery.v2.JobConfiguration.%s", name),
-				Name:  name,
-				Typez: api.TypezBool,
-				Codec: &fieldAnnotations{FieldName: name, FieldType: "bool"},
-			})
+			f2 := api.NewTestField(name).WithType(api.TypezBool)
+			f2.ID = fmt.Sprintf(".google.cloud.bigquery.v2.JobConfiguration.%s", name)
+			f2.Codec = &fieldAnnotations{FieldName: name, FieldType: "bool"}
+			jcFields = append(jcFields, f2)
 		}
 	}
 	slices.Reverse(jcFields)
 
-	qrMsg := &api.Message{
-		ID:      ".google.cloud.bigquery.v2.QueryRequest",
-		Name:    "QueryRequest",
-		Package: "google.cloud.bigquery.v2",
-		Fields:  qrFields,
-	}
-	jcqMsg := &api.Message{
-		ID:      ".google.cloud.bigquery.v2.JobConfigurationQuery",
-		Name:    "JobConfigurationQuery",
-		Package: "google.cloud.bigquery.v2",
-		Fields:  []*api.Field{},
-	}
-	jcMsg := &api.Message{
-		ID:      ".google.cloud.bigquery.v2.JobConfiguration",
-		Name:    "JobConfiguration",
-		Package: "google.cloud.bigquery.v2",
-		Fields:  jcFields,
-	}
+	qrMsg := api.NewTestMessage("QueryRequest").
+		WithPackage("google.cloud.bigquery.v2").
+		WithFields(qrFields...)
+	jcqMsg := api.NewTestMessage("JobConfigurationQuery").
+		WithPackage("google.cloud.bigquery.v2")
+	jcMsg := api.NewTestMessage("JobConfiguration").
+		WithPackage("google.cloud.bigquery.v2").
+		WithFields(jcFields...)
 
 	model := api.NewTestAPI([]*api.Message{qrMsg, jcqMsg, jcMsg}, []*api.Enum{}, []*api.Service{})
 	c, err := newCodec("protobuf", map[string]string{
@@ -320,19 +294,15 @@ func TestBigQueryQueryMetadata(t *testing.T) {
 	}
 
 	newTestField := func(name, id string) *api.Field {
-		return &api.Field{
-			ID:    id,
-			Name:  name,
-			Codec: &fieldAnnotations{},
-		}
+		f := api.NewTestField(name)
+		f.ID = id
+		f.Codec = &fieldAnnotations{}
+		return f
 	}
 	newTestMsg := func(msgName string, fields []*api.Field) *api.Message {
-		return &api.Message{
-			ID:      ".google.cloud.bigquery.v2." + msgName,
-			Name:    msgName,
-			Package: "google.cloud.bigquery.v2",
-			Fields:  fields,
-		}
+		return api.NewTestMessage(msgName).
+			WithPackage("google.cloud.bigquery.v2").
+			WithFields(fields...)
 	}
 
 	t.Run("CompleteQueryMetadata", func(t *testing.T) {

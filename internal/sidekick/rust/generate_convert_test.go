@@ -89,7 +89,7 @@ impl gaxi::prost::FromProto<crate::model::MessageWithSkippedString> for MessageW
 			name: "message with skipped any field",
 			message: api.NewTestMessage("MessageWithSkippedAny").WithPackage("test.v1").WithFields(
 				api.NewTestField("field1").WithType(api.TypezString),
-				api.NewTestField("field2").WithMessageType(&api.Message{ID: api.WktAnyID}),
+				api.NewTestField("field2").WithMessageType(api.NewTestMessage("Any").WithID(api.WktAnyID)),
 			),
 			skippedIDs: []string{".test.v1.MessageWithSkippedAny.field2"},
 			want: `impl gaxi::prost::ToProto<MessageWithSkippedAny> for crate::model::MessageWithSkippedAny {
@@ -216,26 +216,20 @@ func TestGenerateConvertAcronyms(t *testing.T) {
 			api.NewTestField("serving_config").WithType(api.TypezString),
 		)
 
-	ipVersionEnum := &api.Enum{
-		Name:    "IPVersion",
-		ID:      ".test.v1.IPVersion",
-		Package: "test.v1",
-		Values: []*api.EnumValue{
-			{Name: "IP_VERSION_UNSPECIFIED", ID: ".test.v1.IPVersion.IP_VERSION_UNSPECIFIED", Number: 0},
-			{Name: "IPV4", ID: ".test.v1.IPVersion.IPV4", Number: 1},
-			{Name: "IPV6", ID: ".test.v1.IPVersion.IPV6", Number: 2},
-		},
-	}
+	ipVersionEnum := api.NewTestEnum("IPVersion").
+		WithPackage("test.v1").
+		WithValues(
+			api.NewTestEnumValue("IP_VERSION_UNSPECIFIED", 0),
+			api.NewTestEnumValue("IPV4", 1),
+			api.NewTestEnumValue("IPV6", 2),
+		)
 
-	nestedEnum := &api.Enum{
-		Name:    "IPMode",
-		ID:      ".test.v1.VertexAISearch.IPMode",
-		Package: "test.v1",
-		Values: []*api.EnumValue{
-			{Name: "IP_MODE_UNSPECIFIED", ID: ".test.v1.VertexAISearch.IPMode.IP_MODE_UNSPECIFIED", Number: 0},
-			{Name: "DYNAMIC_IP", ID: ".test.v1.VertexAISearch.IPMode.DYNAMIC_IP", Number: 1},
-		},
-	}
+	nestedEnum := api.NewTestEnum("IPMode").
+		WithParent(vertexAiSearchMsg).
+		WithValues(
+			api.NewTestEnumValue("IP_MODE_UNSPECIFIED", 0),
+			api.NewTestEnumValue("DYNAMIC_IP", 1),
+		)
 
 	retrievalMsg := api.NewTestMessage("Retrieval").
 		WithPackage("test.v1").
