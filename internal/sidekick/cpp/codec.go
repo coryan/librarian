@@ -42,16 +42,6 @@ func newCodec(model *api.API, library *config.Library, outdir string) (*Codec, e
 }
 
 // annotateModel enriches the API model with C++ specific metadata and types.
-func (c *Codec) annotateModel() {
-	for _, m := range c.Model.Messages {
-		for _, f := range m.Fields {
-			annotateField(f)
-		}
-	}
-	for _, svc := range c.Model.Services {
-		for _, m := range svc.Methods {
-			annotateMethod(m, svc, c.Library, c.Model)
-		}
-		annotateService(svc, c.Library, c.Model)
-	}
+func (c *Codec) annotateModel() error {
+	return annotateModel(c.Model, c.Library)
 }

@@ -15,7 +15,6 @@
 package cpp
 
 import (
-	"maps"
 	"path/filepath"
 	"slices"
 
@@ -34,32 +33,117 @@ func hasRequestIDService(methods []*api.Method) bool {
 	return slices.ContainsFunc(methods, hasRequestID)
 }
 
+func buildStreamingUpdatersList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]string {
+	var list []map[string]string
+	for _, m := range methods {
+		if isStreamingRead(m) {
+			mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+			list = append(list, map[string]string{
+				"service_name":  mVars["service_name"],
+				"method_name":   mVars["method_name"],
+				"request_type":  mVars["request_type"],
+				"response_type": mVars["response_type"],
+			})
+		}
+	}
+	return list
+}
+
+func buildConnectionImplMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+	var list []map[string]any
+	for _, m := range methods {
+		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		entry := map[string]any{
+			"method_name":                       mVars["method_name"],
+			"request_type":                      mVars["request_type"],
+			"response_type":                     mVars["response_type"],
+			"return_type":                       mVars["return_type"],
+			"range_output_type":                 mVars["range_output_type"],
+			"range_output_field_name":           mVars["range_output_field_name"],
+			"longrunning_operation_type":        mVars["longrunning_operation_type"],
+			"longrunning_deduced_response_type": mVars["longrunning_deduced_response_type"],
+			"longrunning_metadata_type":         mVars["longrunning_metadata_type"],
+			"request_id_field_name":             mVars["request_id_field_name"],
+			"has_request_id":                    hasRequestID(m),
+		}
+
+		if isBidiStreaming(m) {
+			entry["is_bidi_streaming"] = true
+		} else if isStreamingRead(m) {
+			entry["is_streaming_read"] = true
+		} else if isStreamingWrite(m) {
+			continue
+		} else if isPaginated(m) {
+			entry["is_paginated"] = true
+		} else if isLongrunning(m) {
+			entry["is_longrunning"] = true
+			returnFragment := "future<StatusOr<" + mVars["longrunning_deduced_response_type"] + ">>"
+			if isResponseTypeEmpty(m) {
+				returnFragment = "future<Status>"
+				entry["is_response_type_empty"] = true
+			}
+
+			requestIdFragment := ""
+			if hasRequestID(m) {
+				requestIdFragment = "\n  if (request_copy." + mVars["request_id_field_name"] + "().empty()) {\n    request_copy.set_" + mVars["request_id_field_name"] + "(invocation_id_generator_->MakeInvocationId());\n  }"
+			}
+
+			extractValueFragment := "    &google::cloud::internal::ExtractLongRunningResultResponse<" + mVars["longrunning_deduced_response_type"] + ">,"
+			if isLongrunningMetadataTypeUsedAsResponse(m) {
+				extractValueFragment = "    &google::cloud::internal::ExtractLongRunningResultMetadata<" + mVars["longrunning_deduced_response_type"] + ">,"
+			}
+
+			elideProtobufEmptyFragment := ""
+			if isResponseTypeEmpty(m) {
+				elideProtobufEmptyFragment = "\n    .then([](future<StatusOr<google::protobuf::Empty>> f) {\n      return f.get().status();\n    }))"
+			}
+
+			entry["lro_return_fragment"] = returnFragment
+			entry["lro_request_id_fragment"] = requestIdFragment
+			entry["lro_extract_value_fragment"] = extractValueFragment
+			entry["lro_elide_fragment"] = elideProtobufEmptyFragment
+		} else {
+			entry["is_plain_unary"] = true
+		}
+		list = append(list, entry)
+	}
+	return list
+}
+
+func buildConnectionImplAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+	var list []map[string]any
+	for _, m := range asyncMethods {
+		if isStreamingRead(m) || isStreamingWrite(m) {
+			continue
+		}
+		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		requestIdFragment := ""
+		if hasRequestID(m) {
+			requestIdFragment = "\n  if (request_copy." + mVars["request_id_field_name"] + "().empty()) {\n    request_copy.set_" + mVars["request_id_field_name"] + "(invocation_id_generator_->MakeInvocationId());\n  }"
+		}
+		entry := map[string]any{
+			"method_name":               mVars["method_name"],
+			"request_type":              mVars["request_type"],
+			"response_type":             mVars["response_type"],
+			"return_type":               mVars["return_type"],
+			"async_request_id_fragment": requestIdFragment,
+		}
+		list = append(list, entry)
+	}
+	return list
+}
+
 func generateConnectionImplHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
 	headerPath := serviceVars["connection_impl_header_path"]
 	guard := formatHeaderIncludeGuard(headerPath)
-	vars := make(map[string]string)
-	maps.Copy(vars, serviceVars)
-	vars["header_include_guard"] = guard
-
-	p := newPrinter(vars)
-	p.Print(p.CopyrightHeader(vars["copyright_year"]))
-	p.Print(`
-// Generated by the Codegen C++ plugin.
-// If you make any local changes, they will be lost.
-// source: $proto_file_name$
-
-#ifndef $header_include_guard$
-#define $header_include_guard$
-
-`)
 
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		vars["idempotency_policy_header_path"],
-		vars["options_header_path"],
-		vars["stub_header_path"],
-		vars["connection_header_path"],
-		vars["retry_traits_header_path"],
+		serviceVars["idempotency_policy_header_path"],
+		serviceVars["options_header_path"],
+		serviceVars["stub_header_path"],
+		serviceVars["connection_header_path"],
+		serviceVars["retry_traits_header_path"],
 		"google/cloud/background_threads.h",
 		"google/cloud/backoff_policy.h",
 		"google/cloud/options.h",
@@ -78,156 +162,44 @@ func generateConnectionImplHeader(svc *api.Service, serviceVars map[string]strin
 	if hasStreamingReadMethod(methods) || hasPaginatedMethod(methods) {
 		localIncludes = append(localIncludes, "google/cloud/stream_range.h")
 	}
-	p.HeaderLocalIncludes(localIncludes)
+	slices.Sort(localIncludes)
 
+	var protoIncludes []string
 	if hasLongrunningMethod(methods) {
-		p.ProtobufIncludes([]string{"google/longrunning/operations.grpc.pb.h"})
-	}
-	p.SystemIncludes([]string{"memory"})
-
-	p.HeaderOpenNamespaces(vars["product_internal_namespace"])
-
-	for _, m := range methods {
-		if isStreamingRead(m) {
-			mVars := buildMethodVars(svc, m, vars, lib, model)
-			p.PrintWith(mVars, `
-void $service_name$$method_name$StreamingUpdater(
-    $response_type$ const& response,
-    $request_type$& request);
-`)
-		}
+		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 
-	p.Print(`
-class $connection_class_name$Impl
-    : public $product_namespace$::$connection_class_name$ {
- public:
-  ~$connection_class_name$Impl() override = default;
-
-  $connection_class_name$Impl(
-    std::unique_ptr<google::cloud::BackgroundThreads> background,
-    std::shared_ptr<$product_internal_namespace$::$stub_class_name$> stub,
-    Options options);
-
-  Options options() override { return options_; }
-`)
-
-	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		if isBidiStreaming(m) {
-			p.PrintWith(mVars, `
-  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-      $request_type$,
-      $response_type$>>
-  Async$method_name$() override;
-`)
-			continue
-		}
-		if isStreamingRead(m) {
-			p.PrintWith(mVars, `
-  StreamRange<$response_type$>
-  $method_name$($request_type$ const& request) override;
-`)
-			continue
-		}
-		if isStreamingWrite(m) {
-			continue
-		}
-		if isPaginated(m) {
-			p.PrintWith(mVars, `
-  StreamRange<$range_output_type$>
-  $method_name$($request_type$ request) override;
-`)
-			continue
-		}
-		if isLongrunning(m) {
-			if isResponseTypeEmpty(m) {
-				p.PrintWith(mVars, `
-  future<Status>
-  $method_name$($request_type$ const& request) override;
-
-  StatusOr<$longrunning_operation_type$>
-  $method_name$(NoAwaitTag,
-      $request_type$ const& request) override;
-
-  future<Status>
-  $method_name$(
-      $longrunning_operation_type$ const& operation) override;
-`)
-			} else {
-				p.PrintWith(mVars, `
-  future<StatusOr<$longrunning_deduced_response_type$>>
-  $method_name$($request_type$ const& request) override;
-
-  StatusOr<$longrunning_operation_type$>
-  $method_name$(NoAwaitTag,
-      $request_type$ const& request) override;
-
-  future<StatusOr<$longrunning_deduced_response_type$>>
-  $method_name$(
-      $longrunning_operation_type$ const& operation) override;
-`)
-			}
-			continue
-		}
-		p.PrintWith(mVars, `
-  $return_type$
-  $method_name$($request_type$ const& request) override;
-`)
+	data := map[string]any{
+		"header_include_guard":       guard,
+		"copyright_year":             serviceVars["copyright_year"],
+		"proto_file_name":            serviceVars["proto_file_name"],
+		"product_namespace":          serviceVars["product_namespace"],
+		"product_internal_namespace": serviceVars["product_internal_namespace"],
+		"connection_class_name":      serviceVars["connection_class_name"],
+		"stub_class_name":            serviceVars["stub_class_name"],
+		"local_includes":             localIncludes,
+		"proto_includes":             protoIncludes,
+		"streaming_updaters":         buildStreamingUpdatersList(svc, methods, serviceVars, lib, model),
+		"methods":                    buildConnectionImplMethodList(svc, methods, serviceVars, lib, model),
+		"async_methods":              buildConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"has_request_id":             hasRequestIDService(methods),
 	}
 
-	for _, m := range asyncMethods {
-		if isStreamingRead(m) || isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		p.PrintWith(mVars, `
-  future<$return_type$>
-  Async$method_name$($request_type$ const& request) override;
-`)
+	content, err := renderTemplate("templates/internal/connection_impl.h.mustache", data)
+	if err != nil {
+		panic(err)
 	}
 
-	p.Print(`
- private:
-  std::unique_ptr<google::cloud::BackgroundThreads> background_;
-  std::shared_ptr<$product_internal_namespace$::$stub_class_name$> stub_;
-  Options options_;`)
-
-	if hasRequestIDService(methods) {
-		p.Print(`
-  std::shared_ptr<google::cloud::internal::InvocationIdGenerator>
-      invocation_id_generator_ =
-          std::make_shared<google::cloud::internal::InvocationIdGenerator>();`)
-	}
-
-	p.Print(`
-};
-`)
-
-	p.HeaderCloseNamespaces(vars["product_internal_namespace"])
-	p.Print("\n#endif  // $header_include_guard$\n")
-
-	return filepath.Clean(headerPath), p.String()
+	return filepath.Clean(headerPath), content
 }
 
 func generateConnectionImplCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
 	ccPath := serviceVars["connection_impl_cc_path"]
-	vars := make(map[string]string)
-	maps.Copy(vars, serviceVars)
-
-	p := newPrinter(vars)
-	p.Print(p.CopyrightHeader(vars["copyright_year"]))
-	p.Print(`
-// Generated by the Codegen C++ plugin.
-// If you make any local changes, they will be lost.
-// source: $proto_file_name$
-
-`)
 
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		vars["connection_impl_header_path"],
-		vars["option_defaults_header_path"],
+		serviceVars["connection_impl_header_path"],
+		serviceVars["option_defaults_header_path"],
 		"google/cloud/background_threads.h",
 		"google/cloud/common_options.h",
 		"google/cloud/grpc_options.h",
@@ -248,331 +220,29 @@ func generateConnectionImplCc(svc *api.Service, serviceVars map[string]string, m
 			"google/cloud/internal/streaming_read_rpc_logging.h",
 		)
 	}
-	p.CcLocalIncludes(localIncludes)
-	p.SystemIncludes([]string{"memory", "utility"})
+	slices.Sort(localIncludes)
 
-	p.HeaderOpenNamespaces(vars["product_internal_namespace"])
-
-	p.Print(`namespace {
-
-std::unique_ptr<$product_namespace$::$retry_policy_name$>
-retry_policy(Options const& options) {
-  return options.get<$product_namespace$::$retry_policy_name$Option>()->clone();
-}
-
-std::unique_ptr<BackoffPolicy>
-backoff_policy(Options const& options) {
-  return options.get<$product_namespace$::$service_name$BackoffPolicyOption>()->clone();
-}
-
-std::unique_ptr<$product_namespace$::$idempotency_class_name$>
-idempotency_policy(Options const& options) {
-  return options.get<$product_namespace$::$idempotency_class_name$Option>()->clone();
-}
-`)
-
-	if hasLongrunningMethod(methods) {
-		p.Print(`
-std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
-  return options.get<$product_namespace$::$service_name$PollingPolicyOption>()->clone();
-}
-`)
+	data := map[string]any{
+		"copyright_year":             serviceVars["copyright_year"],
+		"proto_file_name":            serviceVars["proto_file_name"],
+		"product_namespace":          serviceVars["product_namespace"],
+		"product_internal_namespace": serviceVars["product_internal_namespace"],
+		"connection_class_name":      serviceVars["connection_class_name"],
+		"stub_class_name":            serviceVars["stub_class_name"],
+		"service_name":               serviceVars["service_name"],
+		"retry_policy_name":          serviceVars["retry_policy_name"],
+		"idempotency_class_name":     serviceVars["idempotency_class_name"],
+		"local_includes":             localIncludes,
+		"has_lro":                    hasLongrunningMethod(methods),
+		"streaming_updaters":         buildStreamingUpdatersList(svc, methods, serviceVars, lib, model),
+		"methods":                    buildConnectionImplMethodList(svc, methods, serviceVars, lib, model),
+		"async_methods":              buildConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
 	}
 
-	p.Print(`
-} // namespace
-`)
-
-	for _, m := range methods {
-		if isStreamingRead(m) {
-			mVars := buildMethodVars(svc, m, vars, lib, model)
-			p.PrintWith(mVars, `
-void $service_name$$method_name$StreamingUpdater(
-    $response_type$ const&,
-    $request_type$&) {}
-`)
-		}
+	content, err := renderTemplate("templates/internal/connection_impl.cc.mustache", data)
+	if err != nil {
+		panic(err)
 	}
 
-	p.Print(`
-$connection_class_name$Impl::$connection_class_name$Impl(
-    std::unique_ptr<google::cloud::BackgroundThreads> background,
-    std::shared_ptr<$product_internal_namespace$::$stub_class_name$> stub,
-    Options options)
-  : background_(std::move(background)), stub_(std::move(stub)),
-    options_(internal::MergeOptions(
-        std::move(options),
-        $connection_class_name$::options())) {}
-`)
-
-	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		if isBidiStreaming(m) {
-			p.PrintWith(mVars, `
-std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-    $request_type$,
-    $response_type$>>
-$connection_class_name$Impl::Async$method_name$() {
-  return stub_->Async$method_name$(background_->cq(),
-                                std::make_shared<grpc::ClientContext>(),
-                                internal::SaveCurrentOptions());
-}
-`)
-			continue
-		}
-		if isStreamingRead(m) {
-			p.PrintWith(mVars, `
-StreamRange<$response_type$>
-$connection_class_name$Impl::$method_name$($request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  auto factory = [stub = stub_, current]($request_type$ const& request) {
-    return stub->$method_name$(
-        std::make_shared<grpc::ClientContext>(), *current, request);
-  };
-  auto resumable =
-      internal::MakeResumableStreamingReadRpc<$response_type$, $request_type$>(
-          retry_policy(*current), backoff_policy(*current), factory,
-          $service_name$$method_name$StreamingUpdater, request);
-  return internal::MakeStreamRange<$response_type$>(
-      [resumable = std::move(resumable)]()
-          -> absl::variant<
-              Status,
-              $response_type$> {
-        $response_type$ response;
-        auto status = resumable->Read(&response);
-        if (status.has_value()) return *status;
-        return response;
-      });
-}
-`)
-			continue
-		}
-		if isStreamingWrite(m) {
-			continue
-		}
-		if isPaginated(m) {
-			p.PrintWith(mVars, `
-StreamRange<$range_output_type$>
-$connection_class_name$Impl::$method_name$($request_type$ request) {
-  request.clear_page_token();
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  auto idempotency = idempotency_policy(*current)->$method_name$(request);
-  char const* function_name = __func__;
-  return google::cloud::internal::MakePaginationRange<StreamRange<$range_output_type$>>(
-      current, std::move(request),
-      [idempotency, function_name, stub = stub_,
-       retry = std::shared_ptr<$product_namespace$::$retry_policy_name$>(retry_policy(*current)),
-       backoff = std::shared_ptr<BackoffPolicy>(backoff_policy(*current))](
-          Options const& options, $request_type$ const& r) {
-        return google::cloud::internal::RetryLoop(
-            retry->clone(), backoff->clone(), idempotency,
-            [stub](grpc::ClientContext& context, Options const& options,
-                   $request_type$ const& request) {
-              return stub->$method_name$(context, options, request);
-            },
-            options, r, function_name);
-      },
-      []($response_type$ r) {
-        std::vector<$range_output_type$> result(r.$range_output_field_name$().size());
-        auto& messages = *r.mutable_$range_output_field_name$();
-        std::move(messages.begin(), messages.end(), result.begin());
-        return result;
-      });
-}
-`)
-			continue
-		}
-		if isLongrunning(m) {
-			returnFragment := "future<StatusOr<" + mVars["longrunning_deduced_response_type"] + ">>"
-			if isResponseTypeEmpty(m) {
-				returnFragment = "future<Status>"
-			}
-
-			requestIdFragment := ""
-			if hasRequestID(m) {
-				requestIdFragment = `
-  if (request_copy.` + mVars["request_id_field_name"] + `().empty()) {
-    request_copy.set_` + mVars["request_id_field_name"] + `(invocation_id_generator_->MakeInvocationId());
-  }`
-			}
-
-			extractValueFragment := "    &google::cloud::internal::ExtractLongRunningResultResponse<" + mVars["longrunning_deduced_response_type"] + ">,"
-			if isLongrunningMetadataTypeUsedAsResponse(m) {
-				extractValueFragment = "    &google::cloud::internal::ExtractLongRunningResultMetadata<" + mVars["longrunning_deduced_response_type"] + ">,"
-			}
-
-			elideProtobufEmptyFragment := ""
-			if isResponseTypeEmpty(m) {
-				elideProtobufEmptyFragment = `
-    .then([](future<StatusOr<google::protobuf::Empty>> f) {
-      return f.get().status();
-    }))`
-			}
-
-			mVars["lro_return_fragment"] = returnFragment
-			mVars["lro_request_id_fragment"] = requestIdFragment
-			mVars["lro_extract_value_fragment"] = extractValueFragment
-			mVars["lro_elide_fragment"] = elideProtobufEmptyFragment
-
-			p.PrintWith(mVars, `
-$lro_return_fragment$
-$connection_class_name$Impl::$method_name$($request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  auto request_copy = request;$lro_request_id_fragment$
-  auto const idempotent =
-      idempotency_policy(*current)->$method_name$(request_copy);
-  return google::cloud::internal::AsyncLongRunningOperation<$longrunning_deduced_response_type$>(
-    background_->cq(), current, std::move(request_copy),
-    [stub = stub_](google::cloud::CompletionQueue& cq,
-                   std::shared_ptr<grpc::ClientContext> context,
-                   google::cloud::internal::ImmutableOptions options,
-                   $request_type$ const& request) {
-     return stub->Async$method_name$(
-         cq, std::move(context), std::move(options), request);
-    },
-    [stub = stub_](google::cloud::CompletionQueue& cq,
-                   std::shared_ptr<grpc::ClientContext> context,
-                   google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(
-         cq, std::move(context), std::move(options), request);
-    },
-    [stub = stub_](google::cloud::CompletionQueue& cq,
-                   std::shared_ptr<grpc::ClientContext> context,
-                   google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(
-         cq, std::move(context), std::move(options), request);
-    },
-$lro_extract_value_fragment$
-    retry_policy(*current), backoff_policy(*current), idempotent,
-    polling_policy(*current), __func__)$lro_elide_fragment$;
-}
-
-StatusOr<$longrunning_operation_type$>
-$connection_class_name$Impl::$method_name$(
-      NoAwaitTag, $request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  return google::cloud::internal::RetryLoop(
-      retry_policy(*current), backoff_policy(*current),
-      idempotency_policy(*current)->$method_name$(request),
-      [this](
-          grpc::ClientContext& context, Options const& options,
-          $request_type$ const& request) {
-        return stub_->$method_name$(context, options, request);
-      },
-      *current, request, __func__);
-}
-
-$lro_return_fragment$
-$connection_class_name$Impl::$method_name$(
-      $longrunning_operation_type$ const& operation) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  if (!operation.metadata().Is<typename $longrunning_metadata_type$>()) {
-    return make_ready_$lro_return_fragment$(
-        internal::InvalidArgumentError("operation does not correspond to $method_name$",
-                                       GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
-  }
-
-  return google::cloud::internal::AsyncAwaitLongRunningOperation<$longrunning_deduced_response_type$>(
-    background_->cq(), current, operation,
-    [stub = stub_](google::cloud::CompletionQueue& cq,
-                   std::shared_ptr<grpc::ClientContext> context,
-                   google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::GetOperationRequest const& request) {
-     return stub->AsyncGetOperation(
-         cq, std::move(context), std::move(options), request);
-    },
-    [stub = stub_](google::cloud::CompletionQueue& cq,
-                   std::shared_ptr<grpc::ClientContext> context,
-                   google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::CancelOperationRequest const& request) {
-     return stub->AsyncCancelOperation(
-         cq, std::move(context), std::move(options), request);
-    },
-$lro_extract_value_fragment$
-    polling_policy(*current), __func__)$lro_elide_fragment$;
-}
-`)
-			continue
-		}
-
-		if hasRequestID(m) {
-			p.PrintWith(mVars, `
-$return_type$
-$connection_class_name$Impl::$method_name$($request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  auto request_copy = request;
-  if (request_copy.$request_id_field_name$().empty()) {
-    request_copy.set_$request_id_field_name$(invocation_id_generator_->MakeInvocationId());
-  }
-  return google::cloud::internal::RetryLoop(
-      retry_policy(*current), backoff_policy(*current),
-      idempotency_policy(*current)->$method_name$(request_copy),
-      [this](grpc::ClientContext& context, Options const& options,
-             $request_type$ const& request) {
-        return stub_->$method_name$(context, options, request);
-      },
-      *current, request_copy, __func__);
-}
-`)
-			continue
-		}
-
-		p.PrintWith(mVars, `
-$return_type$
-$connection_class_name$Impl::$method_name$($request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  return google::cloud::internal::RetryLoop(
-      retry_policy(*current), backoff_policy(*current),
-      idempotency_policy(*current)->$method_name$(request),
-      [this](grpc::ClientContext& context, Options const& options,
-             $request_type$ const& request) {
-        return stub_->$method_name$(context, options, request);
-      },
-      *current, request, __func__);
-}
-`)
-	}
-
-	for _, m := range asyncMethods {
-		if isStreamingRead(m) || isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		requestIdFragment := ""
-		if hasRequestID(m) {
-			requestIdFragment = `
-  if (request_copy.` + mVars["request_id_field_name"] + `().empty()) {
-    request_copy.set_` + mVars["request_id_field_name"] + `(invocation_id_generator_->MakeInvocationId());
-  }`
-		}
-		mVars["async_request_id_fragment"] = requestIdFragment
-
-		p.PrintWith(mVars, `
-future<$return_type$>
-$connection_class_name$Impl::Async$method_name$($request_type$ const& request) {
-  auto current = google::cloud::internal::SaveCurrentOptions();
-  auto request_copy = request;$async_request_id_fragment$
-  auto const idempotent =
-      idempotency_policy(*current)->$method_name$(request_copy);
-  auto retry = retry_policy(*current);
-  auto backoff = backoff_policy(*current);
-  return google::cloud::internal::AsyncRetryLoop(
-      std::move(retry), std::move(backoff), idempotent, background_->cq(),
-      [stub = stub_](CompletionQueue& cq,
-                     std::shared_ptr<grpc::ClientContext> context,
-                     google::cloud::internal::ImmutableOptions options,
-                     $request_type$ const& request) {
-        return stub->Async$method_name$(
-            cq, std::move(context), std::move(options), request);
-      },
-      std::move(current), std::move(request_copy), __func__);
-}
-`)
-	}
-
-	p.HeaderCloseNamespaces(vars["product_internal_namespace"])
-
-	return filepath.Clean(ccPath), p.String()
+	return filepath.Clean(ccPath), content
 }

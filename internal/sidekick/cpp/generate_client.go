@@ -16,8 +16,8 @@ package cpp
 
 import (
 	"fmt"
-	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -98,31 +98,146 @@ func methodSignatureUsesDeprecatedField(svc *api.Service, methods []*api.Method,
 	return false
 }
 
+func buildClientMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+	var list []map[string]any
+	hasIAM, setMethod := hasIamPolicyExtension(methods)
+
+	for _, m := range methods {
+		if isStreamingWrite(m) {
+			continue
+		}
+		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		isDep := m.Deprecated
+		depMacro := ""
+		if isDep {
+			depMacro = "  GOOGLE_CLOUD_CPP_DEPRECATED(\"This RPC is deprecated.\")\n"
+		}
+
+		entry := map[string]any{
+			"method_name":          mVars["method_name"],
+			"request_type":         mVars["request_type"],
+			"response_type":        mVars["response_type"],
+			"return_type":          mVars["return_type"],
+			"method_dep_macro":     depMacro,
+			"has_request_overload": !isBidiStreaming(m),
+		}
+
+		if isBidiStreaming(m) {
+			entry["is_bidi_streaming"] = true
+			entry["bidir_comment"] = formatMethodComments(m, "", model)
+			list = append(list, entry)
+			continue
+		}
+
+		if isLongrunning(m) {
+			entry["is_longrunning"] = true
+			entry["longrunning_operation_type"] = mVars["longrunning_operation_type"]
+			if isResponseTypeEmpty(m) {
+				entry["is_response_type_empty"] = true
+			} else {
+				entry["longrunning_deduced_response_type"] = mVars["longrunning_deduced_response_type"]
+			}
+			entry["start_comment"] = formatStartMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
+			entry["await_comment"] = formatAwaitMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
+		} else if isPaginated(m) {
+			entry["is_paginated"] = true
+			entry["range_output_type"] = mVars["range_output_type"]
+		} else if isStreamingRead(m) {
+			entry["is_streaming_read"] = true
+		} else {
+			entry["is_plain_unary"] = true
+		}
+
+		entry["req_comment"] = formatMethodCommentsProtobufRequest(m, model)
+
+		sigs := getValidSignatures(svc, m, lib)
+		var sigList []map[string]any
+		for _, s := range sigs {
+			idxStr := strconv.Itoa(s.index)
+			sigComment := formatMethodCommentsMethodSignature(m, s.sig, model)
+			sigEntry := map[string]any{
+				"method_name":                       mVars["method_name"],
+				"request_type":                      mVars["request_type"],
+				"response_type":                     mVars["response_type"],
+				"return_type":                       mVars["return_type"],
+				"longrunning_operation_type":        mVars["longrunning_operation_type"],
+				"longrunning_deduced_response_type": mVars["longrunning_deduced_response_type"],
+				"range_output_type":                 mVars["range_output_type"],
+				"method_dep_macro":                  depMacro,
+				"sig_comment":                       sigComment,
+				"current_method_signature":          mVars["method_signature"+idxStr],
+				"current_request_setters":           mVars["method_request_setters"+idxStr],
+				"is_longrunning":                    isLongrunning(m),
+				"is_response_type_empty":            isResponseTypeEmpty(m),
+				"is_paginated":                      isPaginated(m),
+				"is_streaming_read":                 isStreamingRead(m),
+				"is_plain_unary":                    !isLongrunning(m) && !isPaginated(m) && !isStreamingRead(m),
+				"has_iam_updater":                   hasIAM && setMethod == m,
+				"service_name":                      serviceVars["service_name"],
+			}
+			if isLongrunning(m) {
+				sigEntry["start_comment"] = formatStartMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
+			}
+			sigList = append(sigList, sigEntry)
+		}
+		entry["signatures"] = sigList
+
+		list = append(list, entry)
+	}
+	return list
+}
+
+func buildClientAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+	var list []map[string]any
+	for _, m := range asyncMethods {
+		if isStreamingRead(m) || isStreamingWrite(m) {
+			continue
+		}
+		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		isDep := m.Deprecated
+		depMacro := ""
+		if isDep {
+			depMacro = "  GOOGLE_CLOUD_CPP_DEPRECATED(\"This RPC is deprecated.\")\n"
+		}
+		entry := map[string]any{
+			"method_name":      mVars["method_name"],
+			"request_type":     mVars["request_type"],
+			"return_type":      mVars["return_type"],
+			"method_dep_macro": depMacro,
+			"req_comment":      formatMethodCommentsProtobufRequest(m, model),
+		}
+
+		sigs := getValidSignatures(svc, m, lib)
+		var sigList []map[string]any
+		for _, s := range sigs {
+			idxStr := strconv.Itoa(s.index)
+			sigComment := formatMethodCommentsMethodSignature(m, s.sig, model)
+			sigList = append(sigList, map[string]any{
+				"method_name":              mVars["method_name"],
+				"request_type":             mVars["request_type"],
+				"return_type":              mVars["return_type"],
+				"method_dep_macro":         depMacro,
+				"sig_comment":              sigComment,
+				"current_method_signature": mVars["method_signature"+idxStr],
+				"current_request_setters":  mVars["method_request_setters"+idxStr],
+			})
+		}
+		entry["signatures"] = sigList
+		list = append(list, entry)
+	}
+	return list
+}
+
 func generateClientHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
 	headerPath := serviceVars["client_header_path"]
 	guard := formatHeaderIncludeGuard(headerPath)
-	vars := make(map[string]string)
-	maps.Copy(vars, serviceVars)
-	vars["header_include_guard"] = guard
 
-	p := newPrinter(vars)
-	p.Print(p.CopyrightHeader(vars["copyright_year"]))
-	p.Print(`
-// Generated by the Codegen C++ plugin.
-// If you make any local changes, they will be lost.
-// source: $proto_file_name$
-
-#ifndef $header_include_guard$
-#define $header_include_guard$
-
-`)
-
-	hasIAM, setMethod := hasIamPolicyExtension(methods)
+	hasIAM, _ := hasIamPolicyExtension(methods)
 
 	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
-	connectionHeader := vars["connection_header_path"]
+	connectionHeader := serviceVars["connection_header_path"]
 	if !hasGrpc {
-		connectionHeader = vars["connection_rest_header_path"]
+		connectionHeader = serviceVars["connection_rest_header_path"]
 	}
 
 	var localIncludes []string
@@ -140,9 +255,9 @@ func generateClientHeader(svc *api.Service, serviceVars map[string]string, metho
 	if hasIAM {
 		localIncludes = append(localIncludes, "google/cloud/internal/make_status.h")
 	}
-	p.HeaderLocalIncludes(localIncludes)
+	slices.Sort(localIncludes)
 	if hasIAM {
-		p.HeaderLocalIncludes([]string{"google/cloud/iam_updater.h"})
+		localIncludes = append(localIncludes, "google/cloud/iam_updater.h")
 	}
 
 	var protoIncludes []string
@@ -150,510 +265,74 @@ func generateClientHeader(svc *api.Service, serviceVars map[string]string, metho
 	if hasLongrunningMethod(methods) {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
-	p.ProtobufIncludes(protoIncludes)
+	slices.Sort(protoIncludes)
 
 	var sysIncludes []string
 	if hasMessageWithMapField(methods, model) {
 		sysIncludes = append(sysIncludes, "map")
 	}
 	sysIncludes = append(sysIncludes, "memory", "string")
-	p.SystemIncludes(sysIncludes)
+	slices.Sort(sysIncludes)
 
-	p.HeaderOpenNamespaces(vars["product_namespace"])
-
-	if svc.Deprecated {
-		p.Print(`
-$class_comment_block$
-class
- GOOGLE_CLOUD_CPP_DEPRECATED(
-      "$service_name$ has been deprecated and will be turned down in the future."
-)
-$client_class_name$ {`)
-	} else {
-		p.Print(`
-$class_comment_block$
-class $client_class_name$ {`)
+	data := map[string]any{
+		"header_include_guard":  guard,
+		"copyright_year":        serviceVars["copyright_year"],
+		"proto_file_name":       serviceVars["proto_file_name"],
+		"product_namespace":     serviceVars["product_namespace"],
+		"connection_class_name": serviceVars["connection_class_name"],
+		"client_class_name":     serviceVars["client_class_name"],
+		"service_name":          serviceVars["service_name"],
+		"is_deprecated":         svc.Deprecated,
+		"class_comment_block":   serviceVars["class_comment_block"],
+		"local_includes":        localIncludes,
+		"proto_includes":        protoIncludes,
+		"system_includes":       sysIncludes,
+		"methods":               buildClientMethodList(svc, methods, serviceVars, lib, model),
+		"async_methods":         buildClientAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
 	}
 
-	p.Print(`
- public:
-  explicit $client_class_name$(std::shared_ptr<$connection_class_name$> connection, Options opts = {});
-  ~$client_class_name$();
-
-  ///@{
-  /// @name Copy and move support
-  $client_class_name$($client_class_name$ const&) = default;
-  $client_class_name$& operator=($client_class_name$ const&) = default;
-  $client_class_name$($client_class_name$&&) = default;
-  $client_class_name$& operator=($client_class_name$&&) = default;
-  ///@}
-
-  ///@{
-  /// @name Equality
-  friend bool operator==($client_class_name$ const& a, $client_class_name$ const& b) {
-    return a.connection_ == b.connection_;
-  }
-  friend bool operator!=($client_class_name$ const& a, $client_class_name$ const& b) {
-    return !(a == b);
-  }
-  ///@}
-`)
-
-	for _, m := range methods {
-		if isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		isDep := m.Deprecated
-		depMacro := ""
-		if isDep {
-			depMacro = "  GOOGLE_CLOUD_CPP_DEPRECATED(\"This RPC is deprecated.\")\n"
-		}
-		mVars["method_dep_macro"] = depMacro
-
-		if isBidiStreaming(m) {
-			comment := formatMethodComments(m, "", model)
-			mVars["bidir_comment"] = comment
-			p.PrintWith(mVars, `
-$bidir_comment$$method_dep_macro$  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-      $request_type$,
-      $response_type$>>
-  Async$method_name$(Options opts = {});
-`)
-			continue
-		}
-
-		sigs := getValidSignatures(svc, m, lib)
-		for _, s := range sigs {
-			idxStr := strconv.Itoa(s.index)
-			sigComment := formatMethodCommentsMethodSignature(m, s.sig, model)
-			mVars["sig_comment"] = sigComment
-			mVars["current_method_signature"] = mVars["method_signature"+idxStr]
-
-			if isLongrunning(m) {
-				startComment := formatStartMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
-				mVars["start_comment"] = startComment
-				if isResponseTypeEmpty(m) {
-					p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  future<Status>
-  $method_name$($current_method_signature$Options opts = {});
-
-$start_comment$$method_dep_macro$  Status
-  $method_name$(NoAwaitTag, $current_method_signature$Options opts = {});
-`)
-				} else {
-					p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  future<StatusOr<$longrunning_deduced_response_type$>>
-  $method_name$($current_method_signature$Options opts = {});
-
-$start_comment$$method_dep_macro$  StatusOr<$longrunning_operation_type$>
-  $method_name$(NoAwaitTag, $current_method_signature$Options opts = {});
-`)
-				}
-			} else if isPaginated(m) {
-				p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  StreamRange<$range_output_type$>
-  $method_name$($current_method_signature$Options opts = {});
-`)
-			} else if isStreamingRead(m) {
-				p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  StreamRange<$response_type$>
-  $method_name$($current_method_signature$Options opts = {});
-`)
-			} else {
-				p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  $return_type$
-  $method_name$($current_method_signature$Options opts = {});
-`)
-			}
-
-			if hasIAM && setMethod == m {
-				p.PrintWith(mVars, `
-  /**
-   * Updates the IAM policy for @p resource using an optimistic concurrency
-   * control loop.
-   *
-   * The loop fetches the current policy for @p resource, and passes it to @p
-   * updater, which should return the new policy. This new policy should use the
-   * current etag so that the read-modify-write cycle can detect races and rerun
-   * the update when there is a mismatch. If the new policy does not have an
-   * etag, the existing policy will be blindly overwritten. If @p updater does
-   * not yield a policy, the control loop is terminated and kCancelled is
-   * returned.
-   *
-   * @param resource  Required. The resource for which the policy is being
-   * specified. See the operation documentation for the appropriate value for
-   * this field.
-   * @param updater  Required. Functor to map the current policy to a new one.
-   * @param opts  Optional. Override the class-level options, such as retry and
-   *    backoff policies.
-   * @return google::iam::v1::Policy
-   */
-  StatusOr<google::iam::v1::Policy>
-  SetIamPolicy(std::string const& resource, IamUpdater const& updater, Options opts = {});
-`)
-			}
-		}
-
-		reqComment := formatMethodCommentsProtobufRequest(m, model)
-		mVars["req_comment"] = reqComment
-
-		if isLongrunning(m) {
-			startComment := formatStartMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
-			awaitComment := formatAwaitMethodComments(m.Name, mVars["longrunning_operation_type"], isDep)
-			mVars["start_comment"] = startComment
-			mVars["await_comment"] = awaitComment
-			if isResponseTypeEmpty(m) {
-				p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  future<Status>
-  $method_name$($request_type$ const& request, Options opts = {});
-
-$start_comment$$method_dep_macro$  Status
-  $method_name$(NoAwaitTag, $request_type$ const& request, Options opts = {});
-
-$await_comment$$method_dep_macro$  future<Status>
-  $method_name$($longrunning_operation_type$ const& operation, Options opts = {});
-`)
-			} else {
-				p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  future<StatusOr<$longrunning_deduced_response_type$>>
-  $method_name$($request_type$ const& request, Options opts = {});
-
-$start_comment$$method_dep_macro$  StatusOr<$longrunning_operation_type$>
-  $method_name$(NoAwaitTag, $request_type$ const& request, Options opts = {});
-
-$await_comment$$method_dep_macro$  future<StatusOr<$longrunning_deduced_response_type$>>
-  $method_name$($longrunning_operation_type$ const& operation, Options opts = {});
-`)
-			}
-		} else if isPaginated(m) {
-			p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  StreamRange<$range_output_type$>
-  $method_name$($request_type$ request, Options opts = {});
-`)
-		} else if isStreamingRead(m) {
-			p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  StreamRange<$response_type$>
-  $method_name$($request_type$ const& request, Options opts = {});
-`)
-		} else {
-			p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  $return_type$
-  $method_name$($request_type$ const& request, Options opts = {});
-`)
-		}
+	content, err := renderTemplate("templates/client.h.mustache", data)
+	if err != nil {
+		panic(err)
 	}
 
-	for _, m := range asyncMethods {
-		if isStreamingRead(m) || isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		isDep := m.Deprecated
-		depMacro := ""
-		if isDep {
-			depMacro = "  GOOGLE_CLOUD_CPP_DEPRECATED(\"This RPC is deprecated.\")\n"
-		}
-		mVars["method_dep_macro"] = depMacro
-
-		sigs := getValidSignatures(svc, m, lib)
-		for _, s := range sigs {
-			idxStr := strconv.Itoa(s.index)
-			sigComment := formatMethodCommentsMethodSignature(m, s.sig, model)
-			mVars["sig_comment"] = sigComment
-			mVars["current_method_signature"] = mVars["method_signature"+idxStr]
-			p.PrintWith(mVars, `
-$sig_comment$$method_dep_macro$  future<$return_type$>
-  Async$method_name$($current_method_signature$Options opts = {});
-`)
-		}
-
-		reqComment := formatMethodCommentsProtobufRequest(m, model)
-		mVars["req_comment"] = reqComment
-		p.PrintWith(mVars, `
-$req_comment$$method_dep_macro$  future<$return_type$>
-  Async$method_name$($request_type$ const& request, Options opts = {});
-`)
-	}
-
-	p.Print(`
- private:
-  std::shared_ptr<$connection_class_name$> connection_;
-  Options options_;
-};
-`)
-
-	p.HeaderCloseNamespaces(vars["product_namespace"])
-	p.Print("\n#endif  // $header_include_guard$\n")
-
-	return filepath.Clean(headerPath), p.String()
+	return filepath.Clean(headerPath), content
 }
 
 func generateClientCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
 	ccPath := serviceVars["client_cc_path"]
-	vars := make(map[string]string)
-	maps.Copy(vars, serviceVars)
-
-	p := newPrinter(vars)
-	p.Print(p.CopyrightHeader(vars["copyright_year"]))
-	p.Print(`
-// Generated by the Codegen C++ plugin.
-// If you make any local changes, they will be lost.
-// source: $proto_file_name$
-
-`)
 
 	hasDepWarnings := methodSignatureUsesDeprecatedField(svc, methods, lib)
-	hasIAM, setMethod := hasIamPolicyExtension(methods)
+	hasIAM, _ := hasIamPolicyExtension(methods)
 
+	var includes []string
 	if hasDepWarnings {
-		p.Print("#include \"google/cloud/internal/disable_deprecation_warnings.inc\"\n")
+		includes = append(includes, `#include "google/cloud/internal/disable_deprecation_warnings.inc"`)
 	}
-	p.Print(fmt.Sprintf("#include \"%s\"\n", vars["client_header_path"]))
-	p.Print("#include <memory>\n")
+	includes = append(includes, fmt.Sprintf(`#include "%s"`, serviceVars["client_header_path"]))
+	includes = append(includes, `#include <memory>`)
 	if hasIAM {
-		p.Print(fmt.Sprintf("#include \"%s\"\n", vars["options_header_path"]))
-		p.Print("#include <thread>\n")
+		includes = append(includes, fmt.Sprintf(`#include "%s"`, serviceVars["options_header_path"]))
+		includes = append(includes, `#include <thread>`)
 	}
-	p.Print("#include <utility>\n")
+	includes = append(includes, `#include <utility>`)
 
-	p.HeaderOpenNamespaces(vars["product_namespace"])
-
-	p.Print(`
-$client_class_name$::$client_class_name$(
-    std::shared_ptr<$connection_class_name$> connection, Options opts)
-    : connection_(std::move(connection)),
-      options_(internal::MergeOptions(std::move(opts),
-      connection_->options())) {}
-$client_class_name$::~$client_class_name$() = default;
-`)
-
-	for _, m := range methods {
-		if isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		if isBidiStreaming(m) {
-			p.PrintWith(mVars, `
-std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
-    $request_type$,
-    $response_type$>>
-$client_class_name$::Async$method_name$(Options opts) {
-  internal::OptionsSpan span(
-      internal::MergeOptions(std::move(opts), options_));
-  return connection_->Async$method_name$();
-}
-`)
-			continue
-		}
-
-		sigs := getValidSignatures(svc, m, lib)
-		for _, s := range sigs {
-			idxStr := strconv.Itoa(s.index)
-			mVars["current_method_signature"] = mVars["method_signature"+idxStr]
-			mVars["current_request_setters"] = mVars["method_request_setters"+idxStr]
-
-			if isLongrunning(m) {
-				if isResponseTypeEmpty(m) {
-					p.PrintWith(mVars, `
-future<Status>
-$client_class_name$::$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(request);
-}
-
-Status
-$client_class_name$::$method_name$(NoAwaitTag, $current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(NoAwaitTag{}, request);
-}
-`)
-				} else {
-					p.PrintWith(mVars, `
-future<StatusOr<$longrunning_deduced_response_type$>>
-$client_class_name$::$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(request);
-}
-
-StatusOr<$longrunning_operation_type$>
-$client_class_name$::$method_name$(NoAwaitTag, $current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(NoAwaitTag{}, request);
-}
-`)
-				}
-			} else if isPaginated(m) {
-				p.PrintWith(mVars, `
-StreamRange<$range_output_type$>
-$client_class_name$::$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(request);
-}
-`)
-			} else if isStreamingRead(m) {
-				p.PrintWith(mVars, `
-StreamRange<$response_type$>
-$client_class_name$::$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(request);
-}
-`)
-			} else {
-				p.PrintWith(mVars, `
-$return_type$
-$client_class_name$::$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->$method_name$(request);
-}
-`)
-			}
-
-			if hasIAM && setMethod == m {
-				p.PrintWith(mVars, `
-StatusOr<google::iam::v1::Policy>
-$client_class_name$::SetIamPolicy(std::string const& resource, IamUpdater const& updater, Options opts) {
-  internal::CheckExpectedOptions<$service_name$BackoffPolicyOption>(opts, __func__);
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  google::iam::v1::GetIamPolicyRequest get_request;
-  get_request.set_resource(resource);
-  google::iam::v1::SetIamPolicyRequest set_request;
-  set_request.set_resource(resource);
-  auto backoff_policy = internal::CurrentOptions().get<$service_name$BackoffPolicyOption>();
-  if (backoff_policy != nullptr) {
-    backoff_policy = backoff_policy->clone();
-  }
-  for (;;) {
-    auto recent = connection_->GetIamPolicy(get_request);
-    if (!recent) {
-      return recent.status();
-    }
-    auto policy = updater(*std::move(recent));
-    if (!policy) {
-      return internal::CancelledError(
-          "updater did not yield a policy",
-          GCP_ERROR_INFO().WithMetadata("gl-cpp.error.origin", "client"));
-    }
-    *set_request.mutable_policy() = *std::move(policy);
-    auto result = connection_->SetIamPolicy(set_request);
-    if (result ||
-        result.status().code() != StatusCode::kAborted ||
-        backoff_policy == nullptr) {
-      return result;
-    }
-    std::this_thread::sleep_for(backoff_policy->OnCompletion());
-  }
-}
-`)
-			}
-		}
-
-		if isLongrunning(m) {
-			if isResponseTypeEmpty(m) {
-				p.PrintWith(mVars, `
-future<Status>
-$client_class_name$::$method_name$($request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(request);
-}
-
-Status
-$client_class_name$::$method_name$(NoAwaitTag, $request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(NoAwaitTag{}, request);
-}
-
-future<Status>
-$client_class_name$::$method_name$($longrunning_operation_type$ const& operation, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(operation);
-}
-`)
-			} else {
-				p.PrintWith(mVars, `
-future<StatusOr<$longrunning_deduced_response_type$>>
-$client_class_name$::$method_name$($request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(request);
-}
-
-StatusOr<$longrunning_operation_type$>
-$client_class_name$::$method_name$(NoAwaitTag, $request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(NoAwaitTag{}, request);
-}
-
-future<StatusOr<$longrunning_deduced_response_type$>>
-$client_class_name$::$method_name$($longrunning_operation_type$ const& operation, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(operation);
-}
-`)
-			}
-		} else if isPaginated(m) {
-			p.PrintWith(mVars, `
-StreamRange<$range_output_type$>
-$client_class_name$::$method_name$($request_type$ request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(std::move(request));
-}
-`)
-		} else if isStreamingRead(m) {
-			p.PrintWith(mVars, `
-StreamRange<$response_type$>
-$client_class_name$::$method_name$($request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(request);
-}
-`)
-		} else {
-			p.PrintWith(mVars, `
-$return_type$
-$client_class_name$::$method_name$($request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->$method_name$(request);
-}
-`)
-		}
+	data := map[string]any{
+		"copyright_year":        serviceVars["copyright_year"],
+		"proto_file_name":       serviceVars["proto_file_name"],
+		"product_namespace":     serviceVars["product_namespace"],
+		"connection_class_name": serviceVars["connection_class_name"],
+		"client_class_name":     serviceVars["client_class_name"],
+		"service_name":          serviceVars["service_name"],
+		"includes":              includes,
+		"methods":               buildClientMethodList(svc, methods, serviceVars, lib, model),
+		"async_methods":         buildClientAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
 	}
 
-	for _, m := range asyncMethods {
-		if isStreamingRead(m) || isStreamingWrite(m) {
-			continue
-		}
-		mVars := buildMethodVars(svc, m, vars, lib, model)
-		sigs := getValidSignatures(svc, m, lib)
-		for _, s := range sigs {
-			idxStr := strconv.Itoa(s.index)
-			mVars["current_method_signature"] = mVars["method_signature"+idxStr]
-			mVars["current_request_setters"] = mVars["method_request_setters"+idxStr]
-			p.PrintWith(mVars, `
-future<$return_type$>
-$client_class_name$::Async$method_name$($current_method_signature$Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  $request_type$ request;
-$current_request_setters$  return connection_->Async$method_name$(request);
-}
-`)
-		}
-
-		p.PrintWith(mVars, `
-future<$return_type$>
-$client_class_name$::Async$method_name$($request_type$ const& request, Options opts) {
-  internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
-  return connection_->Async$method_name$(request);
-}
-`)
+	content, err := renderTemplate("templates/client.cc.mustache", data)
+	if err != nil {
+		panic(err)
 	}
 
-	p.HeaderCloseNamespaces(vars["product_namespace"])
-
-	return filepath.Clean(ccPath), p.String()
+	return filepath.Clean(ccPath), content
 }

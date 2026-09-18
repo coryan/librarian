@@ -186,20 +186,29 @@ internal/sidekick/cpp/
 ### Phase 1D: Full Golden Suite Validation
 - Run comprehensive comparison against all files in `generator/integration_tests/golden`:
   ```bash
-  go test -v ./internal/sidekick/cpp/... -run TestGoldenParity
+  go test -v ./internal/sidekick/cpp/... -run TestParityWithGolden
   ```
-- Must achieve 100% byte-for-byte identity across all files with zero differences.
+- Must achieve 100% byte-for-byte identity across all files with zero differences. (Achieved across all 188 files).
 
-### Phase 1E: Testing Conventions & Data Model Helpers
-- **Unit Testing Data Models**: Always use Librarian's `api.NewTest*()` constructors (`api.NewTestAPI`, `api.NewTestService`, `api.NewTestMessage`, `api.NewTestMethod`, `api.NewTestField`, etc.) together with `api.CrossReference(model)` to construct synthetic data models when writing unit tests for annotations (`annotate_*.go`) and template rendering. Avoid manual struct initialization or hand-rolled cross-referencing maps.
-- **Extending Test Helpers**: If testing requires constructing API features not yet covered by the existing test constructors in `internal/sidekick/api/test.go`, extend the `api.NewTest*()` suite with new helpers or builder methods rather than writing one-off synthetic fixtures.
-- **Test Coverage**: Every annotation pass and template element must have accompanying unit tests in `*_test.go` files alongside the end-to-end golden parity tests.
-
-### Phase 1F: Review and Commit Protocol
-- **Always use `review-pr` skill from Librarian repository**: For each phase, run the code review using `.agents/skills/review-pr/SKILL.md` located in the Librarian repository (`.agents/skills/review-pr/SKILL.md`).
-- **Consistency Prompt**: Run the review with the specific consistency check:
-  > "Review the change for consistency. Make sure the comments for all files touched by the change match the code. Make sure the names use consistent names."
-- **Verification & Commit**: Verify all tests and linters pass (`gofmt`, `goimports`, `golangci-lint`, `go test`), address any findings, and commit the change with a very brief commit message.
+### Phase 1E: Refactor to Mustache Templates (Completed)
+1. **Upstream Alignment & Developer Guidelines**:
+   - Rebase changes onto `upstream/main` to integrate the latest guidelines in `internal/sidekick/GEMINI.md`.
+   - Adopt `sidekick/swift` as the architectural reference: decomposed helper files, dedicated source & test files per annotation type, slim orchestrators, and granular template rendering.
+2. **True Mustache Template Engine**:
+   - Refactor generator from programmatic string printing (`printer.go`) to genuine Mustache templates in `internal/sidekick/cpp/templates/`.
+   - Drive code generation through `language.GenerateService` or `mustache.RenderPartials` backed by `//go:embed all:templates`.
+   - Templates cover all generated components: public client, public connection, idempotency policy, options, gRPC stubs & decorators, REST stubs & decorators, connection implementations, stub factories, option defaults, retry traits, mock connections, and forwarding headers.
+   - Retire the interim `printer.go` string substitution helper.
+3. **Strict Parity Preservation**:
+   - Ensure that the refactored Mustache template rendering continues to produce 100% byte-for-byte identical output across all 188 golden files (`go test -run TestParityWithGolden`).
+4. **Testing Conventions & Data Model Helpers**:
+   - Always use Librarian's `api.NewTest*()` constructors (`api.NewTestAPI`, `api.NewTestService`, `api.NewTestMessage`, `api.NewTestMethod`, `api.NewTestField`, etc.) together with `api.CrossReference(model)` in `internal/sidekick/api/test.go`. Never construct raw `api.*` structs manually.
+   - If new model capabilities are needed, add fluent builders to `internal/sidekick/api/test.go`.
+5. **Phase Review & Commit Protocol**:
+   - After completing the phase, execute the `review-pr` skill from the Librarian repository (`.agents/skills/review-pr/SKILL.md`).
+   - Use the mandatory consistency prompt:
+     > "Review the change for consistency. Make sure the comments for all files touched by the change match the code. Make sure the names use consistent names."
+   - Address any findings, run full verification (`gofmt`, `goimports`, `golangci-lint`, `go test`), and commit locally with a very brief commit message.
 
 ---
 

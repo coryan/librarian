@@ -16,7 +16,6 @@ package cpp
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,16 +25,15 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-//go:embed all:templates
-var templates embed.FS
-
 // Generate orchestrates C++ client library code generation for the provided API model.
 func Generate(ctx context.Context, model *api.API, outdir string, library *config.Library) error {
 	codec, err := newCodec(model, library, outdir)
 	if err != nil {
 		return fmt.Errorf("creating C++ codec: %w", err)
 	}
-	codec.annotateModel()
+	if err := codec.annotateModel(); err != nil {
+		return fmt.Errorf("annotating model: %w", err)
+	}
 
 	hasGrpc := library != nil && library.Cpp != nil && library.Cpp.HasGrpcTransport()
 	hasRest := library != nil && library.Cpp != nil && library.Cpp.GenerateRestTransport

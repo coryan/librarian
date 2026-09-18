@@ -54,7 +54,9 @@ func TestNewCodec(t *testing.T) {
 	if codec.OutDir != "/tmp/out" {
 		t.Errorf("got outdir %q, want %q", codec.OutDir, "/tmp/out")
 	}
-	codec.annotateModel()
+	if err := codec.annotateModel(); err != nil {
+		t.Fatalf("annotateModel failed: %v", err)
+	}
 }
 
 func TestNewCodec_RichModel(t *testing.T) {
@@ -109,7 +111,9 @@ func TestNewCodec_RichModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newCodec failed: %v", err)
 	}
-	codec.annotateModel()
+	if err := codec.annotateModel(); err != nil {
+		t.Fatalf("annotateModel failed: %v", err)
+	}
 }
 
 func TestNewCodec_NilModel(t *testing.T) {
