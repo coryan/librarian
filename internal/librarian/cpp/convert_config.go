@@ -238,7 +238,7 @@ func ConvertConfig(content string) (*config.Config, error) {
 			if !parser.match(tokOpenBrace) {
 				return nil, fmt.Errorf("line %d: expected '{' after service", tok.line)
 			}
-			lib, err := parseServiceBlock(parser, usedNames)
+			lib, err := parseServiceBlock(parser, usedNames, false)
 			if err != nil {
 				return nil, err
 			}
@@ -272,7 +272,7 @@ func ConvertConfigFile(path string) (*config.Config, error) {
 	return ConvertConfig(string(data))
 }
 
-func parseServiceBlock(p *textprotoParser, usedNames map[string]int) (*config.Library, error) {
+func parseServiceBlock(p *textprotoParser, usedNames map[string]int, isDiscovery bool) (*config.Library, error) {
 	cppLib := &config.CppLibrary{}
 	var serviceProtoPath string
 
@@ -317,8 +317,7 @@ func parseServiceBlock(p *textprotoParser, usedNames map[string]int) (*config.Li
 			cppLib.EmulatorEndpointEnvVar = val
 		case "endpoint_location_style":
 			cppLib.EndpointLocationStyle = val
-		case "override_service_config_yaml_name":
-			cppLib.OverrideServiceConfigYamlName = val
+		case "override_service_config_yaml_name", "service_config":
 			cppLib.ServiceConfig = val
 		case "generate_rest_transport":
 			cppLib.GenerateRestTransport = val == "true"
@@ -343,6 +342,12 @@ func parseServiceBlock(p *textprotoParser, usedNames map[string]int) (*config.Li
 			cppLib.Experimental = val == "true"
 		case "preserve_proto_field_names_in_json":
 			cppLib.PreserveProtoFieldNamesInJson = val == "true"
+		case "is_discovery_document_proto":
+			cppLib.IsDiscoveryDocumentProto = val == "true"
+		case "proto_file_source":
+			if val == "DISCOVERY_DOCUMENT" {
+				cppLib.IsDiscoveryDocumentProto = true
+			}
 		case "additional_proto_files":
 			cppLib.AdditionalProtoFiles = append(cppLib.AdditionalProtoFiles, val)
 		case "omitted_rpcs":
@@ -364,16 +369,41 @@ func parseServiceBlock(p *textprotoParser, usedNames map[string]int) (*config.Li
 		return nil, nil
 	}
 
+	if isDiscovery || strings.HasPrefix(serviceProtoPath, "google/cloud/compute/") || strings.HasPrefix(cppLib.ProductPath, "google/cloud/compute/") {
+		cppLib.IsDiscoveryDocumentProto = true
+	}
+
+	output := cppLib.ProductPath
+	if cppLib.ForwardingProductPath != "" {
+		output = cppLib.ForwardingProductPath
+	}
+
+	roots := []string{"googleapis"}
+	if cppLib.IsDiscoveryDocumentProto {
+		roots = []string{"discovery", "googleapis"}
+	}
+
 	name := deriveLibraryName(cppLib.ProductPath, serviceProtoPath, usedNames)
+
+	apis := []*config.API{
+		{Path: serviceProtoPath},
+	}
+	// Grafeas service definitions live outside the Container Analysis package directory
+	// (google/devtools/containeranalysis/v1), requiring an explicit config.API entry
+	// so the parser can locate and compile its service descriptors.
+	for _, f := range cppLib.AdditionalProtoFiles {
+		if f == "grafeas/v1/grafeas.proto" {
+			apis = append(apis, &config.API{Path: f})
+		}
+	}
 
 	return &config.Library{
 		Name:          name,
 		CopyrightYear: cppLib.InitialCopyrightYear,
-		Output:        cppLib.ProductPath,
-		APIs: []*config.API{
-			{Path: serviceProtoPath},
-		},
-		Cpp: cppLib,
+		Output:        output,
+		Roots:         roots,
+		APIs:          apis,
+		Cpp:           cppLib,
 	}, nil
 }
 
@@ -475,7 +505,7 @@ func parseDiscoveryProductsBlock(p *textprotoParser, usedNames map[string]int) (
 			if !p.match(tokOpenBrace) {
 				return nil, fmt.Errorf("line %d: expected '{' after rest_services", tok.line)
 			}
-			lib, err := parseServiceBlock(p, usedNames)
+			lib, err := parseServiceBlock(p, usedNames, true)
 			if err != nil {
 				return nil, err
 			}

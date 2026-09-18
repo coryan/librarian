@@ -584,3 +584,102 @@ func TestGenerateRestConnectionImpl_ComputeLRO(t *testing.T) {
 		t.Errorf("AsyncRestLongRunningOperation mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestGenerate_OmissionOptions(t *testing.T) {
+	reqMsg := api.NewTestMessage("GetDatabaseRequest")
+	respMsg := api.NewTestMessage("Database")
+	method := api.NewTestMethod("GetDatabase").WithInput(reqMsg).WithOutput(respMsg)
+	svc := api.NewTestService("DatabaseService").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{reqMsg, respMsg}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatalf("api.CrossReference failed: %v", err)
+	}
+
+	t.Run("omit client", func(t *testing.T) {
+		tempDir := t.TempDir()
+		lib := &config.Library{
+			Name: "test-lib",
+			Cpp: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath: "google/cloud/test/v1",
+				},
+				OmitClient: true,
+			},
+		}
+		if err := Generate(t.Context(), model, tempDir, lib); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		clientHeader := filepath.Join(tempDir, "database_client.h")
+		if _, err := os.Stat(clientHeader); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be omitted when OmitClient=true", clientHeader)
+		}
+		connHeader := filepath.Join(tempDir, "database_connection.h")
+		if _, err := os.Stat(connHeader); err != nil {
+			t.Errorf("expected %s to exist when OmitClient=true: %v", connHeader, err)
+		}
+	})
+
+	t.Run("omit connection", func(t *testing.T) {
+		tempDir := t.TempDir()
+		lib := &config.Library{
+			Name: "test-lib",
+			Cpp: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath: "google/cloud/test/v1",
+				},
+				OmitConnection: true,
+			},
+		}
+		if err := Generate(t.Context(), model, tempDir, lib); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		connHeader := filepath.Join(tempDir, "database_connection.h")
+		if _, err := os.Stat(connHeader); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be omitted when OmitConnection=true", connHeader)
+		}
+	})
+
+	t.Run("omit stub factory", func(t *testing.T) {
+		tempDir := t.TempDir()
+		lib := &config.Library{
+			Name: "test-lib",
+			Cpp: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath: "google/cloud/test/v1",
+				},
+				OmitStubFactory: true,
+			},
+		}
+		if err := Generate(t.Context(), model, tempDir, lib); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		stubFactoryHeader := filepath.Join(tempDir, "internal/database_stub_factory.h")
+		if _, err := os.Stat(stubFactoryHeader); !os.IsNotExist(err) {
+			t.Errorf("expected %s to be omitted when OmitStubFactory=true", stubFactoryHeader)
+		}
+		stubHeader := filepath.Join(tempDir, "internal/database_stub.h")
+		if _, err := os.Stat(stubHeader); err != nil {
+			t.Errorf("expected %s to exist when OmitStubFactory=true: %v", stubHeader, err)
+		}
+	})
+
+	t.Run("omitted service", func(t *testing.T) {
+		tempDir := t.TempDir()
+		lib := &config.Library{
+			Name: "test-lib",
+			Cpp: &config.CppLibrary{
+				CppDefault: config.CppDefault{
+					ProductPath: "google/cloud/test/v1",
+				},
+				OmittedServices: []string{"DatabaseService"},
+			},
+		}
+		if err := Generate(t.Context(), model, tempDir, lib); err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		files, _ := os.ReadDir(tempDir)
+		if len(files) > 0 {
+			t.Errorf("expected no files to be generated for omitted service, found: %v", files)
+		}
+	})
+}

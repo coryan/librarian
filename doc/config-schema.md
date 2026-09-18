@@ -31,6 +31,7 @@ This document describes the schema for the librarian.yaml.
 | :--- | :--- | :--- |
 | `commit` | string | Is the git commit hash or tag to use. |
 | `dir` | string | Is a local directory path to use instead of fetching. If set, Commit and SHA256 are ignored. |
+| `path` | string | Is a local directory path to use instead of fetching (alias for Dir). |
 | `sha256` | string | Is the expected hash of the tarball for this commit. |
 | `subpath` | string | Is a directory inside the fetched archive that should be treated as the root for operations. |
 

@@ -83,11 +83,14 @@ type Sources struct {
 // Source represents a source repository.
 type Source struct {
 	// Commit is the git commit hash or tag to use.
-	Commit string `yaml:"commit"`
+	Commit string `yaml:"commit,omitempty"`
 
 	// Dir is a local directory path to use instead of fetching.
 	// If set, Commit and SHA256 are ignored.
 	Dir string `yaml:"dir,omitempty"`
+
+	// Path is a local directory path to use instead of fetching (alias for Dir).
+	Path string `yaml:"path,omitempty"`
 
 	// SHA256 is the expected hash of the tarball for this commit.
 	SHA256 string `yaml:"sha256,omitempty"`

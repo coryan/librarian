@@ -53,8 +53,12 @@ service {
 	if lib.CopyrightYear != "2021" {
 		t.Errorf("expected copyright year %q, got %q", "2021", lib.CopyrightYear)
 	}
-	if lib.Output != "google/cloud/secretmanager/v1" {
-		t.Errorf("expected output %q, got %q", "google/cloud/secretmanager/v1", lib.Output)
+	if lib.Output != "google/cloud/secretmanager" {
+		t.Errorf("expected output %q, got %q", "google/cloud/secretmanager", lib.Output)
+	}
+	wantRoots := []string{"googleapis"}
+	if diff := cmp.Diff(wantRoots, lib.Roots); diff != "" {
+		t.Errorf("roots mismatch (-want +got):\n%s", diff)
 	}
 	if len(lib.APIs) != 1 || lib.APIs[0].Path != "google/cloud/secretmanager/v1/service.proto" {
 		t.Errorf("unexpected APIs: %+v", lib.APIs)
@@ -126,8 +130,8 @@ service {
 	if cppLib.EndpointLocationStyle != "LOCATION_DEPENDENT_COMPAT" {
 		t.Errorf("unexpected EndpointLocationStyle: %s", cppLib.EndpointLocationStyle)
 	}
-	if cppLib.OverrideServiceConfigYamlName != "google/cloud/test/v1/test.yaml" {
-		t.Errorf("unexpected OverrideServiceConfigYamlName: %s", cppLib.OverrideServiceConfigYamlName)
+	if cppLib.ServiceConfig != "google/cloud/test/v1/test.yaml" {
+		t.Errorf("unexpected ServiceConfig: %s", cppLib.ServiceConfig)
 	}
 	if !cppLib.GenerateRestTransport {
 		t.Errorf("expected GenerateRestTransport to be true")
@@ -197,6 +201,16 @@ discovery_products {
 	if lib.Name != "google-cloud-compute-addresses-v1" {
 		t.Errorf("expected library name google-cloud-compute-addresses-v1, got %s", lib.Name)
 	}
+	if lib.Output != "google/cloud/compute/addresses/v1" {
+		t.Errorf("expected output %q, got %q", "google/cloud/compute/addresses/v1", lib.Output)
+	}
+	if !lib.Cpp.IsDiscoveryDocumentProto {
+		t.Errorf("expected IsDiscoveryDocumentProto to be true")
+	}
+	wantRoots := []string{"discovery", "googleapis"}
+	if diff := cmp.Diff(wantRoots, lib.Roots); diff != "" {
+		t.Errorf("roots mismatch (-want +got):\n%s", diff)
+	}
 	if !lib.Cpp.GenerateRestTransport {
 		t.Errorf("expected GenerateRestTransport to be true")
 	}
@@ -205,6 +219,7 @@ discovery_products {
 func TestConvertConfigFile_ProductionConfig(t *testing.T) {
 	candidates := []string{
 		"/usr/local/google/home/coryan/google-cloud-cpp/main/generator/generator_config.textproto",
+		"/usr/local/google/home/coryan/google-cloud-cpp/librarian-tooling/generator/generator_config.textproto",
 		filepath.Join("..", "..", "sidekick", "cpp", "testdata", "generator_config.textproto"),
 	}
 
@@ -232,16 +247,39 @@ func TestConvertConfigFile_ProductionConfig(t *testing.T) {
 	// Verify secretmanager is among the parsed libraries
 	var foundSM bool
 	for _, lib := range cfg.Libraries {
-		if lib.Output == "google/cloud/secretmanager/v1" {
+		if lib.Output == "google/cloud/secretmanager" {
 			foundSM = true
 			if lib.Cpp == nil || lib.Cpp.ForwardingProductPath != "google/cloud/secretmanager" {
 				t.Errorf("secretmanager forwarding_product_path mismatch: %+v", lib.Cpp)
+			}
+			wantRoots := []string{"googleapis"}
+			if diff := cmp.Diff(wantRoots, lib.Roots); diff != "" {
+				t.Errorf("secretmanager roots mismatch (-want +got):\n%s", diff)
 			}
 			break
 		}
 	}
 	if !foundSM {
-		t.Errorf("expected secretmanager/v1 to be found among parsed libraries")
+		t.Errorf("expected secretmanager to be found among parsed libraries")
+	}
+
+	// Verify compute addresses is among the parsed libraries with discovery roots
+	var foundCompute bool
+	for _, lib := range cfg.Libraries {
+		if lib.Output == "google/cloud/compute/addresses/v1" {
+			foundCompute = true
+			if lib.Cpp == nil || !lib.Cpp.IsDiscoveryDocumentProto {
+				t.Errorf("compute addresses IsDiscoveryDocumentProto mismatch: %+v", lib.Cpp)
+			}
+			wantRoots := []string{"discovery", "googleapis"}
+			if diff := cmp.Diff(wantRoots, lib.Roots); diff != "" {
+				t.Errorf("compute addresses roots mismatch (-want +got):\n%s", diff)
+			}
+			break
+		}
+	}
+	if !foundCompute {
+		t.Errorf("expected compute addresses to be found among parsed libraries")
 	}
 }
 
@@ -261,5 +299,49 @@ func TestConvertConfig_Errors(t *testing.T) {
 				t.Errorf("expected error for %s, got nil", tc.name)
 			}
 		})
+	}
+}
+
+func TestConvertConfig_ServiceConfig(t *testing.T) {
+	input := `
+service {
+  service_proto_path: "google/cloud/test/v1/service.proto"
+  product_path: "google/cloud/test/v1"
+  service_config: "google/cloud/test/v1/test.yaml"
+}
+`
+	cfg, err := ConvertConfig(input)
+	if err != nil {
+		t.Fatalf("ConvertConfig failed: %v", err)
+	}
+	if len(cfg.Libraries) != 1 {
+		t.Fatalf("expected 1 library, got %d", len(cfg.Libraries))
+	}
+	if cfg.Libraries[0].Cpp.ServiceConfig != "google/cloud/test/v1/test.yaml" {
+		t.Errorf("expected ServiceConfig 'google/cloud/test/v1/test.yaml', got %q", cfg.Libraries[0].Cpp.ServiceConfig)
+	}
+}
+
+func TestConvertConfig_ComputePathDetection(t *testing.T) {
+	input := `
+service {
+  service_proto_path: "google/cloud/compute/v1/compute.proto"
+  product_path: "google/cloud/compute/v1"
+}
+`
+	cfg, err := ConvertConfig(input)
+	if err != nil {
+		t.Fatalf("ConvertConfig failed: %v", err)
+	}
+	if len(cfg.Libraries) != 1 {
+		t.Fatalf("expected 1 library, got %d", len(cfg.Libraries))
+	}
+	lib := cfg.Libraries[0]
+	if !lib.Cpp.IsDiscoveryDocumentProto {
+		t.Errorf("expected IsDiscoveryDocumentProto to be true for compute service")
+	}
+	wantRoots := []string{"discovery", "googleapis"}
+	if diff := cmp.Diff(wantRoots, lib.Roots); diff != "" {
+		t.Errorf("roots mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -53,6 +53,18 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 	}
 
 	for _, svc := range model.Services {
+		if library != nil && library.Cpp != nil {
+			isOmitted := false
+			for _, omitted := range library.Cpp.OmittedServices {
+				if svc.Name == omitted || svc.ID == omitted || strings.HasSuffix(svc.ID, "."+omitted) {
+					isOmitted = true
+					break
+				}
+			}
+			if isOmitted {
+				continue
+			}
+		}
 		ann := svc.Codec.(*serviceAnnotations)
 		methods := ann.Methods
 		asyncMethods := ann.AsyncMethods
@@ -62,21 +74,29 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 			files = append(files, fileEntry{path: p, content: c})
 		}
 
-		add(generateOptionsHeader(svc, ann, methods, library))
-		if p, c, ok := generateRetryTraitsHeader(svc, ann, library); ok {
-			add(p, c)
+		omitClient := library != nil && library.Cpp != nil && library.Cpp.OmitClient
+		omitConnection := library != nil && library.Cpp != nil && library.Cpp.OmitConnection
+		omitStubFactory := library != nil && library.Cpp != nil && library.Cpp.OmitStubFactory
+
+		if !omitConnection {
+			add(generateOptionsHeader(svc, ann, methods, library))
+			if p, c, ok := generateRetryTraitsHeader(svc, ann, library); ok {
+				add(p, c)
+			}
+			add(generateIdempotencyPolicyHeader(svc, ann, methods, library, model))
+			add(generateIdempotencyPolicyCc(svc, ann, methods, library, model))
+			add(generateMockConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateOptionDefaultsHeader(svc, ann, library))
+			add(generateOptionDefaultsCc(svc, ann, methods, library))
 		}
-		add(generateIdempotencyPolicyHeader(svc, ann, methods, library, model))
-		add(generateIdempotencyPolicyCc(svc, ann, methods, library, model))
-		add(generateMockConnectionHeader(svc, ann, methods, asyncMethods, library, model))
-		add(generateOptionDefaultsHeader(svc, ann, library))
-		add(generateOptionDefaultsCc(svc, ann, methods, library))
 
 		if hasGrpc {
 			add(generateStubHeader(svc, ann, methods, asyncMethods, library, model))
 			add(generateStubCc(svc, ann, methods, asyncMethods, library, model))
-			add(generateStubFactoryHeader(svc, ann, library))
-			add(generateStubFactoryCc(svc, ann, methods, library))
+			if !omitStubFactory {
+				add(generateStubFactoryHeader(svc, ann, library))
+				add(generateStubFactoryCc(svc, ann, methods, library))
+			}
 			add(generateAuthDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
 			add(generateAuthDecoratorCc(svc, ann, methods, asyncMethods, library, model))
 			add(generateLoggingDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
@@ -91,39 +111,55 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 				add(generateRoundRobinDecoratorCc(svc, ann, methods, asyncMethods, library, model))
 			}
 
-			add(generateConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
-			add(generateConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
+			if !omitConnection {
+				add(generateConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
+				add(generateConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
+			}
 		}
 
 		if hasRest {
-			add(generateRestConnectionHeader(ann))
-			add(generateRestConnectionCc(ann))
+			if !omitConnection {
+				add(generateRestConnectionHeader(ann))
+				add(generateRestConnectionCc(ann))
+			}
 			add(generateRestStubHeader(svc, ann, methods, asyncMethods, library, model))
 			add(generateRestStubCc(svc, ann, methods, asyncMethods, library, model))
-			add(generateRestStubFactoryHeader(ann))
-			add(generateRestStubFactoryCc(ann))
+			if !omitStubFactory {
+				add(generateRestStubFactoryHeader(ann))
+				add(generateRestStubFactoryCc(ann))
+			}
 			add(generateRestLoggingDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
 			add(generateRestLoggingDecoratorCc(svc, ann, methods, asyncMethods, library, model))
 			add(generateRestMetadataDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
 			add(generateRestMetadataDecoratorCc(svc, ann, methods, asyncMethods, library, model))
-			add(generateRestConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
-			add(generateRestConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
+			if !omitConnection {
+				add(generateRestConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
+				add(generateRestConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
+			}
 		}
 
-		add(generateTracingConnectionHeader(svc, ann, methods, asyncMethods, library, model))
-		add(generateTracingConnectionCc(svc, ann, methods, asyncMethods, library, model))
-		add(generateConnectionHeader(svc, ann, methods, asyncMethods, library, model))
-		add(generateConnectionCc(svc, ann, methods, asyncMethods, library, model))
-		add(generateClientHeader(svc, ann, methods, asyncMethods, library, model))
-		add(generateClientCc(svc, ann, methods, asyncMethods, library, model))
-		add(generateSourcesCc(ann))
+		if !omitConnection {
+			add(generateTracingConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateTracingConnectionCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateConnectionCc(svc, ann, methods, asyncMethods, library, model))
+		}
+		if !omitClient {
+			add(generateClientHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateClientCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateSourcesCc(ann))
+		}
 
 		if library.Cpp.ForwardingProductPath != "" {
-			add(generateForwardingClientHeader(svc, ann, library))
-			add(generateForwardingConnectionHeader(svc, ann, library))
-			add(generateForwardingIdempotencyPolicyHeader(svc, ann, library))
-			add(generateForwardingMockConnectionHeader(svc, ann, library))
-			add(generateForwardingOptionsHeader(svc, ann, methods, library))
+			if !omitClient {
+				add(generateForwardingClientHeader(svc, ann, library))
+			}
+			if !omitConnection {
+				add(generateForwardingConnectionHeader(svc, ann, library))
+				add(generateForwardingIdempotencyPolicyHeader(svc, ann, library))
+				add(generateForwardingMockConnectionHeader(svc, ann, library))
+				add(generateForwardingOptionsHeader(svc, ann, methods, library))
+			}
 		}
 
 		for _, f := range files {

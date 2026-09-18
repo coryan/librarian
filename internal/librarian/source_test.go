@@ -79,6 +79,17 @@ func TestLoadSources(t *testing.T) {
 			},
 		},
 		{
+			name: "discovery path set",
+			src: &config.Sources{
+				Googleapis: &config.Source{Dir: "/tmp/googleapis"},
+				Discovery:  &config.Source{Path: "/tmp/discovery"},
+			},
+			want: &sources.Sources{
+				Googleapis: "/tmp/googleapis",
+				Discovery:  "/tmp/discovery",
+			},
+		},
+		{
 			name: "relative paths are resolved to absolute",
 			src: &config.Sources{
 				Googleapis: &config.Source{Dir: "relative/path/to/googleapis"},

@@ -153,7 +153,7 @@ func cleanLibraries(language string, libraries []*config.Library) error {
 	for _, library := range libraries {
 		switch language {
 		case config.LanguageCpp:
-			err = checkAndClean(library.Output, library.Keep)
+			err = cpp.Clean(library)
 		case config.LanguageDart:
 			err = checkAndClean(library.Output, library.Keep)
 		case config.LanguageFake:

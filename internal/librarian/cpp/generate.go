@@ -97,11 +97,9 @@ func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sou
 		includeList = append(includeList, protoFile)
 		if library.Cpp != nil {
 			for _, f := range library.Cpp.AdditionalProtoFiles {
-				rel := f
 				if specSource != "" && strings.HasPrefix(f, specSource+"/") {
-					rel = strings.TrimPrefix(f, specSource+"/")
+					includeList = append(includeList, strings.TrimPrefix(f, specSource+"/"))
 				}
-				includeList = append(includeList, rel)
 			}
 		}
 	}
