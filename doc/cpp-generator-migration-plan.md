@@ -295,8 +295,17 @@ To maintain code quality, maintainability, and architectural consistency with Li
    - Support discovery-specific doc comments (`@cloud_cpp_reference_link`).
    - Validate 100% byte-for-byte parity on `google/cloud/compute/addresses/v1` across all 26 generated C++ headers and sources in `TestPilotComputeAddressesParity`.
 
-3. **Deprecate and Remove `google-cloud-cpp/generator`**:
-   - Document replacement steps and CI workflow updates.
+3. **Production Migration, Tooling & Generator Deprecation**:
+   - **Step 3.1: Update Tooling for Full Generation via `librarian generate --all`**:
+     - Generate full production `librarian.yaml` in `google-cloud-cpp` using `librarian migrate cpp-config`.
+     - Ensure `librarian generate --all` works seamlessly in `google-cloud-cpp`.
+     - Update `ci/cloudbuild/builds/generate-libraries.sh` and repository tooling to invoke `librarian generate --all` instead of ad-hoc generation scripts or `//generator:google-cloud-cpp-codegen`.
+   - **Step 3.2: Adapt Discovery-to-Proto**:
+     - Separate and adapt the discovery-to-proto tool so discovery protos are generated independently of the legacy C++ client code generator.
+     - Update discovery document update workflows.
+   - **Step 3.3: Deprecate and Remove `google-cloud-cpp/generator`**:
+     - Remove `generator/` and obsolete generator Bazel targets from `google-cloud-cpp`.
+     - Final verification of end-to-end builds and tests.
 
 
 
