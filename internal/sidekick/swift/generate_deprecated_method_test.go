@@ -39,15 +39,10 @@ func TestGenerateService_DeprecatedMethods(t *testing.T) {
 
 	itemType := api.NewTestMessage("Item")
 
+	itemsField := api.NewTestField("items").WithMessageType(itemType).WithRepeated()
+	nextPageTokenField := api.NewTestField("next_page_token").WithType(api.TypezString)
 	paginationResponseType := api.NewTestMessage("PaginationResponse").
-		WithFields(
-			api.NewTestField("items").WithMessageType(itemType).WithRepeated(),
-			api.NewTestField("next_page_token").WithType(api.TypezString),
-		)
-	paginationResponseType.Pagination = &api.PaginationInfo{
-		PageableItem:  paginationResponseType.Fields[0],
-		NextPageToken: paginationResponseType.Fields[1],
-	}
+		WithPagination(nextPageTokenField, itemsField)
 
 	operationType := api.NewTestMessage("Operation").WithPackage("google.longrunning")
 
@@ -118,13 +113,12 @@ func TestGenerateService_DeprecatedMethods(t *testing.T) {
 					WithInput(requestType).
 					WithOutput(operationType).
 					WithVerb("POST").
-					WithPathTemplate((&api.PathTemplate{}).WithLiteral("v1").WithLiteral("lro"))
+					WithPathTemplate((&api.PathTemplate{}).WithLiteral("v1").WithLiteral("lro")).
+					WithOperationInfo(&api.OperationInfo{
+						ResponseTypeID: lroResultType.ID,
+						MetadataTypeID: lroMetadataType.ID,
+					})
 				m.Deprecated = true
-				m.IsLRO = true
-				m.OperationInfo = &api.OperationInfo{
-					ResponseTypeID: lroResultType.ID,
-					MetadataTypeID: lroMetadataType.ID,
-				}
 				m.Documentation = "-- lro marker --"
 				return m
 			},

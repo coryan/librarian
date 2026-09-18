@@ -67,22 +67,13 @@ func TestPathExpression(t *testing.T) {
 }
 
 func TestPathVariables(t *testing.T) {
-	requestMessage := &api.Message{
-		Name:    "CreateSecretRequest",
-		Package: "google.cloud.secretmanager.v1",
-		ID:      ".google.cloud.secretmanager.v1.CreateSecretRequest",
-		Fields: []*api.Field{
-			{
-				Name:  "name",
-				Typez: api.TypezString,
-			},
-			{
-				Name:  "second",
-				Typez: api.TypezString,
-			},
-		},
-	}
-	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, []*api.Service{})
+	requestMessage := api.NewTestMessage("CreateSecretRequest").
+		WithPackage("google.cloud.secretmanager.v1").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+			api.NewTestField("second").WithType(api.TypezString),
+		)
+	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, nil)
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {
 		t.Fatal(err)
@@ -168,64 +159,31 @@ func TestPathVariables(t *testing.T) {
 }
 
 func TestNewPathVariable(t *testing.T) {
-	secretMessage := &api.Message{
-		Name:    "Secret",
-		Package: "google.cloud.secretmanager.v1",
-		ID:      ".google.cloud.secretmanager.v1.Secret",
-		Fields: []*api.Field{
-			{
-				Name:  "name",
-				Typez: api.TypezString,
-			},
-			{
-				Name:     "description",
-				Typez:    api.TypezString,
-				Optional: true,
-			},
-		},
-	}
+	secretMessage := api.NewTestMessage("Secret").
+		WithPackage("google.cloud.secretmanager.v1").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+			api.NewTestField("description").WithType(api.TypezString).WithOptional(),
+		)
 
-	requestMessage := &api.Message{
-		Name:    "CreateSecretRequest",
-		Package: "google.cloud.secretmanager.v1",
-		ID:      ".google.cloud.secretmanager.v1.CreateSecretRequest",
-		Fields: []*api.Field{
-			{
-				Name:  "parent",
-				Typez: api.TypezString,
-			},
-			{
-				Name:     "display_name",
-				Typez:    api.TypezString,
-				Optional: true,
-			},
-			{
-				Name:     "secret",
-				Typez:    api.TypezMessage,
-				TypezID:  ".google.cloud.secretmanager.v1.Secret",
-				Optional: true,
-			},
-			{
-				Name:  "data",
-				Typez: api.TypezBytes,
-			},
-			{
-				Name:    "oneof_field",
-				Typez:   api.TypezString,
-				IsOneOf: true,
-			},
-			{
-				Name:     "custom_name",
-				JSONName: "custom_name",
-				Typez:    api.TypezString,
-			},
-		},
-	}
+	oneofField := api.NewTestField("oneof_field").WithType(api.TypezString)
+	oneofField.IsOneOf = true
 
-	model := api.NewTestAPI([]*api.Message{secretMessage, requestMessage}, nil, []*api.Service{})
-	model.AddMessage(secretMessage)
-	model.AddMessage(requestMessage)
+	customNameField := api.NewTestField("custom_name").WithType(api.TypezString)
+	customNameField.JSONName = "custom_name"
 
+	requestMessage := api.NewTestMessage("CreateSecretRequest").
+		WithPackage("google.cloud.secretmanager.v1").
+		WithFields(
+			api.NewTestField("parent").WithType(api.TypezString),
+			api.NewTestField("display_name").WithType(api.TypezString).WithOptional(),
+			api.NewTestField("secret").WithMessageType(secretMessage).WithOptional(),
+			api.NewTestField("data").WithType(api.TypezBytes),
+			oneofField,
+			customNameField,
+		)
+
+	model := api.NewTestAPI([]*api.Message{secretMessage, requestMessage}, nil, nil)
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {
 		t.Fatal(err)
@@ -358,24 +316,14 @@ func TestNewPathVariable(t *testing.T) {
 }
 
 func TestRoutingParams(t *testing.T) {
-	requestMessage := &api.Message{
-		Name:    "GetBucketRequest",
-		Package: "google.storage.v2",
-		ID:      ".google.storage.v2.GetBucketRequest",
-		Fields: []*api.Field{
-			{
-				Name:  "name",
-				Typez: api.TypezString,
-			},
-			{
-				Name:  "parent",
-				Typez: api.TypezString,
-			},
-		},
-	}
+	requestMessage := api.NewTestMessage("GetBucketRequest").
+		WithPackage("google.storage.v2").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+			api.NewTestField("parent").WithType(api.TypezString),
+		)
 
-	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, []*api.Service{})
-	model.AddMessage(requestMessage)
+	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, nil)
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {
 		t.Fatal(err)
@@ -598,19 +546,12 @@ func TestRoutingParams(t *testing.T) {
 }
 
 func TestRoutingParamsFromPathTemplate(t *testing.T) {
-	requestMessage := &api.Message{
-		Name:    "GetBucketRequest",
-		Package: "google.storage.v2",
-		ID:      ".google.storage.v2.GetBucketRequest",
-		Fields: []*api.Field{
-			{
-				Name:  "name",
-				Typez: api.TypezString,
-			},
-		},
-	}
-	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, []*api.Service{})
-	model.AddMessage(requestMessage)
+	requestMessage := api.NewTestMessage("GetBucketRequest").
+		WithPackage("google.storage.v2").
+		WithFields(
+			api.NewTestField("name").WithType(api.TypezString),
+		)
+	model := api.NewTestAPI([]*api.Message{requestMessage}, nil, nil)
 	codec := newTestCodec(t, model, nil)
 	if err := codec.annotateModel(); err != nil {
 		t.Fatal(err)

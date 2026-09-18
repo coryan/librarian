@@ -53,40 +53,24 @@ func TestGenerateOneOf_Deprecated(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
 
-			inner := &api.Message{
-				Name:    "Inner",
-				Package: "google.cloud.test.v1",
-				ID:      ".google.cloud.test.v1.Inner",
-			}
+			inner := api.NewTestMessage("Inner").
+				WithPackage("google.cloud.test.v1")
 
-			oneof := &api.OneOf{
-				Name:          "choice",
-				Documentation: "-- property marker --",
-			}
-
-			field := &api.Field{
-				Name:          "field_one",
-				Documentation: "-- case marker --",
-				ID:            ".google.cloud.test.v1.TestMessage.field_one",
-				Deprecated:    test.deprecated,
-				IsOneOf:       true,
-				Group:         oneof,
-			}
+			field := api.NewTestField("field_one")
+			field.Documentation = "-- case marker --"
+			field.Deprecated = test.deprecated
 			if test.isObject {
-				field.Typez = api.TypezMessage
-				field.TypezID = ".google.cloud.test.v1.Inner"
+				field.WithMessageType(inner)
 			} else {
-				field.Typez = api.TypezString
+				field.WithType(api.TypezString)
 			}
 
-			msg := &api.Message{
-				Name:    "TestMessage",
-				Package: "google.cloud.test.v1",
-				ID:      ".google.cloud.test.v1.TestMessage",
-				Fields:  []*api.Field{field},
-				OneOfs:  []*api.OneOf{oneof},
-			}
-			oneof.Fields = []*api.Field{field}
+			oneof := api.NewTestOneOf("choice").WithFields(field)
+			oneof.Documentation = "-- property marker --"
+
+			msg := api.NewTestMessage("TestMessage").
+				WithPackage("google.cloud.test.v1").
+				WithOneOfs(oneof)
 
 			model := api.NewTestAPI([]*api.Message{msg, inner}, nil, nil)
 			model.PackageName = "google.cloud.test.v1"

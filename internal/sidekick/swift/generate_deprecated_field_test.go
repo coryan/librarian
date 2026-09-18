@@ -57,21 +57,17 @@ func TestGenerateField_Deprecated(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
 
-			field := &api.Field{
-				Name:          "normal_field",
-				Documentation: "-- field marker --",
-				ID:            ".google.cloud.test.v1.TestMessage.normal_field",
-				Typez:         api.TypezString,
-				Deprecated:    test.deprecated,
-				Repeated:      test.repeated,
+			field := api.NewTestField("normal_field").
+				WithType(api.TypezString)
+			field.Documentation = "-- field marker --"
+			field.Deprecated = test.deprecated
+			if test.repeated {
+				field.WithRepeated()
 			}
 
-			msg := &api.Message{
-				Name:    "TestMessage",
-				Package: "google.cloud.test.v1",
-				ID:      ".google.cloud.test.v1.TestMessage",
-				Fields:  []*api.Field{field},
-			}
+			msg := api.NewTestMessage("TestMessage").
+				WithPackage("google.cloud.test.v1").
+				WithFields(field)
 
 			model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
 			model.PackageName = "google.cloud.test.v1"

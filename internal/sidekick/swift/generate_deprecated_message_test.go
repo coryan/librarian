@@ -64,22 +64,17 @@ func TestGenerateMessage_Deprecated(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
 
-			nested := &api.Message{
-				Name:          "NestedMessage",
-				Package:       "google.cloud.test.v1",
-				ID:            ".google.cloud.test.v1.TopMessage.NestedMessage",
-				Deprecated:    test.nestedDeprecated,
-				Documentation: "-- nested marker --",
-			}
+			nested := api.NewTestMessage("NestedMessage").
+				WithPackage("google.cloud.test.v1").
+				WithID(".google.cloud.test.v1.TopMessage.NestedMessage")
+			nested.Deprecated = test.nestedDeprecated
+			nested.Documentation = "-- nested marker --"
 
-			top := &api.Message{
-				Name:          "TopMessage",
-				Package:       "google.cloud.test.v1",
-				ID:            ".google.cloud.test.v1.TopMessage",
-				Deprecated:    test.topDeprecated,
-				Documentation: "-- top marker --",
-				Messages:      []*api.Message{nested},
-			}
+			top := api.NewTestMessage("TopMessage").
+				WithPackage("google.cloud.test.v1")
+			top.Deprecated = test.topDeprecated
+			top.Documentation = "-- top marker --"
+			top.Messages = []*api.Message{nested}
 
 			model := api.NewTestAPI([]*api.Message{top}, nil, nil)
 			model.PackageName = "google.cloud.test.v1"

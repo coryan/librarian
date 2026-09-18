@@ -27,7 +27,7 @@ import (
 
 func TestGenerateConversions_MissingModulePath(t *testing.T) {
 	outDir := t.TempDir()
-	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
+	model := api.NewTestAPI(nil, nil, nil)
 	model.PackageName = "google.cloud.test.v1"
 
 	err := GenerateConversions(t.Context(), model, outDir, &config.Library{}, nil)
@@ -44,33 +44,14 @@ func TestGenerateConversions_MissingModulePath(t *testing.T) {
 func TestGenerateConversions_Message(t *testing.T) {
 	outDir := t.TempDir()
 
-	field1 := &api.Field{
-		Name:     "name",
-		JSONName: "name",
-		Typez:    api.TypezString,
-	}
-	field2 := &api.Field{
-		Name:     "metageneration",
-		JSONName: "metageneration",
-		Typez:    api.TypezInt64,
-	}
-	field3 := &api.Field{
-		Name:     "self",
-		JSONName: "self",
-		Typez:    api.TypezString,
-		Optional: true,
-	}
-	folder := &api.Message{
-		Name:    "Folder",
-		Package: "google.storage.control.v2",
-		ID:      ".google.storage.control.v2.Folder",
-		Fields:  []*api.Field{field1, field2, field3},
-	}
-	field1.Parent = folder
-	field2.Parent = folder
-	field3.Parent = folder
+	field1 := api.NewTestField("name").WithType(api.TypezString)
+	field2 := api.NewTestField("metageneration").WithType(api.TypezInt64)
+	field3 := api.NewTestField("self").WithType(api.TypezString).WithOptional()
+	folder := api.NewTestMessage("Folder").
+		WithPackage("google.storage.control.v2").
+		WithFields(field1, field2, field3)
 
-	model := api.NewTestAPI([]*api.Message{folder}, []*api.Enum{}, []*api.Service{})
+	model := api.NewTestAPI([]*api.Message{folder}, nil, nil)
 	model.PackageName = "google.storage.control.v2"
 
 	library := &config.Library{}
@@ -125,34 +106,22 @@ func TestGenerateConversions_Message(t *testing.T) {
 func TestGenerateConversions_RecursiveMessage(t *testing.T) {
 	outDir := t.TempDir()
 
-	field1 := &api.Field{
-		Name:          "child_node",
-		ID:            ".test.Node.child_node",
-		Typez:         api.TypezMessage,
-		TypezID:       ".test.Node",
-		Documentation: "Non-optional recursive child.",
-		Optional:      false,
-		Recursive:     true,
-	}
-	field2 := &api.Field{
-		Name:          "next_node",
-		ID:            ".test.Node.next_node",
-		Typez:         api.TypezMessage,
-		TypezID:       ".test.Node",
-		Documentation: "Optional recursive child.",
-		Optional:      true,
-		Recursive:     true,
-	}
-	node := &api.Message{
-		Name:    "Node",
-		Package: "test",
-		ID:      ".test.Node",
-		Fields:  []*api.Field{field1, field2},
-	}
-	field1.Parent = node
-	field2.Parent = node
+	node := api.NewTestMessage("Node")
 
-	model := api.NewTestAPI([]*api.Message{node}, []*api.Enum{}, []*api.Service{})
+	field1 := api.NewTestField("child_node").
+		WithMessageType(node)
+	field1.Documentation = "Non-optional recursive child."
+	field1.Recursive = true
+
+	field2 := api.NewTestField("next_node").
+		WithMessageType(node).
+		WithOptional()
+	field2.Documentation = "Optional recursive child."
+	field2.Recursive = true
+
+	node.WithFields(field1, field2)
+
+	model := api.NewTestAPI([]*api.Message{node}, nil, nil)
 	model.PackageName = "test"
 
 	library := &config.Library{}
@@ -199,13 +168,8 @@ func TestGenerateConversions_RecursiveMessage(t *testing.T) {
 func TestGenerateConversions_NoConvertedFields(t *testing.T) {
 	outDir := t.TempDir()
 
-	msg := &api.Message{
-		Name:    "EmptyMessage",
-		ID:      ".test.EmptyMessage",
-		Fields:  []*api.Field{},
-		Package: "test",
-	}
-	model := api.NewTestAPI([]*api.Message{msg}, []*api.Enum{}, []*api.Service{})
+	msg := api.NewTestMessage("EmptyMessage")
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
 	model.PackageName = "test"
 
 	library := &config.Library{
@@ -241,53 +205,28 @@ func TestGenerateConversions_NoConvertedFields(t *testing.T) {
 func TestGenerateConversions_RepeatedFields(t *testing.T) {
 	outDir := t.TempDir()
 
-	enumVal := &api.EnumValue{Name: "UNSPECIFIED", Number: 0}
-	enum := &api.Enum{
-		Name:               "Category",
-		ID:                 ".test.Category",
-		Package:            "test",
-		Values:             []*api.EnumValue{enumVal},
-		UniqueNumberValues: []*api.EnumValue{enumVal},
-	}
-	enumVal.Parent = enum
+	enumVal := api.NewTestEnumValue("UNSPECIFIED", 0)
+	enum := api.NewTestEnum("Category").
+		WithValues(enumVal).
+		WithUniqueNumberValues(enumVal)
 
-	item := &api.Message{
-		Name:    "Item",
-		Package: "test",
-		ID:      ".test.Item",
-	}
+	item := api.NewTestMessage("Item")
 
-	field1 := &api.Field{
-		Name:     "names",
-		ID:       ".test.Container.names",
-		Typez:    api.TypezString,
-		Repeated: true,
-	}
-	field2 := &api.Field{
-		Name:     "items",
-		ID:       ".test.Container.items",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.Item",
-		Repeated: true,
-	}
-	field3 := &api.Field{
-		Name:     "categories",
-		ID:       ".test.Container.categories",
-		Typez:    api.TypezEnum,
-		TypezID:  ".test.Category",
-		Repeated: true,
-	}
-	container := &api.Message{
-		Name:    "Container",
-		Package: "test",
-		ID:      ".test.Container",
-		Fields:  []*api.Field{field1, field2, field3},
-	}
-	field1.Parent = container
-	field2.Parent = container
-	field3.Parent = container
+	field1 := api.NewTestField("names").
+		WithType(api.TypezString).
+		WithRepeated()
+	field2 := api.NewTestField("items").
+		WithMessageType(item).
+		WithRepeated()
+	field3 := api.NewTestField("categories").
+		WithType(api.TypezEnum).
+		WithTypezID(enum.ID).
+		WithRepeated()
 
-	model := api.NewTestAPI([]*api.Message{item, container}, []*api.Enum{enum}, []*api.Service{})
+	container := api.NewTestMessage("Container").
+		WithFields(field1, field2, field3)
+
+	model := api.NewTestAPI([]*api.Message{item, container}, []*api.Enum{enum}, nil)
 	model.PackageName = "test"
 
 	library := &config.Library{}
@@ -336,44 +275,20 @@ func TestGenerateConversions_RepeatedFields(t *testing.T) {
 func TestGenerateConversions_OneOf(t *testing.T) {
 	outDir := t.TempDir()
 
-	inner := &api.Message{
-		Name:    "Inner",
-		Package: "test",
-		ID:      ".test.Inner",
-	}
+	inner := api.NewTestMessage("Inner")
 
-	oneof := &api.OneOf{
-		Name: "choice",
-	}
+	field1 := api.NewTestField("string_field").
+		WithType(api.TypezString)
+	field2 := api.NewTestField("message_field").
+		WithMessageType(inner)
 
-	field1 := &api.Field{
-		Name:    "string_field",
-		ID:      ".test.Outer.string_field",
-		Typez:   api.TypezString,
-		IsOneOf: true,
-		Group:   oneof,
-	}
-	field2 := &api.Field{
-		Name:    "message_field",
-		ID:      ".test.Outer.message_field",
-		Typez:   api.TypezMessage,
-		TypezID: ".test.Inner",
-		IsOneOf: true,
-		Group:   oneof,
-	}
+	oneof := api.NewTestOneOf("choice").
+		WithFields(field1, field2)
 
-	outer := &api.Message{
-		Name:    "Outer",
-		Package: "test",
-		ID:      ".test.Outer",
-		Fields:  []*api.Field{field1, field2},
-		OneOfs:  []*api.OneOf{oneof},
-	}
-	oneof.Fields = []*api.Field{field1, field2}
-	field1.Parent = outer
-	field2.Parent = outer
+	outer := api.NewTestMessage("Outer").
+		WithOneOfs(oneof)
 
-	model := api.NewTestAPI([]*api.Message{inner, outer}, []*api.Enum{}, []*api.Service{})
+	model := api.NewTestAPI([]*api.Message{inner, outer}, nil, nil)
 	model.PackageName = "test"
 
 	library := &config.Library{}
@@ -434,84 +349,53 @@ func TestGenerateConversions_OneOf(t *testing.T) {
 func TestGenerateConversions_MapFields(t *testing.T) {
 	outDir := t.TempDir()
 
-	stringMapEntry := &api.Message{
-		Name:    "LabelsEntry",
-		ID:      ".test.LabelsEntry",
-		IsMap:   true,
-		Package: "test",
-		Fields: []*api.Field{
-			{Name: "key", JSONName: "key", Typez: api.TypezString},
-			{Name: "value", JSONName: "value", Typez: api.TypezString},
-		},
-	}
-	objectMessage := &api.Message{
-		Name:    "RapidCachePolicy",
-		ID:      ".test.RapidCachePolicy",
-		Package: "test",
-	}
-	objectMapEntry := &api.Message{
-		Name:    "PoliciesEntry",
-		ID:      ".test.PoliciesEntry",
-		IsMap:   true,
-		Package: "test",
-		Fields: []*api.Field{
-			{Name: "key", JSONName: "key", Typez: api.TypezString},
-			{Name: "value", JSONName: "value", Typez: api.TypezMessage, TypezID: objectMessage.ID},
-		},
-	}
-	enumVal := &api.EnumValue{Name: "UNSPECIFIED", ID: ".test.FindingCategory.UNSPECIFIED", Number: 0}
-	enumType := &api.Enum{
-		Name:               "FindingCategory",
-		ID:                 ".test.FindingCategory",
-		Package:            "test",
-		Values:             []*api.EnumValue{enumVal},
-		UniqueNumberValues: []*api.EnumValue{enumVal},
-	}
-	enumVal.Parent = enumType
-	enumMapEntry := &api.Message{
-		Name:    "CategoriesEntry",
-		ID:      ".test.CategoriesEntry",
-		IsMap:   true,
-		Package: "test",
-		Fields: []*api.Field{
-			{Name: "key", JSONName: "key", Typez: api.TypezString},
-			{Name: "value", JSONName: "value", Typez: api.TypezEnum, TypezID: enumType.ID},
-		},
-	}
+	stringMapEntry := api.NewTestMessage("LabelsEntry").
+		WithFields(
+			api.NewTestField("key").WithType(api.TypezString),
+			api.NewTestField("value").WithType(api.TypezString),
+		)
+	stringMapEntry.IsMap = true
 
-	fieldPrimitive := &api.Field{
-		Name:    "labels",
-		ID:      ".test.ObjectIndex.labels",
-		Map:     true,
-		Typez:   api.TypezMessage,
-		TypezID: stringMapEntry.ID,
-	}
-	fieldObject := &api.Field{
-		Name:    "policies",
-		ID:      ".test.ObjectIndex.policies",
-		Map:     true,
-		Typez:   api.TypezMessage,
-		TypezID: objectMapEntry.ID,
-	}
-	fieldEnum := &api.Field{
-		Name:    "categories",
-		ID:      ".test.ObjectIndex.categories",
-		Map:     true,
-		Typez:   api.TypezMessage,
-		TypezID: enumMapEntry.ID,
-	}
+	objectMessage := api.NewTestMessage("RapidCachePolicy")
 
-	msg := &api.Message{
-		Name:    "ObjectIndex",
-		ID:      ".test.ObjectIndex",
-		Fields:  []*api.Field{fieldPrimitive, fieldObject, fieldEnum},
-		Package: "test",
-	}
-	fieldPrimitive.Parent = msg
-	fieldObject.Parent = msg
-	fieldEnum.Parent = msg
+	objectMapEntry := api.NewTestMessage("PoliciesEntry").
+		WithFields(
+			api.NewTestField("key").WithType(api.TypezString),
+			api.NewTestField("value").WithMessageType(objectMessage),
+		)
+	objectMapEntry.IsMap = true
 
-	model := api.NewTestAPI([]*api.Message{msg, stringMapEntry, objectMessage, objectMapEntry, enumMapEntry}, []*api.Enum{enumType}, []*api.Service{})
+	enumVal := api.NewTestEnumValue("UNSPECIFIED", 0)
+	enumType := api.NewTestEnum("FindingCategory").
+		WithValues(enumVal).
+		WithUniqueNumberValues(enumVal)
+
+	enumMapEntry := api.NewTestMessage("CategoriesEntry").
+		WithFields(
+			api.NewTestField("key").WithType(api.TypezString),
+			api.NewTestField("value").WithType(api.TypezEnum).WithTypezID(enumType.ID),
+		)
+	enumMapEntry.IsMap = true
+
+	fieldPrimitive := api.NewTestField("labels").
+		WithMap().
+		WithType(api.TypezMessage).
+		WithTypezID(stringMapEntry.ID)
+
+	fieldObject := api.NewTestField("policies").
+		WithMap().
+		WithType(api.TypezMessage).
+		WithTypezID(objectMapEntry.ID)
+
+	fieldEnum := api.NewTestField("categories").
+		WithMap().
+		WithType(api.TypezMessage).
+		WithTypezID(enumMapEntry.ID)
+
+	msg := api.NewTestMessage("ObjectIndex").
+		WithFields(fieldPrimitive, fieldObject, fieldEnum)
+
+	model := api.NewTestAPI([]*api.Message{msg, stringMapEntry, objectMessage, objectMapEntry, enumMapEntry}, []*api.Enum{enumType}, nil)
 	model.PackageName = "test"
 
 	library := &config.Library{Name: "GoogleCloudStorage"}

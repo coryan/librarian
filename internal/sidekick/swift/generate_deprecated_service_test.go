@@ -47,12 +47,8 @@ func TestGenerateService_Deprecated(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
 
-			service := &api.Service{
-				Name:       "DeprecatedService",
-				Package:    "test",
-				ID:         ".test.DeprecatedService",
-				Deprecated: test.deprecated,
-			}
+			service := api.NewTestService("DeprecatedService")
+			service.Deprecated = test.deprecated
 
 			model := api.NewTestAPI(nil, nil, []*api.Service{service})
 			model.PackageName = "test"
