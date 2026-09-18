@@ -292,3 +292,86 @@ func TestAnnotateMethod_Rest(t *testing.T) {
 		t.Errorf("expected non-empty RestPathAsync")
 	}
 }
+
+func TestAnnotateMethod_MapPagination(t *testing.T) {
+	req := api.NewTestMessage("ListRequest").WithPackage("test.v1").WithFields(
+		api.NewTestField("page_size").WithType(api.TypezInt32),
+		api.NewTestField("page_token").WithType(api.TypezString),
+	)
+	entryMsg := api.NewTestMessage("ItemsEntry").WithPackage("test.v1").WithFields(
+		api.NewTestField("key").WithType(api.TypezString),
+		api.NewTestField("value").WithType(api.TypezMessage),
+	)
+	entryMsg.IsMap = true
+	scopedMsg := api.NewTestMessage("ScopedList").WithPackage("test.v1")
+	entryMsg.Fields[1].TypezID = scopedMsg.ID
+
+	itemsField := api.NewTestField("items").WithType(api.TypezMessage)
+	itemsField.Map = true
+	itemsField.TypezID = entryMsg.ID
+
+	resp := api.NewTestMessage("ListResponse").WithPackage("test.v1").WithFields(
+		itemsField,
+		api.NewTestField("next_page_token").WithType(api.TypezString),
+	)
+	resp.Pagination = &api.PaginationInfo{
+		PageableItem:  itemsField,
+		NextPageToken: resp.Fields[1],
+	}
+
+	method := api.NewTestMethod("List").WithInput(req).WithOutput(resp)
+	method.WithPagination(req.Fields[1])
+
+	svc := api.NewTestService("TestService").WithPackage("test.v1").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{req, resp, entryMsg, scopedMsg}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	ann := annotateMethod(method, svc, nil, model)
+	if !ann.IsPaginated() {
+		t.Errorf("expected IsPaginated()=true")
+	}
+	if diff := cmp.Diff("items", ann.RangeOutputFieldName()); diff != "" {
+		t.Errorf("RangeOutputFieldName mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff("std::pair<std::string, test::v1::ScopedList>", ann.RangeOutputType()); diff != "" {
+		t.Errorf("RangeOutputType mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestAnnotateMethod_ComputeLongrunning(t *testing.T) {
+	req := api.NewTestMessage("InsertRequest").WithPackage("test.v1")
+	opMsg := api.NewTestMessage("Operation").WithPackage("test.v1")
+
+	method := api.NewTestMethod("Insert").
+		WithInput(req).
+		WithOutput(opMsg).
+		WithOperationService("RegionOperations")
+
+	svc := api.NewTestService("TestService").WithPackage("test.v1").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{req, opMsg}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	ann := annotateMethod(method, svc, nil, model)
+	if !ann.IsHTTPLongrunningOperation() {
+		t.Errorf("expected IsHTTPLongrunningOperation()=true")
+	}
+	if ann.IsGRPCLongrunningOperation() {
+		t.Errorf("expected IsGRPCLongrunningOperation()=false")
+	}
+	if diff := cmp.Diff("test::v1::Operation", ann.LongrunningDeducedResponseType()); diff != "" {
+		t.Errorf("LongrunningDeducedResponseType mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff("test.v1.Operation", ann.LongrunningDeducedResponseMessageType()); diff != "" {
+		t.Errorf("LongrunningDeducedResponseMessageType mismatch (-want +got):\n%s", diff)
+	}
+	if ann.LongrunningSetOperationFields() == "" {
+		t.Errorf("expected non-empty LongrunningSetOperationFields")
+	}
+	if ann.LongrunningAwaitSetOperationFields() == "" {
+		t.Errorf("expected non-empty LongrunningAwaitSetOperationFields")
+	}
+}

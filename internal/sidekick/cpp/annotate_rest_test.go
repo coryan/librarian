@@ -23,7 +23,6 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-
 func TestHTTPVerb(t *testing.T) {
 	tests := []struct {
 		input string
@@ -352,4 +351,3 @@ func TestRestConnectionGenerator_EndpointLocationStyleDocs(t *testing.T) {
 		t.Errorf("expected global endpoint doc comment in REST header for LOCATION_OPTIONALLY_DEPENDENT, got: %s", headerOpt)
 	}
 }
-

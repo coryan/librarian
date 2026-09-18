@@ -150,10 +150,13 @@ func paginationResponseItem(overrides []PaginationOverride, methodID string, res
 			repeatedStringCount++
 		}
 	}
+	if mapItems != nil {
+		return mapItems
+	}
 	if repeatedStringCount == 1 {
 		return repeatedString
 	}
-	return mapItems
+	return nil
 }
 
 func paginationResponseNextPageToken(response *Message) *Field {

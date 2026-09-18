@@ -52,17 +52,17 @@ class {{stub_rest_class_name}} {
 {{/async_methods}}
 {{#has_lro}}
 
-  virtual future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+  virtual future<StatusOr<{{{longrunning_response_type}}}>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::GetOperationRequest const& request) = 0;
+      {{{longrunning_get_operation_request_type}}} const& request) = 0;
 
   virtual future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::CancelOperationRequest const& request) = 0;
+      {{{longrunning_cancel_operation_request_type}}} const& request) = 0;
 {{/has_lro}}
 };
 
@@ -112,17 +112,17 @@ class Default{{stub_rest_class_name}} : public {{stub_rest_class_name}} {
 {{/async_methods}}
 {{#has_lro}}
 
-  future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+  future<StatusOr<{{{longrunning_response_type}}}>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::GetOperationRequest const& request) override;
+      {{{longrunning_get_operation_request_type}}} const& request) override;
 
   future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::CancelOperationRequest const& request) override;
+      {{{longrunning_cancel_operation_request_type}}} const& request) override;
 {{/has_lro}}
 
  private:

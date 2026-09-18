@@ -316,4 +316,3 @@ func hasExplicitRoutingMethod(methods []*api.Method) bool {
 	}
 	return false
 }
-

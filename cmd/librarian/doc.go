@@ -224,5 +224,21 @@ Usage:
 env prints the librarian interpretation of the environment it is run in.
 This includes the resolved LIBRARIAN_CACHE and LIBRARIAN_BIN paths,
 as well as the language-specific tool installation directories.
+
+# Migrate legacy generator configurations to librarian.yaml
+
+Usage:
+
+	librarian migrate [command]
+
+# Convert google-cloud-cpp generator_config.textproto to librarian.yaml
+
+Usage:
+
+	librarian migrate cpp-config <path/to/generator_config.textproto> [flags]
+
+Flags:
+
+	--output string, -o string  path to write the converted librarian.yaml (defaults to stdout if not specified)
 */
 package main

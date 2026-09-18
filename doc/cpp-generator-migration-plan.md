@@ -288,11 +288,12 @@ To maintain code quality, maintainability, and architectural consistency with Li
    - Refactored pilot test (`TestPilotSecretManagerParity`) with `//go:build integration`, dynamic googleapis SHA loading via `librarian.LoadSources()`, and `testdata/librarian.yaml` with zero hardcoded `$HOME` paths.
    - All tests passing with 100% byte-for-byte golden and production parity; `golangci-lint` clean with 0 issues. Committed locally in `014929ec`.
 
-2. **Discovery Documents & Compute Engine (In Progress)**:
+2. **Discovery Documents & Compute Engine (Completed)**:
    - Support nested product path namespace flattening (e.g. `compute/addresses/v1` -> `google::cloud::compute_addresses_v1`).
    - Support map-based pagination (`StreamRange<std::pair<std::string, T>>`).
-   - Support Compute LRO operations (`(google.cloud.operation_service)` -> `future<StatusOr<Operation>>`).
-   - Validate 100% byte-for-byte parity on `google/cloud/compute/addresses/v1`.
+   - Support Compute LRO operations (`(google.cloud.operation_service)` -> `future<StatusOr<Operation>>`), including `GlobalOperations`, `GlobalOrganizationOperations`, `RegionOperations`, and `ZoneOperations`.
+   - Support discovery-specific doc comments (`@cloud_cpp_reference_link`).
+   - Validate 100% byte-for-byte parity on `google/cloud/compute/addresses/v1` across all 26 generated C++ headers and sources in `TestPilotComputeAddressesParity`.
 
 3. **Deprecate and Remove `google-cloud-cpp/generator`**:
    - Document replacement steps and CI workflow updates.

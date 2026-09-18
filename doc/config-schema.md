@@ -269,6 +269,7 @@ This document describes the schema for the librarian.yaml.
 | `experimental` | bool | Indicates whether the service is experimental, adding ExperimentalTag parameters to client constructors and connection factory functions. |
 | `preserve_proto_field_names_in_json` | bool | Indicates whether REST services expect JSON field names in snake_case (proto field names) rather than camelCase. |
 | `initial_copyright_year` | string | Specifies the initial copyright year to use in generated files. |
+| `is_discovery_document_proto` | bool | Indicates whether the service protos originated from discovery documents. |
 
 ## CppLibrary Configuration
 

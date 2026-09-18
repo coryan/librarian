@@ -71,22 +71,25 @@ func generateRestLoggingDecoratorHeader(_ *api.Service, ann *serviceAnnotations,
 	var protoIncludes []string
 	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
-		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
+		protoIncludes = append(protoIncludes, ann.LongrunningOperationIncludeHeader())
 	}
 	slices.Sort(protoIncludes)
 
 	data := map[string]any{
-		"header_include_guard":       guard,
-		"copyright_year":             ann.CopyrightYear,
-		"proto_file_name":            ann.ProtoFileName,
-		"product_internal_namespace": ann.InternalNamespace(),
-		"logging_rest_class_name":    ann.LoggingRestClassName(),
-		"stub_rest_class_name":       ann.StubRestClassName(),
-		"local_includes":             localIncludes,
-		"proto_includes":             protoIncludes,
-		"methods":                    buildRestLoggingDecoratorMethodList(methods),
-		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
-		"has_lro":                    hasLongrunningMethod(methods),
+		"header_include_guard":                      guard,
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"logging_rest_class_name":                   ann.LoggingRestClassName(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"proto_includes":                            protoIncludes,
+		"methods":                                   buildRestLoggingDecoratorMethodList(methods),
+		"async_methods":                             buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_logging_decorator.h.mustache", data)
@@ -108,15 +111,18 @@ func generateRestLoggingDecoratorCc(_ *api.Service, ann *serviceAnnotations, met
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
-		"copyright_year":             ann.CopyrightYear,
-		"proto_file_name":            ann.ProtoFileName,
-		"product_internal_namespace": ann.InternalNamespace(),
-		"logging_rest_class_name":    ann.LoggingRestClassName(),
-		"stub_rest_class_name":       ann.StubRestClassName(),
-		"local_includes":             localIncludes,
-		"methods":                    buildRestLoggingDecoratorMethodList(methods),
-		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
-		"has_lro":                    hasLongrunningMethod(methods),
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"logging_rest_class_name":                   ann.LoggingRestClassName(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"methods":                                   buildRestLoggingDecoratorMethodList(methods),
+		"async_methods":                             buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_logging_decorator.cc.mustache", data)

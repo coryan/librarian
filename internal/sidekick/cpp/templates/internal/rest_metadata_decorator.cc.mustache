@@ -70,12 +70,12 @@ future<{{{return_type}}}>
 {{/async_methods}}
 {{#has_lro}}
 
-future<StatusOr<google::longrunning::Operation>>
+future<StatusOr<{{{longrunning_response_type}}}>>
 {{metadata_rest_class_name}}::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::GetOperationRequest const& request) {
+    {{{longrunning_get_operation_request_type}}} const& request) {
   SetMetadata(*rest_context, *options);
   return child_->AsyncGetOperation(
       cq, std::move(rest_context), std::move(options), request);
@@ -86,7 +86,7 @@ future<Status>
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::CancelOperationRequest const& request) {
+    {{{longrunning_cancel_operation_request_type}}} const& request) {
   SetMetadata(*rest_context, *options);
   return child_->AsyncCancelOperation(
       cq, std::move(rest_context), std::move(options), request);

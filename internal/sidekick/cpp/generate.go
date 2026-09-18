@@ -126,7 +126,6 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 			add(generateForwardingOptionsHeader(svc, ann, methods, library))
 		}
 
-
 		for _, f := range files {
 			rel := strings.TrimPrefix(filepath.ToSlash(f.path), basePrefix)
 			rel = strings.TrimPrefix(rel, "/")

@@ -311,6 +311,12 @@ func (m *Method) WithDiscoveryLro(info *DiscoveryLro) *Method {
 	return m
 }
 
+// WithOperationService sets the operation service for Compute-style LROs.
+func (m *Method) WithOperationService(svc string) *Method {
+	m.OperationService = svc
+	return m
+}
+
 // WithSignatures adds method signatures.
 //
 // A method signature typically maps to an overloads with a subset of

@@ -142,22 +142,25 @@ func generateRestMetadataDecoratorHeader(_ *api.Service, ann *serviceAnnotations
 	var protoIncludes []string
 	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
-		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
+		protoIncludes = append(protoIncludes, ann.LongrunningOperationIncludeHeader())
 	}
 	slices.Sort(protoIncludes)
 
 	data := map[string]any{
-		"header_include_guard":       guard,
-		"copyright_year":             ann.CopyrightYear,
-		"proto_file_name":            ann.ProtoFileName,
-		"product_internal_namespace": ann.InternalNamespace(),
-		"metadata_rest_class_name":   ann.MetadataRestClassName(),
-		"stub_rest_class_name":       ann.StubRestClassName(),
-		"local_includes":             localIncludes,
-		"proto_includes":             protoIncludes,
-		"methods":                    buildRestMetadataDecoratorMethodList(methods),
-		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
-		"has_lro":                    hasLongrunningMethod(methods),
+		"header_include_guard":                      guard,
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"metadata_rest_class_name":                  ann.MetadataRestClassName(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"proto_includes":                            protoIncludes,
+		"methods":                                   buildRestMetadataDecoratorMethodList(methods),
+		"async_methods":                             buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_metadata_decorator.h.mustache", data)
@@ -185,18 +188,20 @@ func generateRestMetadataDecoratorCc(_ *api.Service, ann *serviceAnnotations, me
 	slices.Sort(localIncludes[1:])
 
 	data := map[string]any{
-		"copyright_year":             ann.CopyrightYear,
-		"proto_file_name":            ann.ProtoFileName,
-		"product_internal_namespace": ann.InternalNamespace(),
-		"metadata_rest_class_name":   ann.MetadataRestClassName(),
-		"stub_rest_class_name":       ann.StubRestClassName(),
-		"local_includes":             localIncludes,
-		"methods":                    buildRestMetadataDecoratorMethodList(methods),
-		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
-		"has_lro":                    hasLongrunningMethod(methods),
-		"api_version":                ann.APIVersion,
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"metadata_rest_class_name":                  ann.MetadataRestClassName(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"methods":                                   buildRestMetadataDecoratorMethodList(methods),
+		"async_methods":                             buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
+		"api_version":                               ann.APIVersion,
 	}
-
 
 	content, err := renderTemplate("templates/internal/rest_metadata_decorator.cc.mustache", data)
 	if err != nil {
@@ -205,4 +210,3 @@ func generateRestMetadataDecoratorCc(_ *api.Service, ann *serviceAnnotations, me
 
 	return filepath.Clean(ccPath), content
 }
-

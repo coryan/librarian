@@ -26,6 +26,7 @@ import (
 	iampb "google3/google/iam/v1/iam_policy_go_proto"
 	optionspb "google3/google/iam/v1/options_go_proto"
 	policypb "google3/google/iam/v1/policy_go_proto"
+	extendedopspb "google3/third_party/cloud_cpp/protos/google/cloud/compute/extended_operations_go_proto"
 )
 
 // This file provides type aliases and variable mappings for the google3 environment.
@@ -59,6 +60,7 @@ var (
 	eApiVersion         = clientpb.E_ApiVersion
 	eFieldInfo          = fipb.E_FieldInfo
 	eFieldBehavior      = fbpb.E_FieldBehavior
+	eOperationService   = extendedopspb.E_OperationService
 
 	fileGoogleIamV1IamPolicyProto = iampb.File_google_iam_v1_iam_policy_proto
 	fileGoogleIamV1PolicyProto    = policypb.File_google_iam_v1_policy_proto

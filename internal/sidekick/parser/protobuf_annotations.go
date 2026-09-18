@@ -61,6 +61,13 @@ func parseOperationInfo(packagez string, m *descriptorpb.MethodDescriptorProto) 
 	return operationInfo
 }
 
+func parseOperationService(m *descriptorpb.MethodDescriptorProto) string {
+	if !proto.HasExtension(m.GetOptions(), eOperationService) {
+		return ""
+	}
+	return proto.GetExtension(m.GetOptions(), eOperationService).(string)
+}
+
 func parsePathInfo(m *descriptorpb.MethodDescriptorProto, model *api.API) (*api.PathInfo, error) {
 	eHTTP := proto.GetExtension(m.GetOptions(), eHttp)
 	httpRule := eHTTP.(*httpRule)

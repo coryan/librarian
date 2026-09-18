@@ -15,6 +15,7 @@
 package cpp
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/config"
@@ -46,7 +47,7 @@ type serviceAnnotations struct {
 	// REST configuration
 	PreserveProtoFieldNamesInJson bool
 	EndpointLocationStyle         string
-
+	IsDiscoveryDocumentProto      bool
 
 	// Endpoints and environment variables
 	ServiceEndpoint        string
@@ -124,77 +125,181 @@ func (s *serviceAnnotations) HasNonLocationOverload() bool {
 
 // Class names
 
-func (s *serviceAnnotations) ClientClassName() string                  { return s.ServiceName + "Client" }
-func (s *serviceAnnotations) ConnectionClassName() string              { return s.ServiceName + "Connection" }
-func (s *serviceAnnotations) ConnectionImplClassName() string          { return s.ServiceName + "ConnectionImpl" }
-func (s *serviceAnnotations) IdempotencyClassName() string             { return s.ServiceName + "ConnectionIdempotencyPolicy" }
-func (s *serviceAnnotations) MockConnectionClassName() string          { return "Mock" + s.ServiceName + "Connection" }
-func (s *serviceAnnotations) AuthClassName() string                    { return s.ServiceName + "Auth" }
-func (s *serviceAnnotations) LoggingClassName() string                 { return s.ServiceName + "Logging" }
-func (s *serviceAnnotations) MetadataClassName() string                { return s.ServiceName + "Metadata" }
-func (s *serviceAnnotations) StubClassName() string                    { return s.ServiceName + "Stub" }
-func (s *serviceAnnotations) TracingConnectionClassName() string       { return s.ServiceName + "TracingConnection" }
-func (s *serviceAnnotations) TracingStubClassName() string             { return s.ServiceName + "TracingStub" }
-func (s *serviceAnnotations) RoundRobinClassName() string              { return s.ServiceName + "RoundRobin" }
-func (s *serviceAnnotations) RetryTraitsName() string                  { return s.ServiceName + "RetryTraits" }
-func (s *serviceAnnotations) RetryPolicyName() string                  { return s.ServiceName + "RetryPolicy" }
-func (s *serviceAnnotations) LimitedErrorCountRetryPolicyName() string { return s.ServiceName + "LimitedErrorCountRetryPolicy" }
-func (s *serviceAnnotations) LimitedTimeRetryPolicyName() string       { return s.ServiceName + "LimitedTimeRetryPolicy" }
-func (s *serviceAnnotations) ConnectionOptionsName() string            { return s.ServiceName + "ConnectionOptions" }
-func (s *serviceAnnotations) ConnectionOptionsTraitsName() string      { return s.ServiceName + "ConnectionOptionsTraits" }
-func (s *serviceAnnotations) StubRestClassName() string                { return s.ServiceName + "RestStub" }
-func (s *serviceAnnotations) ConnectionImplRestClassName() string    { return s.ServiceName + "RestConnectionImpl" }
-func (s *serviceAnnotations) LoggingRestClassName() string           { return s.ServiceName + "RestLogging" }
-func (s *serviceAnnotations) MetadataRestClassName() string          { return s.ServiceName + "RestMetadata" }
+func (s *serviceAnnotations) ClientClassName() string     { return s.ServiceName + "Client" }
+func (s *serviceAnnotations) ConnectionClassName() string { return s.ServiceName + "Connection" }
+func (s *serviceAnnotations) ConnectionImplClassName() string {
+	return s.ServiceName + "ConnectionImpl"
+}
+func (s *serviceAnnotations) IdempotencyClassName() string {
+	return s.ServiceName + "ConnectionIdempotencyPolicy"
+}
+func (s *serviceAnnotations) MockConnectionClassName() string {
+	return "Mock" + s.ServiceName + "Connection"
+}
+func (s *serviceAnnotations) AuthClassName() string     { return s.ServiceName + "Auth" }
+func (s *serviceAnnotations) LoggingClassName() string  { return s.ServiceName + "Logging" }
+func (s *serviceAnnotations) MetadataClassName() string { return s.ServiceName + "Metadata" }
+func (s *serviceAnnotations) StubClassName() string     { return s.ServiceName + "Stub" }
+func (s *serviceAnnotations) TracingConnectionClassName() string {
+	return s.ServiceName + "TracingConnection"
+}
+func (s *serviceAnnotations) TracingStubClassName() string { return s.ServiceName + "TracingStub" }
+func (s *serviceAnnotations) RoundRobinClassName() string  { return s.ServiceName + "RoundRobin" }
+func (s *serviceAnnotations) RetryTraitsName() string      { return s.ServiceName + "RetryTraits" }
+func (s *serviceAnnotations) RetryPolicyName() string      { return s.ServiceName + "RetryPolicy" }
+func (s *serviceAnnotations) LimitedErrorCountRetryPolicyName() string {
+	return s.ServiceName + "LimitedErrorCountRetryPolicy"
+}
+func (s *serviceAnnotations) LimitedTimeRetryPolicyName() string {
+	return s.ServiceName + "LimitedTimeRetryPolicy"
+}
+func (s *serviceAnnotations) ConnectionOptionsName() string {
+	return s.ServiceName + "ConnectionOptions"
+}
+func (s *serviceAnnotations) ConnectionOptionsTraitsName() string {
+	return s.ServiceName + "ConnectionOptionsTraits"
+}
+func (s *serviceAnnotations) StubRestClassName() string { return s.ServiceName + "RestStub" }
+func (s *serviceAnnotations) ConnectionImplRestClassName() string {
+	return s.ServiceName + "RestConnectionImpl"
+}
+func (s *serviceAnnotations) LoggingRestClassName() string  { return s.ServiceName + "RestLogging" }
+func (s *serviceAnnotations) MetadataRestClassName() string { return s.ServiceName + "RestMetadata" }
 
 // Paths.
-func (s *serviceAnnotations) ClientHeaderPath() string            { return s.ProductPath + s.FilePathName() + "_client.h" }
-func (s *serviceAnnotations) ClientCcPath() string                { return s.ProductPath + s.FilePathName() + "_client.cc" }
-func (s *serviceAnnotations) ClientSamplesCcPath() string         { return s.ProductPath + "samples/" + s.FilePathName() + "_client_samples.cc" }
-func (s *serviceAnnotations) ConnectionHeaderPath() string        { return s.ProductPath + s.FilePathName() + "_connection.h" }
-func (s *serviceAnnotations) ConnectionCcPath() string            { return s.ProductPath + s.FilePathName() + "_connection.cc" }
-func (s *serviceAnnotations) ConnectionImplHeaderPath() string    { return s.ProductPath + "internal/" + s.FilePathName() + "_connection_impl.h" }
-func (s *serviceAnnotations) ConnectionImplCcPath() string        { return s.ProductPath + "internal/" + s.FilePathName() + "_connection_impl.cc" }
-func (s *serviceAnnotations) StubHeaderPath() string              { return s.ProductPath + "internal/" + s.FilePathName() + "_stub.h" }
-func (s *serviceAnnotations) StubCcPath() string                  { return s.ProductPath + "internal/" + s.FilePathName() + "_stub.cc" }
-func (s *serviceAnnotations) StubFactoryHeaderPath() string       { return s.ProductPath + "internal/" + s.FilePathName() + "_stub_factory.h" }
-func (s *serviceAnnotations) StubFactoryCcPath() string           { return s.ProductPath + "internal/" + s.FilePathName() + "_stub_factory.cc" }
-func (s *serviceAnnotations) OptionsHeaderPath() string           { return s.ProductPath + s.FilePathName() + "_options.h" }
-func (s *serviceAnnotations) IdempotencyHeaderPath() string       { return s.ProductPath + s.FilePathName() + "_connection_idempotency_policy.h" }
+func (s *serviceAnnotations) ClientHeaderPath() string {
+	return s.ProductPath + s.FilePathName() + "_client.h"
+}
+func (s *serviceAnnotations) ClientCcPath() string {
+	return s.ProductPath + s.FilePathName() + "_client.cc"
+}
+func (s *serviceAnnotations) ClientSamplesCcPath() string {
+	return s.ProductPath + "samples/" + s.FilePathName() + "_client_samples.cc"
+}
+func (s *serviceAnnotations) ConnectionHeaderPath() string {
+	return s.ProductPath + s.FilePathName() + "_connection.h"
+}
+func (s *serviceAnnotations) ConnectionCcPath() string {
+	return s.ProductPath + s.FilePathName() + "_connection.cc"
+}
+func (s *serviceAnnotations) ConnectionImplHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_connection_impl.h"
+}
+func (s *serviceAnnotations) ConnectionImplCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_connection_impl.cc"
+}
+func (s *serviceAnnotations) StubHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_stub.h"
+}
+func (s *serviceAnnotations) StubCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_stub.cc"
+}
+func (s *serviceAnnotations) StubFactoryHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_stub_factory.h"
+}
+func (s *serviceAnnotations) StubFactoryCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_stub_factory.cc"
+}
+func (s *serviceAnnotations) OptionsHeaderPath() string {
+	return s.ProductPath + s.FilePathName() + "_options.h"
+}
+func (s *serviceAnnotations) IdempotencyHeaderPath() string {
+	return s.ProductPath + s.FilePathName() + "_connection_idempotency_policy.h"
+}
 func (s *serviceAnnotations) IdempotencyPolicyHeaderPath() string { return s.IdempotencyHeaderPath() }
-func (s *serviceAnnotations) IdempotencyCcPath() string           { return s.ProductPath + s.FilePathName() + "_connection_idempotency_policy.cc" }
+func (s *serviceAnnotations) IdempotencyCcPath() string {
+	return s.ProductPath + s.FilePathName() + "_connection_idempotency_policy.cc"
+}
 
-func (s *serviceAnnotations) MockConnectionHeaderPath() string    { return s.ProductPath + "mocks/mock_" + s.FilePathName() + "_connection.h" }
-func (s *serviceAnnotations) AuthHeaderPath() string              { return s.ProductPath + "internal/" + s.FilePathName() + "_auth_decorator.h" }
-func (s *serviceAnnotations) AuthCcPath() string                  { return s.ProductPath + "internal/" + s.FilePathName() + "_auth_decorator.cc" }
-func (s *serviceAnnotations) LoggingHeaderPath() string           { return s.ProductPath + "internal/" + s.FilePathName() + "_logging_decorator.h" }
-func (s *serviceAnnotations) LoggingCcPath() string               { return s.ProductPath + "internal/" + s.FilePathName() + "_logging_decorator.cc" }
-func (s *serviceAnnotations) MetadataHeaderPath() string          { return s.ProductPath + "internal/" + s.FilePathName() + "_metadata_decorator.h" }
-func (s *serviceAnnotations) MetadataCcPath() string              { return s.ProductPath + "internal/" + s.FilePathName() + "_metadata_decorator.cc" }
-func (s *serviceAnnotations) TracingConnectionHeaderPath() string { return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_connection.h" }
-func (s *serviceAnnotations) TracingConnectionCcPath() string     { return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_connection.cc" }
-func (s *serviceAnnotations) TracingStubHeaderPath() string       { return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_stub.h" }
-func (s *serviceAnnotations) TracingStubCcPath() string           { return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_stub.cc" }
-func (s *serviceAnnotations) RoundRobinHeaderPath() string        { return s.ProductPath + "internal/" + s.FilePathName() + "_round_robin_decorator.h" }
-func (s *serviceAnnotations) RoundRobinCcPath() string            { return s.ProductPath + "internal/" + s.FilePathName() + "_round_robin_decorator.cc" }
-func (s *serviceAnnotations) OptionDefaultsHeaderPath() string    { return s.ProductPath + "internal/" + s.FilePathName() + "_option_defaults.h" }
-func (s *serviceAnnotations) OptionDefaultsCcPath() string        { return s.ProductPath + "internal/" + s.FilePathName() + "_option_defaults.cc" }
-func (s *serviceAnnotations) RetryTraitsHeaderPath() string       { return s.ProductPath + "internal/" + s.FilePathName() + "_retry_traits.h" }
-func (s *serviceAnnotations) SourcesCcPath() string               { return s.ProductPath + "internal/" + s.FilePathName() + "_sources.cc" }
+func (s *serviceAnnotations) MockConnectionHeaderPath() string {
+	return s.ProductPath + "mocks/mock_" + s.FilePathName() + "_connection.h"
+}
+func (s *serviceAnnotations) AuthHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_auth_decorator.h"
+}
+func (s *serviceAnnotations) AuthCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_auth_decorator.cc"
+}
+func (s *serviceAnnotations) LoggingHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_logging_decorator.h"
+}
+func (s *serviceAnnotations) LoggingCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_logging_decorator.cc"
+}
+func (s *serviceAnnotations) MetadataHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_metadata_decorator.h"
+}
+func (s *serviceAnnotations) MetadataCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_metadata_decorator.cc"
+}
+func (s *serviceAnnotations) TracingConnectionHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_connection.h"
+}
+func (s *serviceAnnotations) TracingConnectionCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_connection.cc"
+}
+func (s *serviceAnnotations) TracingStubHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_stub.h"
+}
+func (s *serviceAnnotations) TracingStubCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_tracing_stub.cc"
+}
+func (s *serviceAnnotations) RoundRobinHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_round_robin_decorator.h"
+}
+func (s *serviceAnnotations) RoundRobinCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_round_robin_decorator.cc"
+}
+func (s *serviceAnnotations) OptionDefaultsHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_option_defaults.h"
+}
+func (s *serviceAnnotations) OptionDefaultsCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_option_defaults.cc"
+}
+func (s *serviceAnnotations) RetryTraitsHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_retry_traits.h"
+}
+func (s *serviceAnnotations) SourcesCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_sources.cc"
+}
 
 // REST paths.
-func (s *serviceAnnotations) ConnectionRestHeaderPath() string     { return s.ProductPath + s.FilePathName() + "_rest_connection.h" }
-func (s *serviceAnnotations) ConnectionRestCcPath() string         { return s.ProductPath + s.FilePathName() + "_rest_connection.cc" }
-func (s *serviceAnnotations) ConnectionImplRestHeaderPath() string { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_connection_impl.h" }
-func (s *serviceAnnotations) ConnectionImplRestCcPath() string     { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_connection_impl.cc" }
-func (s *serviceAnnotations) StubRestHeaderPath() string           { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub.h" }
-func (s *serviceAnnotations) StubRestCcPath() string               { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub.cc" }
-func (s *serviceAnnotations) StubFactoryRestHeaderPath() string    { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub_factory.h" }
-func (s *serviceAnnotations) StubFactoryRestCcPath() string        { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub_factory.cc" }
-func (s *serviceAnnotations) LoggingRestHeaderPath() string        { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_logging_decorator.h" }
-func (s *serviceAnnotations) LoggingRestCcPath() string            { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_logging_decorator.cc" }
-func (s *serviceAnnotations) MetadataRestHeaderPath() string       { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_metadata_decorator.h" }
-func (s *serviceAnnotations) MetadataRestCcPath() string           { return s.ProductPath + "internal/" + s.FilePathName() + "_rest_metadata_decorator.cc" }
+func (s *serviceAnnotations) ConnectionRestHeaderPath() string {
+	return s.ProductPath + s.FilePathName() + "_rest_connection.h"
+}
+func (s *serviceAnnotations) ConnectionRestCcPath() string {
+	return s.ProductPath + s.FilePathName() + "_rest_connection.cc"
+}
+func (s *serviceAnnotations) ConnectionImplRestHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_connection_impl.h"
+}
+func (s *serviceAnnotations) ConnectionImplRestCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_connection_impl.cc"
+}
+func (s *serviceAnnotations) StubRestHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub.h"
+}
+func (s *serviceAnnotations) StubRestCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub.cc"
+}
+func (s *serviceAnnotations) StubFactoryRestHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub_factory.h"
+}
+func (s *serviceAnnotations) StubFactoryRestCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_stub_factory.cc"
+}
+func (s *serviceAnnotations) LoggingRestHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_logging_decorator.h"
+}
+func (s *serviceAnnotations) LoggingRestCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_logging_decorator.cc"
+}
+func (s *serviceAnnotations) MetadataRestHeaderPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_metadata_decorator.h"
+}
+func (s *serviceAnnotations) MetadataRestCcPath() string {
+	return s.ProductPath + "internal/" + s.FilePathName() + "_rest_metadata_decorator.cc"
+}
 
 // Forwarding paths.
 func (s *serviceAnnotations) ForwardingClientHeaderPath() string {
@@ -229,28 +334,72 @@ func (s *serviceAnnotations) ForwardingOptionsHeaderPath() string {
 }
 
 // Include guards.
-func (s *serviceAnnotations) ClientHeaderIncludeGuard() string            { return formatHeaderIncludeGuard(s.ClientHeaderPath()) }
-func (s *serviceAnnotations) ConnectionHeaderIncludeGuard() string        { return formatHeaderIncludeGuard(s.ConnectionHeaderPath()) }
-func (s *serviceAnnotations) ConnectionImplHeaderIncludeGuard() string    { return formatHeaderIncludeGuard(s.ConnectionImplHeaderPath()) }
-func (s *serviceAnnotations) StubHeaderIncludeGuard() string              { return formatHeaderIncludeGuard(s.StubHeaderPath()) }
-func (s *serviceAnnotations) StubFactoryHeaderIncludeGuard() string       { return formatHeaderIncludeGuard(s.StubFactoryHeaderPath()) }
-func (s *serviceAnnotations) OptionsHeaderIncludeGuard() string           { return formatHeaderIncludeGuard(s.OptionsHeaderPath()) }
-func (s *serviceAnnotations) IdempotencyHeaderIncludeGuard() string       { return formatHeaderIncludeGuard(s.IdempotencyHeaderPath()) }
-func (s *serviceAnnotations) MockConnectionHeaderIncludeGuard() string    { return formatHeaderIncludeGuard(s.MockConnectionHeaderPath()) }
-func (s *serviceAnnotations) AuthHeaderIncludeGuard() string              { return formatHeaderIncludeGuard(s.AuthHeaderPath()) }
-func (s *serviceAnnotations) LoggingHeaderIncludeGuard() string           { return formatHeaderIncludeGuard(s.LoggingHeaderPath()) }
-func (s *serviceAnnotations) MetadataHeaderIncludeGuard() string          { return formatHeaderIncludeGuard(s.MetadataHeaderPath()) }
-func (s *serviceAnnotations) TracingConnectionHeaderIncludeGuard() string { return formatHeaderIncludeGuard(s.TracingConnectionHeaderPath()) }
-func (s *serviceAnnotations) TracingStubHeaderIncludeGuard() string       { return formatHeaderIncludeGuard(s.TracingStubHeaderPath()) }
-func (s *serviceAnnotations) RoundRobinHeaderIncludeGuard() string        { return formatHeaderIncludeGuard(s.RoundRobinHeaderPath()) }
-func (s *serviceAnnotations) OptionDefaultsHeaderIncludeGuard() string    { return formatHeaderIncludeGuard(s.OptionDefaultsHeaderPath()) }
-func (s *serviceAnnotations) RetryTraitsHeaderIncludeGuard() string       { return formatHeaderIncludeGuard(s.RetryTraitsHeaderPath()) }
-func (s *serviceAnnotations) ConnectionRestHeaderIncludeGuard() string     { return formatHeaderIncludeGuard(s.ConnectionRestHeaderPath()) }
-func (s *serviceAnnotations) ConnectionImplRestHeaderIncludeGuard() string { return formatHeaderIncludeGuard(s.ConnectionImplRestHeaderPath()) }
-func (s *serviceAnnotations) StubRestHeaderIncludeGuard() string           { return formatHeaderIncludeGuard(s.StubRestHeaderPath()) }
-func (s *serviceAnnotations) StubFactoryRestHeaderIncludeGuard() string    { return formatHeaderIncludeGuard(s.StubFactoryRestHeaderPath()) }
-func (s *serviceAnnotations) LoggingRestHeaderIncludeGuard() string        { return formatHeaderIncludeGuard(s.LoggingRestHeaderPath()) }
-func (s *serviceAnnotations) MetadataRestHeaderIncludeGuard() string       { return formatHeaderIncludeGuard(s.MetadataRestHeaderPath()) }
+func (s *serviceAnnotations) ClientHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.ClientHeaderPath())
+}
+func (s *serviceAnnotations) ConnectionHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.ConnectionHeaderPath())
+}
+func (s *serviceAnnotations) ConnectionImplHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.ConnectionImplHeaderPath())
+}
+func (s *serviceAnnotations) StubHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.StubHeaderPath())
+}
+func (s *serviceAnnotations) StubFactoryHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.StubFactoryHeaderPath())
+}
+func (s *serviceAnnotations) OptionsHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.OptionsHeaderPath())
+}
+func (s *serviceAnnotations) IdempotencyHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.IdempotencyHeaderPath())
+}
+func (s *serviceAnnotations) MockConnectionHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.MockConnectionHeaderPath())
+}
+func (s *serviceAnnotations) AuthHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.AuthHeaderPath())
+}
+func (s *serviceAnnotations) LoggingHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.LoggingHeaderPath())
+}
+func (s *serviceAnnotations) MetadataHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.MetadataHeaderPath())
+}
+func (s *serviceAnnotations) TracingConnectionHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.TracingConnectionHeaderPath())
+}
+func (s *serviceAnnotations) TracingStubHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.TracingStubHeaderPath())
+}
+func (s *serviceAnnotations) RoundRobinHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.RoundRobinHeaderPath())
+}
+func (s *serviceAnnotations) OptionDefaultsHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.OptionDefaultsHeaderPath())
+}
+func (s *serviceAnnotations) RetryTraitsHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.RetryTraitsHeaderPath())
+}
+func (s *serviceAnnotations) ConnectionRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.ConnectionRestHeaderPath())
+}
+func (s *serviceAnnotations) ConnectionImplRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.ConnectionImplRestHeaderPath())
+}
+func (s *serviceAnnotations) StubRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.StubRestHeaderPath())
+}
+func (s *serviceAnnotations) StubFactoryRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.StubFactoryRestHeaderPath())
+}
+func (s *serviceAnnotations) LoggingRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.LoggingRestHeaderPath())
+}
+func (s *serviceAnnotations) MetadataRestHeaderIncludeGuard() string {
+	return formatHeaderIncludeGuard(s.MetadataRestHeaderPath())
+}
 
 // Proto & gRPC.
 func (s *serviceAnnotations) ProtoGrpcHeaderPath() string {
@@ -278,15 +427,90 @@ func (s *serviceAnnotations) ClassCommentBlock() string {
 	return ""
 }
 
+func (s *serviceAnnotations) HasGRPCLongrunningOperation() bool {
+	return slices.ContainsFunc(s.Methods, func(m *api.Method) bool {
+		return m.OperationInfo != nil
+	})
+}
+
+func (s *serviceAnnotations) HasHTTPLongrunningOperation() bool {
+	return slices.ContainsFunc(s.Methods, func(m *api.Method) bool {
+		return m.OperationService != ""
+	})
+}
+
+func (s *serviceAnnotations) HasLongrunningMethod() bool {
+	return s.HasGRPCLongrunningOperation() || s.HasHTTPLongrunningOperation()
+}
+
+func (s *serviceAnnotations) OperationService() string {
+	for _, m := range s.Methods {
+		if m.OperationService != "" {
+			return m.OperationService
+		}
+	}
+	return ""
+}
+
+func (s *serviceAnnotations) LongrunningOperationIncludeHeader() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).HeaderInclude
+	}
+	return "google/longrunning/operations.pb.h"
+}
+
+func (s *serviceAnnotations) LongrunningResponseType() string {
+	if s.HasHTTPLongrunningOperation() {
+		for _, m := range s.Methods {
+			if m.OperationService != "" && m.OutputTypeID != "" {
+				return protoNameToCppName(m.OutputTypeID)
+			}
+		}
+	}
+	return "google::longrunning::Operation"
+}
+
+func (s *serviceAnnotations) LongrunningGetOperationRequestType() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).GetRequestType
+	}
+	return "google::longrunning::GetOperationRequest"
+}
+
+func (s *serviceAnnotations) LongrunningCancelOperationRequestType() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).CancelRequestType
+	}
+	return "google::longrunning::CancelOperationRequest"
+}
+
+func (s *serviceAnnotations) LongrunningSetOperationFields() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).SetOperationFields
+	}
+	return ""
+}
+
+func (s *serviceAnnotations) LongrunningAwaitSetOperationFields() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).AwaitSetOperationFields
+	}
+	return ""
+}
+
 func (s *serviceAnnotations) LongrunningGetOperationPathRest() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).GetOperationPath
+	}
 	return `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name())`
 }
 
 func (s *serviceAnnotations) LongrunningCancelOperationPathRest() string {
+	if s.HasHTTPLongrunningOperation() {
+		return getComputeOperationInfo(s.OperationService()).CancelOperationPath
+	}
 	return `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name(), ":cancel")`
 }
-
-
 
 // annotateService enriches an api.Service with C++-specific namespaces, class names, file paths, and decorators.
 func annotateService(svc *api.Service, lib *config.Library, model *api.API) *serviceAnnotations {
@@ -358,7 +582,6 @@ func annotateService(svc *api.Service, lib *config.Library, model *api.API) *ser
 	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
 	hasRest := lib != nil && lib.Cpp != nil && lib.Cpp.HasRestTransport()
 
-
 	ann := &serviceAnnotations{
 		Service:                       svc,
 		ServiceName:                   serviceName,
@@ -377,18 +600,19 @@ func annotateService(svc *api.Service, lib *config.Library, model *api.API) *ser
 		HasAuthDecorator:              true,
 		PreserveProtoFieldNamesInJson: preserveProtoFieldNames,
 		EndpointLocationStyle:         locationStyle,
+		IsDiscoveryDocumentProto:      (lib != nil && ((lib.Cpp != nil && lib.Cpp.IsDiscoveryDocumentProto) || lib.SpecificationFormat == "discovery")) || slices.ContainsFunc(svc.Methods, func(m *api.Method) bool { return m.OperationService != "" }),
 
-		ServiceEndpoint:               svc.DefaultHost,
-		ServiceEndpointEnvVar:         endpointEnvVar,
-		ServiceAuthorityEnvVar:        authorityEnvVar,
-		EmulatorEndpointEnvVar:        emulatorEnvVar,
-		AdditionalPbHeaderPaths:       addPb,
-		RetryableStatusCodes:          retryCodes,
-		Methods:                       methods,
-		AsyncMethods:                  asyncMethods,
+		ServiceEndpoint:         svc.DefaultHost,
+		ServiceEndpointEnvVar:   endpointEnvVar,
+		ServiceAuthorityEnvVar:  authorityEnvVar,
+		EmulatorEndpointEnvVar:  emulatorEnvVar,
+		AdditionalPbHeaderPaths: addPb,
+		RetryableStatusCodes:    retryCodes,
+		Methods:                 methods,
+		AsyncMethods:            asyncMethods,
 	}
 
-	ann.Comments = annotateComments(svc, serviceName, model)
+	ann.Comments = annotateComments(svc, serviceName, model, ann.IsDiscoveryDocumentProto)
 	ann.Options = annotateOptions(svc, lib)
 
 	svc.Codec = ann

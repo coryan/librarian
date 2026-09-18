@@ -25,13 +25,13 @@ import (
 // Annotations are private to the package to encapsulate implementation details and enforce
 // accessor method usage for derived properties.
 type optionsAnnotations struct {
-	Service               *api.Service
-	ProductPath           string
-	ServiceEndpointEnvVar string
+	Service                *api.Service
+	ProductPath            string
+	ServiceEndpointEnvVar  string
 	EmulatorEndpointEnvVar string
-	DefaultEndpoint       string
-	DefaultPort           string
-	EndpointLocationStyle string
+	DefaultEndpoint        string
+	DefaultPort            string
+	EndpointLocationStyle  string
 }
 
 func (o *optionsAnnotations) OptionsClassName() string {
@@ -84,13 +84,13 @@ func annotateOptions(svc *api.Service, lib *config.Library) *optionsAnnotations 
 	}
 
 	ann := &optionsAnnotations{
-		Service:               svc,
-		ProductPath:           productPath,
-		ServiceEndpointEnvVar: endpointEnvVar,
+		Service:                svc,
+		ProductPath:            productPath,
+		ServiceEndpointEnvVar:  endpointEnvVar,
 		EmulatorEndpointEnvVar: emulatorEnvVar,
-		DefaultEndpoint:       defaultEndpoint,
-		DefaultPort:           defaultPort,
-		EndpointLocationStyle: locationStyle,
+		DefaultEndpoint:        defaultEndpoint,
+		DefaultPort:            defaultPort,
+		EndpointLocationStyle:  locationStyle,
 	}
 
 	return ann

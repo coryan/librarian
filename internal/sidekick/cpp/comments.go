@@ -59,8 +59,9 @@ const (
   /// [Protobuf mapping rules]: https://protobuf.dev/reference/cpp/cpp-generated/
   /// [input iterator requirements]: https://en.cppreference.com/w/cpp/named_req/InputIterator
 `
-	trailerGRPCLRO = "  /// [Long Running Operation]: https://google.aip.dev/151\n"
-	trailerEnding  = `  /// [` + "`std::string`" + `]: https://en.cppreference.com/w/cpp/string/basic_string
+	trailerGRPCLRO    = "  /// [Long Running Operation]: https://google.aip.dev/151\n"
+	trailerComputeLRO = "  /// [Long Running Operation]: http://cloud/compute/docs/api/how-tos/api-requests-responses#handling_api_responses\n"
+	trailerEnding     = `  /// [` + "`std::string`" + `]: https://en.cppreference.com/w/cpp/string/basic_string
   /// [` + "`future`" + `]: @ref google::cloud::future
   /// [` + "`StatusOr`" + `]: @ref google::cloud::StatusOr
   /// [` + "`Status`" + `]: @ref google::cloud::Status
@@ -129,7 +130,7 @@ func findByName(model *api.API, name string) (api.SourceLocation, bool) {
 }
 
 // formatClassComments formats class comments for a client class.
-func formatClassComments(svc *api.Service, serviceName string, model *api.API) string {
+func formatClassComments(svc *api.Service, serviceName string, model *api.API, isDiscovery bool) string {
 	doc := svc.Documentation
 	if doc == "" {
 		doc = serviceName + "Client"
@@ -155,10 +156,14 @@ func formatClassComments(svc *api.Service, serviceName string, model *api.API) s
 	}
 	slices.Sort(refKeys)
 
+	tag := "@googleapis_reference_link"
+	if isDiscovery {
+		tag = "@cloud_cpp_reference_link"
+	}
 	var trailer string
 	for _, k := range refKeys {
 		loc := refs[k]
-		trailer += fmt.Sprintf("\n/// [%s]: @googleapis_reference_link{%s#L%d}", k, loc.Filename, loc.Line)
+		trailer += fmt.Sprintf("\n/// [%s]: %s{%s#L%d}", k, tag, loc.Filename, loc.Line)
 	}
 	if trailer != "" {
 		trailer += "\n///"
@@ -168,7 +173,7 @@ func formatClassComments(svc *api.Service, serviceName string, model *api.API) s
 }
 
 // formatMethodCommentsProtobufRequest formats comments for a method accepting a Protobuf request message.
-func formatMethodCommentsProtobufRequest(method *api.Method, model *api.API) string {
+func formatMethodCommentsProtobufRequest(method *api.Method, model *api.API, isDiscovery bool) string {
 	paramComment := fmt.Sprintf(`  /// @param request Unary RPCs, such as the one wrapped by this
   ///     function, receive a single `+"`request`"+` proto message which includes all
   ///     the inputs for the RPC. In this case, the proto message is a
@@ -176,11 +181,11 @@ func formatMethodCommentsProtobufRequest(method *api.Method, model *api.API) str
   ///     Proto messages are converted to C++ classes by Protobuf, using the
   ///     [Protobuf mapping rules].
 `, method.InputType.ID[1:])
-	return formatMethodComments(method, paramComment, model)
+	return formatMethodComments(method, paramComment, model, isDiscovery)
 }
 
 // formatMethodCommentsMethodSignature formats comments for a method overload with explicit parameters.
-func formatMethodCommentsMethodSignature(method *api.Method, sig *api.MethodSignature, model *api.API) string {
+func formatMethodCommentsMethodSignature(method *api.Method, sig *api.MethodSignature, model *api.API, isDiscovery bool) string {
 	var paramComments strings.Builder
 	for _, f := range sig.Fields {
 		doc := f.Documentation
@@ -222,7 +227,7 @@ func formatMethodCommentsMethodSignature(method *api.Method, sig *api.MethodSign
 			fmt.Fprintf(&paramComments, "  /// @param %s %s\n", f.Name, doc)
 		}
 	}
-	return formatMethodComments(method, paramComments.String(), model)
+	return formatMethodComments(method, paramComments.String(), model, isDiscovery)
 }
 
 func formatParamComment(comment string) string {
@@ -238,7 +243,7 @@ func formatParamComment(comment string) string {
 	return strings.Join(lines, "\n  /// ")
 }
 
-func formatMethodComments(method *api.Method, variableParamComments string, model *api.API) string {
+func formatMethodComments(method *api.Method, variableParamComments string, model *api.API, isDiscovery bool) string {
 	doc := method.Documentation
 	doc = strings.ReplaceAll(doc, "Gets a view on a log bucket..", "Gets a view on a log bucket.")
 	doc = strings.ReplaceAll(doc, "Provides the [Locations][google.cloud.location.Locations] service functionality in this service.", "Gets information about a location.")
@@ -256,7 +261,7 @@ func formatMethodComments(method *api.Method, variableParamComments string, mode
   ///     backoff policies.
 `
 
-	returnComment := returnCommentString(method)
+	returnComment := returnCommentString(method, model)
 
 	refs := resolveCommentReferences(doc, model)
 	maps.Copy(refs, resolveCommentReferences(variableParamComments, model))
@@ -274,7 +279,11 @@ func formatMethodComments(method *api.Method, variableParamComments string, mode
 
 	var lroLink string
 	if method.IsLRO && !method.IsSimple {
-		lroLink = trailerGRPCLRO
+		if method.OperationService != "" {
+			lroLink = trailerComputeLRO
+		} else {
+			lroLink = trailerGRPCLRO
+		}
 	}
 
 	var trailer strings.Builder
@@ -286,9 +295,13 @@ func formatMethodComments(method *api.Method, variableParamComments string, mode
 		sortedRefs = append(sortedRefs, k)
 	}
 	slices.Sort(sortedRefs)
+	tag := "@googleapis_reference_link"
+	if isDiscovery {
+		tag = "@cloud_cpp_reference_link"
+	}
 	for _, k := range sortedRefs {
 		loc := refs[k]
-		fmt.Fprintf(&trailer, "  /// [%s]: @googleapis_reference_link{%s#L%d}\n", k, loc.Filename, loc.Line)
+		fmt.Fprintf(&trailer, "  /// [%s]: %s{%s#L%d}\n", k, tag, loc.Filename, loc.Line)
 	}
 
 	var deprecation string
@@ -315,7 +328,7 @@ func deducedLroResponseType(method *api.Method) string {
 	return ""
 }
 
-func returnCommentString(method *api.Method) string {
+func returnCommentString(method *api.Method, model *api.API) string {
 	if method.IsLRO {
 		typeName := deducedLroResponseType(method)
 		return fmt.Sprintf(`  /// @return A [`+"`future`"+`] that becomes satisfied when the LRO
@@ -345,7 +358,21 @@ func returnCommentString(method *api.Method) string {
 		var rangeTypeFQN string
 		if method.OutputType != nil && method.OutputType.Pagination != nil && method.OutputType.Pagination.PageableItem != nil {
 			item := method.OutputType.Pagination.PageableItem
-			if item.Typez == api.TypezMessage {
+			if item.Map {
+				m := model
+				if m == nil {
+					m = method.Model
+				}
+				if m != nil {
+					if entry := m.Message(item.TypezID); entry != nil {
+						for _, f := range entry.Fields {
+							if f.Name == "value" && f.Typez == api.TypezMessage {
+								rangeTypeFQN = strings.TrimPrefix(f.TypezID, ".")
+							}
+						}
+					}
+				}
+			} else if item.Typez == api.TypezMessage {
 				rangeTypeFQN = strings.TrimPrefix(item.TypezID, ".")
 			}
 		}
@@ -397,7 +424,23 @@ func resolveMethodReturn(method *api.Method, model *api.API) (string, api.Source
 	if method.Pagination != nil {
 		if method.OutputType != nil && method.OutputType.Pagination != nil && method.OutputType.Pagination.PageableItem != nil {
 			item := method.OutputType.Pagination.PageableItem
-			if item.Typez == api.TypezMessage {
+			if item.Map {
+				m := model
+				if m == nil {
+					m = method.Model
+				}
+				if m != nil {
+					if entry := m.Message(item.TypezID); entry != nil {
+						for _, f := range entry.Fields {
+							if f.Name == "value" && f.Typez == api.TypezMessage {
+								fqn := strings.TrimPrefix(f.TypezID, ".")
+								loc, ok := findByName(model, fqn)
+								return fqn, loc, ok
+							}
+						}
+					}
+				}
+			} else if item.Typez == api.TypezMessage {
 				fqn := strings.TrimPrefix(item.TypezID, ".")
 				loc, ok := findByName(model, fqn)
 				return fqn, loc, ok
@@ -406,10 +449,12 @@ func resolveMethodReturn(method *api.Method, model *api.API) (string, api.Source
 		return "", api.SourceLocation{}, false
 	}
 	if method.IsLRO {
-		fqn := deducedLroResponseType(method)
-		if fqn != "" {
-			loc, ok := findByName(model, fqn)
-			return fqn, loc, ok
+		if method.OperationInfo != nil {
+			fqn := deducedLroResponseType(method)
+			if fqn != "" {
+				loc, ok := findByName(model, fqn)
+				return fqn, loc, ok
+			}
 		}
 		return "", api.SourceLocation{}, false
 	}

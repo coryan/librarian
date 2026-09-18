@@ -54,6 +54,9 @@ type CppDefault struct {
 
 	// InitialCopyrightYear specifies the initial copyright year to use in generated files.
 	InitialCopyrightYear string `yaml:"initial_copyright_year,omitempty"`
+
+	// IsDiscoveryDocumentProto indicates whether the service protos originated from discovery documents.
+	IsDiscoveryDocumentProto bool `yaml:"is_discovery_document_proto,omitempty"`
 }
 
 // HasGrpcTransport returns whether gRPC transport generation is enabled.
@@ -72,7 +75,6 @@ func (c *CppDefault) HasRestTransport() bool {
 	}
 	return c.GenerateRestTransport
 }
-
 
 // CppLibrary contains C++-specific library configuration.
 // It inherits from CppDefault, allowing library-specific overrides of global settings.

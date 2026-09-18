@@ -123,23 +123,26 @@ func generateRestStubHeader(svc *api.Service, ann *serviceAnnotations, methods, 
 
 	var mainProtoIncludes []string
 	mainProtoIncludes = append(mainProtoIncludes, ann.ProtoHeaderPath())
-	if hasLongrunningMethod(methods) && !seenMixin["google/longrunning/operations.pb.h"] {
-		mainProtoIncludes = append(mainProtoIncludes, "google/longrunning/operations.pb.h")
+	if hasLongrunningMethod(methods) && !seenMixin[ann.LongrunningOperationIncludeHeader()] {
+		mainProtoIncludes = append(mainProtoIncludes, ann.LongrunningOperationIncludeHeader())
 	}
 	slices.Sort(mainProtoIncludes)
 	protoIncludes = append(protoIncludes, mainProtoIncludes...)
 
 	data := map[string]any{
-		"header_include_guard":       guard,
-		"copyright_year":             ann.CopyrightYear,
-		"proto_file_name":            ann.ProtoFileName,
-		"product_internal_namespace": ann.InternalNamespace(),
-		"stub_rest_class_name":       ann.StubRestClassName(),
-		"local_includes":             localIncludes,
-		"proto_includes":             protoIncludes,
-		"methods":                    buildRestStubMethodList(ann, methods),
-		"async_methods":              buildRestStubAsyncMethodList(ann, asyncMethods),
-		"has_lro":                    hasLongrunningMethod(methods),
+		"header_include_guard":                      guard,
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"proto_includes":                            protoIncludes,
+		"methods":                                   buildRestStubMethodList(ann, methods),
+		"async_methods":                             buildRestStubAsyncMethodList(ann, asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_stub.h.mustache", data)
@@ -165,7 +168,7 @@ func generateRestStubCc(_ *api.Service, ann *serviceAnnotations, methods, asyncM
 	var protoIncludes []string
 	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
-		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
+		protoIncludes = append(protoIncludes, ann.LongrunningOperationIncludeHeader())
 	}
 	slices.Sort(protoIncludes)
 
@@ -175,18 +178,22 @@ func generateRestStubCc(_ *api.Service, ann *serviceAnnotations, methods, asyncM
 	}
 
 	data := map[string]any{
-		"copyright_year":                         ann.CopyrightYear,
-		"proto_file_name":                        ann.ProtoFileName,
-		"product_internal_namespace":             ann.InternalNamespace(),
-		"stub_rest_class_name":                   ann.StubRestClassName(),
-		"local_includes":                         localIncludes,
-		"proto_includes":                         protoIncludes,
-		"methods":                                buildRestStubMethodList(ann, methods),
-		"async_methods":                          buildRestStubAsyncMethodList(ann, asyncMethods),
-		"has_lro":                                hasLongrunningMethod(methods),
-		"longrunning_get_operation_path_rest":    ann.LongrunningGetOperationPathRest(),
-		"longrunning_cancel_operation_path_rest": ann.LongrunningCancelOperationPathRest(),
-		"preserve_proto_field_names_in_json":     preserveJson,
+		"copyright_year":                            ann.CopyrightYear,
+		"proto_file_name":                           ann.ProtoFileName,
+		"product_internal_namespace":                ann.InternalNamespace(),
+		"stub_rest_class_name":                      ann.StubRestClassName(),
+		"local_includes":                            localIncludes,
+		"proto_includes":                            protoIncludes,
+		"methods":                                   buildRestStubMethodList(ann, methods),
+		"async_methods":                             buildRestStubAsyncMethodList(ann, asyncMethods),
+		"has_lro":                                   hasLongrunningMethod(methods),
+		"has_grpc_lro":                              ann.HasGRPCLongrunningOperation(),
+		"longrunning_response_type":                 ann.LongrunningResponseType(),
+		"longrunning_get_operation_request_type":    ann.LongrunningGetOperationRequestType(),
+		"longrunning_cancel_operation_request_type": ann.LongrunningCancelOperationRequestType(),
+		"longrunning_get_operation_path_rest":       ann.LongrunningGetOperationPathRest(),
+		"longrunning_cancel_operation_path_rest":    ann.LongrunningCancelOperationPathRest(),
+		"preserve_proto_field_names_in_json":        preserveJson,
 	}
 
 	content, err := renderTemplate("templates/internal/rest_stub.cc.mustache", data)

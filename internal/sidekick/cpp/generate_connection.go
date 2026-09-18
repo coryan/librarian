@@ -22,7 +22,6 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-
 func buildConnectionMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
@@ -108,7 +107,7 @@ func generateConnectionHeader(_ *api.Service, ann *serviceAnnotations, methods, 
 	var protoIncludes []string
 	protoIncludes = append(protoIncludes, ann.AdditionalPbHeaderPaths...)
 	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
-	if hasLongrunningMethod(methods) {
+	if ann.HasGRPCLongrunningOperation() {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 	slices.Sort(protoIncludes)
@@ -223,4 +222,3 @@ func generateConnectionCc(_ *api.Service, ann *serviceAnnotations, methods, asyn
 
 	return filepath.Clean(ccPath), content
 }
-

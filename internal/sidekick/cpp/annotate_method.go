@@ -39,7 +39,6 @@ type methodAnnotations struct {
 	HTTPQueryParams string
 }
 
-
 func (m *methodAnnotations) MethodName() string {
 	if m == nil || m.Method == nil {
 		return ""
@@ -143,7 +142,13 @@ func (m *methodAnnotations) LongrunningResponseType() string {
 }
 
 func (m *methodAnnotations) LongrunningDeducedResponseType() string {
-	if m == nil || m.Method == nil || m.Method.OperationInfo == nil {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	if m.Method.OperationService != "" && m.Method.OutputTypeID != "" {
+		return protoNameToCppName(m.Method.OutputTypeID)
+	}
+	if m.Method.OperationInfo == nil {
 		return ""
 	}
 	deduced := m.Method.OperationInfo.ResponseTypeID
@@ -154,7 +159,13 @@ func (m *methodAnnotations) LongrunningDeducedResponseType() string {
 }
 
 func (m *methodAnnotations) LongrunningDeducedResponseMessageType() string {
-	if m == nil || m.Method == nil || m.Method.OperationInfo == nil {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	if m.Method.OperationService != "" && m.Method.OutputTypeID != "" {
+		return strings.TrimPrefix(m.Method.OutputTypeID, ".")
+	}
+	if m.Method.OperationInfo == nil {
 		return ""
 	}
 	deduced := m.Method.OperationInfo.ResponseTypeID
@@ -162,6 +173,28 @@ func (m *methodAnnotations) LongrunningDeducedResponseMessageType() string {
 		deduced = m.Method.OperationInfo.MetadataTypeID
 	}
 	return strings.TrimPrefix(deduced, ".")
+}
+
+func (m *methodAnnotations) IsGRPCLongrunningOperation() bool {
+	return m != nil && m.Method != nil && isLongrunning(m.Method) && m.Method.OperationService == ""
+}
+
+func (m *methodAnnotations) IsHTTPLongrunningOperation() bool {
+	return m != nil && m.Method != nil && isLongrunning(m.Method) && m.Method.OperationService != ""
+}
+
+func (m *methodAnnotations) LongrunningSetOperationFields() string {
+	if m != nil && m.Method != nil && m.Method.OperationService != "" {
+		return getComputeOperationInfo(m.Method.OperationService).SetOperationFields
+	}
+	return ""
+}
+
+func (m *methodAnnotations) LongrunningAwaitSetOperationFields() string {
+	if m != nil && m.Method != nil && m.Method.OperationService != "" {
+		return getComputeOperationInfo(m.Method.OperationService).AwaitSetOperationFields
+	}
+	return ""
 }
 
 func (m *methodAnnotations) pageableItem() *api.Field {
@@ -188,6 +221,30 @@ func (m *methodAnnotations) RangeOutputFieldName() string {
 
 func (m *methodAnnotations) RangeOutputType() string {
 	if item := m.pageableItem(); item != nil {
+		if item.Map && m.Model != nil {
+			if entry := m.Model.Message(item.TypezID); entry != nil {
+				var keyType, valType string
+				for _, f := range entry.Fields {
+					switch f.Name {
+					case "key":
+						if f.Typez == api.TypezString {
+							keyType = "std::string"
+						} else {
+							keyType = protoNameToCppName(f.TypezID)
+						}
+					case "value":
+						if f.Typez == api.TypezString {
+							valType = "std::string"
+						} else {
+							valType = protoNameToCppName(f.TypezID)
+						}
+					}
+				}
+				if keyType != "" && valType != "" {
+					return fmt.Sprintf("std::pair<%s, %s>", keyType, valType)
+				}
+			}
+		}
 		switch item.Typez {
 		case api.TypezMessage:
 			return protoNameToCppName(item.TypezID)
@@ -197,7 +254,6 @@ func (m *methodAnnotations) RangeOutputType() string {
 	}
 	return ""
 }
-
 
 func (m *methodAnnotations) GrpcStub() string {
 	if m != nil && m.Method != nil && m.Service != nil && m.Method.SourceService != nil && m.Method.SourceService.ID != m.Service.ID {
@@ -259,7 +315,6 @@ func (s *signatureAnnotations) RequestSetters() string {
 	return s.Setters
 }
 
-
 // annotateMethod enriches an api.Method with C++-specific metadata and types.
 func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model *api.API) *methodAnnotations {
 	if m == nil {
@@ -272,7 +327,6 @@ func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model 
 		Model:       model,
 		Idempotency: defaultIdempotency(m, svc.Name, lib),
 	}
-
 
 	if isRestMethod(m) {
 		if len(m.PathInfo.Bindings) > 0 {
@@ -357,7 +411,8 @@ func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model 
 		validIndex++
 	}
 
-	ann.Comments = annotateMethodComments(m, model)
+	isDiscovery := (lib != nil && ((lib.Cpp != nil && lib.Cpp.IsDiscoveryDocumentProto) || lib.SpecificationFormat == "discovery")) || m.OperationService != ""
+	ann.Comments = annotateMethodComments(m, model, isDiscovery)
 
 	m.Codec = ann
 	return ann

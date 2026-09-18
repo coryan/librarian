@@ -55,6 +55,7 @@ StreamRange<{{{range_output_type}}}>
 }
 {{/is_paginated}}
 {{#is_longrunning}}
+{{#is_grpc_lro}}
 {{#is_response_type_empty}}
 
 future<Status>
@@ -208,6 +209,108 @@ future<StatusOr<{{{longrunning_deduced_response_type}}}>>
 
 }
 {{/is_response_type_empty}}
+{{/is_grpc_lro}}
+{{#is_http_lro}}
+
+future<StatusOr<{{{longrunning_deduced_response_type}}}>>
+{{connection_impl_rest_class_name}}::{{method_name}}({{{request_type}}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return rest_internal::AsyncRestLongRunningOperation<
+      {{{longrunning_deduced_response_type}}},
+      {{{longrunning_response_type}}},
+      {{{longrunning_get_operation_request_type}}},
+      {{{longrunning_cancel_operation_request_type}}}>(
+    background_->cq(), current, request,
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   {{{request_type}}} const& request) {
+      return stub->Async{{method_name}}(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   {{{longrunning_get_operation_request_type}}} const& request) {
+      return stub->AsyncGetOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   {{{longrunning_cancel_operation_request_type}}} const& request) {
+      return stub->AsyncCancelOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [](StatusOr<{{{longrunning_response_type}}}> op, std::string const&) { return op; },
+    retry_policy(*current), backoff_policy(*current),
+    idempotency_policy(*current)->{{method_name}}(request),
+    polling_policy(*current), __func__,
+    []({{{longrunning_response_type}}} const& op) { return op.status() == "DONE"; },
+    [request](std::string const& op,
+              {{{longrunning_get_operation_request_type}}}& r) {
+{{{longrunning_set_operation_fields}}}
+    },
+    [request](std::string const& op,
+              {{{longrunning_cancel_operation_request_type}}}& r) {
+{{{longrunning_set_operation_fields}}}
+    });
+}
+
+StatusOr<{{{longrunning_operation_type}}}>
+{{connection_impl_rest_class_name}}::{{method_name}}(NoAwaitTag, {{{request_type}}} const& request) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return google::cloud::rest_internal::RestRetryLoop(
+      retry_policy(*current), backoff_policy(*current),
+      idempotency_policy(*current)->{{method_name}}(request),
+      [this](rest_internal::RestContext& rest_context,
+             Options const& options, {{{request_type}}} const& request) {
+        return stub_->{{method_name}}(rest_context, options, request);
+      },
+      *current, request, __func__);
+}
+
+future<StatusOr<{{{longrunning_deduced_response_type}}}>>
+{{connection_impl_rest_class_name}}::{{method_name}}(
+    {{{longrunning_operation_type}}} const& operation) {
+  auto current = google::cloud::internal::SaveCurrentOptions();
+  return rest_internal::AsyncRestAwaitLongRunningOperation<
+      {{{longrunning_deduced_response_type}}},
+      {{{longrunning_response_type}}},
+      {{{longrunning_get_operation_request_type}}},
+      {{{longrunning_cancel_operation_request_type}}}>(
+    background_->cq(), current, operation,
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   {{{longrunning_get_operation_request_type}}} const& request) {
+      return stub->AsyncGetOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [stub = stub_](CompletionQueue& cq,
+                   std::unique_ptr<rest_internal::RestContext> context,
+                   google::cloud::internal::ImmutableOptions options,
+                   {{{longrunning_cancel_operation_request_type}}} const& request) {
+      return stub->AsyncCancelOperation(
+          cq, std::move(context), std::move(options), request);
+    },
+    [](StatusOr<{{{longrunning_response_type}}}> op, std::string const&) { return op; },
+    polling_policy(*current), __func__,
+    []({{{longrunning_response_type}}} const& op) { return op.status() == "DONE"; },
+    [operation](std::string const&,
+                {{{longrunning_get_operation_request_type}}}& r) {
+      auto info = google::cloud::rest_internal::ParseComputeOperationInfo(operation.self_link());
+
+{{{longrunning_await_set_operation_fields}}}
+    },
+    [operation](std::string const&,
+                {{{longrunning_cancel_operation_request_type}}}& r) {
+      auto info = google::cloud::rest_internal::ParseComputeOperationInfo(operation.self_link());
+
+{{{longrunning_await_set_operation_fields}}}
+    });
+}
+{{/is_http_lro}}
 {{/is_longrunning}}
 {{#is_plain_unary}}
 

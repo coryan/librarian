@@ -81,7 +81,7 @@ func namespace(productPath string, nsType namespaceType) string {
 	_, l, s := parseProductPath(productPath)
 	ns := l
 	if s != "" {
-		ns += "_" + s
+		ns += "_" + strings.ReplaceAll(s, "/", "_")
 	}
 	switch nsType {
 	case namespaceInternal:
@@ -90,6 +90,67 @@ func namespace(productPath string, nsType namespaceType) string {
 		ns += "_mocks"
 	}
 	return ns
+}
+
+type computeOperationInfo struct {
+	HeaderInclude           string
+	GetRequestType          string
+	CancelRequestType       string
+	SetOperationFields      string
+	AwaitSetOperationFields string
+	GetOperationPath        string
+	CancelOperationPath     string
+}
+
+func getComputeOperationInfo(operationService string) computeOperationInfo {
+	switch operationService {
+	case "GlobalOperations":
+		path := `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/global/operations/", request.operation())`
+		return computeOperationInfo{
+			HeaderInclude:           "google/cloud/compute/global_operations/v1/global_operations.pb.h",
+			GetRequestType:          "google::cloud::cpp::compute::global_operations::v1::GetOperationRequest",
+			CancelRequestType:       "google::cloud::cpp::compute::global_operations::v1::DeleteOperationRequest",
+			SetOperationFields:      "      r.set_project(request.project());\n      r.set_operation(op);",
+			AwaitSetOperationFields: "      r.set_project(info.project);\n      r.set_operation(info.operation);",
+			GetOperationPath:        path,
+			CancelOperationPath:     path,
+		}
+	case "GlobalOrganizationOperations":
+		path := `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/locations/global/operations/", request.operation())`
+		return computeOperationInfo{
+			HeaderInclude:           "google/cloud/compute/global_organization_operations/v1/global_organization_operations.pb.h",
+			GetRequestType:          "google::cloud::cpp::compute::global_organization_operations::v1::GetOperationRequest",
+			CancelRequestType:       "google::cloud::cpp::compute::global_organization_operations::v1::DeleteOperationRequest",
+			SetOperationFields:      "      r.set_operation(op);",
+			AwaitSetOperationFields: "      r.set_operation(info.operation);",
+			GetOperationPath:        path,
+			CancelOperationPath:     path,
+		}
+	case "RegionOperations":
+		path := `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/regions/", request.region(), "/operations/", request.operation())`
+		return computeOperationInfo{
+			HeaderInclude:           "google/cloud/compute/region_operations/v1/region_operations.pb.h",
+			GetRequestType:          "google::cloud::cpp::compute::region_operations::v1::GetOperationRequest",
+			CancelRequestType:       "google::cloud::cpp::compute::region_operations::v1::DeleteOperationRequest",
+			SetOperationFields:      "      r.set_project(request.project());\n      r.set_region(request.region());\n      r.set_operation(op);",
+			AwaitSetOperationFields: "      r.set_project(info.project);\n      r.set_region(info.region);\n      r.set_operation(info.operation);",
+			GetOperationPath:        path,
+			CancelOperationPath:     path,
+		}
+	case "ZoneOperations":
+		path := `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/zones/", request.zone(), "/operations/", request.operation())`
+		return computeOperationInfo{
+			HeaderInclude:           "google/cloud/compute/zone_operations/v1/zone_operations.pb.h",
+			GetRequestType:          "google::cloud::cpp::compute::zone_operations::v1::GetOperationRequest",
+			CancelRequestType:       "google::cloud::cpp::compute::zone_operations::v1::DeleteOperationRequest",
+			SetOperationFields:      "      r.set_project(request.project());\n      r.set_zone(request.zone());\n      r.set_operation(op);",
+			AwaitSetOperationFields: "      r.set_project(info.project);\n      r.set_zone(info.zone);\n      r.set_operation(info.operation);",
+			GetOperationPath:        path,
+			CancelOperationPath:     path,
+		}
+	default:
+		return computeOperationInfo{}
+	}
 }
 
 func formatHeaderIncludeGuard(headerPath string) string {

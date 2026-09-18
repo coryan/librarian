@@ -32,13 +32,13 @@ type commentAnnotations struct {
 }
 
 // annotateComments formats Doxygen documentation comments for a service class.
-func annotateComments(svc *api.Service, serviceName string, model *api.API) *commentAnnotations {
+func annotateComments(svc *api.Service, serviceName string, model *api.API, isDiscovery bool) *commentAnnotations {
 	if svc == nil {
 		return nil
 	}
 
 	ann := &commentAnnotations{
-		ClassComment:      formatClassComments(svc, serviceName, model),
+		ClassComment:      formatClassComments(svc, serviceName, model, isDiscovery),
 		SignatureComments: make(map[int]string),
 	}
 
@@ -46,18 +46,18 @@ func annotateComments(svc *api.Service, serviceName string, model *api.API) *com
 }
 
 // annotateMethodComments formats Doxygen documentation comments for an RPC method and its signature overloads.
-func annotateMethodComments(method *api.Method, model *api.API) *commentAnnotations {
+func annotateMethodComments(method *api.Method, model *api.API, isDiscovery bool) *commentAnnotations {
 	if method == nil {
 		return nil
 	}
 
 	ann := &commentAnnotations{
-		MethodComment:     formatMethodCommentsProtobufRequest(method, model),
+		MethodComment:     formatMethodCommentsProtobufRequest(method, model, isDiscovery),
 		SignatureComments: make(map[int]string),
 	}
 
 	for i, sig := range method.Signatures {
-		ann.SignatureComments[i] = formatMethodCommentsMethodSignature(method, sig, model)
+		ann.SignatureComments[i] = formatMethodCommentsMethodSignature(method, sig, model, isDiscovery)
 	}
 
 	return ann

@@ -22,7 +22,7 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildRestConnectionImplMethodList(methods []*api.Method) []map[string]any {
+func buildRestConnectionImplMethodList(ann *serviceAnnotations, methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestMethods(methods) {
 		mann := m.Codec.(*methodAnnotations)
@@ -42,14 +42,24 @@ func buildRestConnectionImplMethodList(methods []*api.Method) []map[string]any {
 			entry["is_paginated"] = true
 		} else if isLongrunning(m) {
 			entry["is_longrunning"] = true
-			if isResponseTypeEmpty(m) {
-				entry["is_response_type_empty"] = true
+			if mann.IsGRPCLongrunningOperation() {
+				entry["is_grpc_lro"] = true
+				if isResponseTypeEmpty(m) {
+					entry["is_response_type_empty"] = true
+				}
+				extractor := "&google::cloud::internal::ExtractLongRunningResultResponse<" + mann.LongrunningDeducedResponseType() + ">"
+				if isLongrunningMetadataTypeUsedAsResponse(m) {
+					extractor = "&google::cloud::internal::ExtractLongRunningResultMetadata<" + mann.LongrunningDeducedResponseType() + ">"
+				}
+				entry["lro_extractor"] = extractor
+			} else if mann.IsHTTPLongrunningOperation() {
+				entry["is_http_lro"] = true
+				entry["longrunning_response_type"] = ann.LongrunningResponseType()
+				entry["longrunning_get_operation_request_type"] = ann.LongrunningGetOperationRequestType()
+				entry["longrunning_cancel_operation_request_type"] = ann.LongrunningCancelOperationRequestType()
+				entry["longrunning_set_operation_fields"] = mann.LongrunningSetOperationFields()
+				entry["longrunning_await_set_operation_fields"] = mann.LongrunningAwaitSetOperationFields()
 			}
-			extractor := "&google::cloud::internal::ExtractLongRunningResultResponse<" + mann.LongrunningDeducedResponseType() + ">"
-			if isLongrunningMetadataTypeUsedAsResponse(m) {
-				extractor = "&google::cloud::internal::ExtractLongRunningResultMetadata<" + mann.LongrunningDeducedResponseType() + ">"
-			}
-			entry["lro_extractor"] = extractor
 		} else {
 			entry["is_plain_unary"] = true
 		}
@@ -98,7 +108,7 @@ func generateRestConnectionImplHeader(_ *api.Service, ann *serviceAnnotations, m
 
 	var protoIncludes []string
 	if hasLongrunningMethod(restMethods) {
-		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
+		protoIncludes = append(protoIncludes, ann.LongrunningOperationIncludeHeader())
 	}
 
 	data := map[string]any{
@@ -113,12 +123,12 @@ func generateRestConnectionImplHeader(_ *api.Service, ann *serviceAnnotations, m
 		"service_name":                    ann.ServiceName,
 		"retry_policy_name":               ann.RetryPolicyName(),
 
-		"idempotency_class_name":          ann.IdempotencyClassName(),
-		"local_includes":                  localIncludes,
-		"proto_includes":                  protoIncludes,
-		"methods":                         buildRestConnectionImplMethodList(methods),
-		"async_methods":                   buildRestConnectionImplAsyncMethodList(asyncMethods),
-		"has_lro":                         hasLongrunningMethod(restMethods),
+		"idempotency_class_name": ann.IdempotencyClassName(),
+		"local_includes":         localIncludes,
+		"proto_includes":         protoIncludes,
+		"methods":                buildRestConnectionImplMethodList(ann, methods),
+		"async_methods":          buildRestConnectionImplAsyncMethodList(asyncMethods),
+		"has_lro":                hasLongrunningMethod(restMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_connection_impl.h.mustache", data)
@@ -140,13 +150,16 @@ func generateRestConnectionImplCc(_ *api.Service, ann *serviceAnnotations, metho
 		"google/cloud/common_options.h",
 		"google/cloud/credentials.h",
 	)
-	if hasLongrunningMethod(restMethods) {
+	if ann.HasGRPCLongrunningOperation() {
 		localIncludes = append(localIncludes, "google/cloud/internal/async_rest_long_running_operation.h")
+	} else if ann.HasHTTPLongrunningOperation() {
+		localIncludes = append(localIncludes, "google/cloud/internal/async_rest_long_running_operation_custom.h")
+		localIncludes = append(localIncludes, "google/cloud/internal/rest_lro_helpers.h")
 	}
 	if len(asyncMethods) > 0 {
 		localIncludes = append(localIncludes, "google/cloud/internal/async_rest_retry_loop.h")
 	}
-	if hasLongrunningMethod(restMethods) {
+	if ann.HasLongrunningMethod() {
 		localIncludes = append(localIncludes, "google/cloud/internal/extract_long_running_result.h")
 	}
 	if hasPaginatedMethod(restMethods) {
@@ -169,10 +182,10 @@ func generateRestConnectionImplCc(_ *api.Service, ann *serviceAnnotations, metho
 		"service_name":                    ann.ServiceName,
 		"retry_policy_name":               ann.RetryPolicyName(),
 
-		"idempotency_class_name":          ann.IdempotencyClassName(),
-		"local_includes":                  localIncludes,
-		"methods":                         buildRestConnectionImplMethodList(methods),
-		"async_methods":                   buildRestConnectionImplAsyncMethodList(asyncMethods),
+		"idempotency_class_name": ann.IdempotencyClassName(),
+		"local_includes":         localIncludes,
+		"methods":                buildRestConnectionImplMethodList(ann, methods),
+		"async_methods":          buildRestConnectionImplAsyncMethodList(asyncMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_connection_impl.cc.mustache", data)
@@ -182,4 +195,3 @@ func generateRestConnectionImplCc(_ *api.Service, ann *serviceAnnotations, metho
 
 	return filepath.Clean(ccPath), content
 }
-

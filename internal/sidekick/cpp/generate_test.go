@@ -509,3 +509,78 @@ func TestGenerateSourcesCc(t *testing.T) {
 	}
 }
 
+func TestGenerateRestConnectionImpl_ComputeLRO(t *testing.T) {
+	addrMsg := api.NewTestMessage("Address").WithPackage("google.cloud.compute.v1")
+	req := api.NewTestMessage("InsertAddressRequest").WithPackage("google.cloud.compute.addresses.v1").WithFields(
+		api.NewTestField("project").WithType(api.TypezString),
+		api.NewTestField("region").WithType(api.TypezString),
+		api.NewTestField("address_resource").WithType(api.TypezMessage),
+	)
+	req.Fields[2].TypezID = addrMsg.ID
+	opMsg := api.NewTestMessage("Operation").WithPackage("google.cloud.compute.v1")
+
+	method := api.NewTestMethod("InsertAddress").
+		WithInput(req).
+		WithOutput(opMsg).
+		WithOperationService("RegionOperations")
+	method.PathInfo = &api.PathInfo{
+		BodyFieldPath: "address_resource",
+		Bindings: []*api.PathBinding{
+			{
+				Verb: "POST",
+				PathTemplate: (&api.PathTemplate{}).
+					WithLiteral("compute").
+					WithLiteral("v1").
+					WithLiteral("projects").
+					WithVariableNamed("project").
+					WithLiteral("regions").
+					WithVariableNamed("region").
+					WithLiteral("addresses"),
+			},
+		},
+	}
+
+	svc := api.NewTestService("Addresses").WithPackage("google.cloud.compute.addresses.v1").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{req, opMsg, addrMsg}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	fGrpc := false
+	lib := &config.Library{
+		Name: "google-cloud-compute-addresses-v1",
+		Cpp: &config.CppLibrary{
+			CppDefault: config.CppDefault{
+				ProductPath:              "google/cloud/compute/addresses/v1",
+				IsDiscoveryDocumentProto: true,
+				GenerateRestTransport:    true,
+				GenerateGrpcTransport:    &fGrpc,
+			},
+		},
+	}
+	codec, err := newCodec(model, lib, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := codec.annotateModel(); err != nil {
+		t.Fatal(err)
+	}
+	ann := svc.Codec.(*serviceAnnotations)
+
+	_, content := generateRestConnectionImplCc(svc, ann, []*api.Method{method}, nil, lib, model)
+
+	gotAsyncLro := extractBlock(t, content,
+		"  return rest_internal::AsyncRestLongRunningOperation<",
+		"    background_->cq(), current, request,")
+	wantAsyncLro := strings.TrimSpace(`
+  return rest_internal::AsyncRestLongRunningOperation<
+      google::cloud::compute::v1::Operation,
+      google::cloud::compute::v1::Operation,
+      google::cloud::cpp::compute::region_operations::v1::GetOperationRequest,
+      google::cloud::cpp::compute::region_operations::v1::DeleteOperationRequest>(
+    background_->cq(), current, request,
+`)
+	if diff := cmp.Diff(wantAsyncLro, strings.TrimSpace(gotAsyncLro)); diff != "" {
+		t.Errorf("AsyncRestLongRunningOperation mismatch (-want +got):\n%s", diff)
+	}
+}

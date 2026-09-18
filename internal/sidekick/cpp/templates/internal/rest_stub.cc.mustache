@@ -21,8 +21,14 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 Default{{stub_rest_class_name}}::Default{{stub_rest_class_name}}(Options options)
     : service_(rest_internal::MakePooledRestClient(
           options.get<EndpointOption>(), options)),
+{{#has_grpc_lro}}
       operations_(rest_internal::MakePooledRestClient(
           options.get<rest_internal::LongrunningEndpointOption>(), options)),
+{{/has_grpc_lro}}
+{{^has_grpc_lro}}
+      operations_(rest_internal::MakePooledRestClient(
+          options.get<EndpointOption>(), options)),
+{{/has_grpc_lro}}
       options_(std::move(options)) {}
 
 Default{{stub_rest_class_name}}::Default{{stub_rest_class_name}}(
@@ -172,16 +178,16 @@ Default{{stub_rest_class_name}}::Async{{method_name}}(
 {{/async_methods}}
 {{#has_lro}}
 
-future<StatusOr<google::longrunning::Operation>>
+future<StatusOr<{{{longrunning_response_type}}}>>
 Default{{stub_rest_class_name}}::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::GetOperationRequest const& request) {
-  promise<StatusOr<google::longrunning::Operation>> p;
-  future<StatusOr<google::longrunning::Operation>> f = p.get_future();
+    {{{longrunning_get_operation_request_type}}} const& request) {
+  promise<StatusOr<{{{longrunning_response_type}}}>> p;
+  future<StatusOr<{{{longrunning_response_type}}}>> f = p.get_future();
   std::thread t{[](auto p, auto operations, auto request, auto rest_context, auto options) {
-      p.set_value(rest_internal::Get<google::longrunning::Operation>(
+      p.set_value(rest_internal::Get<{{{longrunning_response_type}}}>(
           *operations, *rest_context, request, {{{preserve_proto_field_names_in_json}}},
           {{{longrunning_get_operation_path_rest}}}));
     },
@@ -200,7 +206,7 @@ Default{{stub_rest_class_name}}::AsyncCancelOperation(
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::CancelOperationRequest const& request) {
+    {{{longrunning_cancel_operation_request_type}}} const& request) {
   promise<StatusOr<google::protobuf::Empty>> p;
   future<StatusOr<google::protobuf::Empty>> f = p.get_future();
   std::thread t{[](auto p, auto operations, auto request, auto rest_context, auto options) {

@@ -53,6 +53,10 @@ type Method struct {
 	IsLroPoller bool
 	// OperationInfo contains information for methods returning long-running operations.
 	OperationInfo *OperationInfo
+	// OperationService contains the name of the operation service for Compute-style LROs
+	// (e.g. "RegionOperations", "GlobalOperations", etc.), from the
+	// `google.cloud.operation_service` proto method option.
+	OperationService string
 	// DiscoveryLro has a value if this is a discovery-style long-running operation.
 	DiscoveryLro *DiscoveryLro
 	// Routing contains the routing annotations, if any.

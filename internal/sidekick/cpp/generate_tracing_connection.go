@@ -142,4 +142,3 @@ func generateTracingConnectionCc(_ *api.Service, ann *serviceAnnotations, method
 
 	return filepath.Clean(ccPath), content
 }
-

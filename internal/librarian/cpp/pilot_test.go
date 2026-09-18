@@ -150,3 +150,105 @@ func TestPilotSecretManagerParity(t *testing.T) {
 			len(mismatches), strings.Join(mismatches, "\n"))
 	}
 }
+
+func TestPilotComputeAddressesParity(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	productionRoot := findProductionRoot()
+	if productionRoot == "" {
+		t.Skip("skipping test because production google-cloud-cpp not found")
+	}
+
+	cfg, err := yaml.Read[config.Config]("testdata/librarian.yaml")
+	if err != nil {
+		t.Fatalf("failed to read testdata/librarian.yaml: %v", err)
+	}
+
+	src, err := librarian.LoadSources(t.Context(), cfg.Sources)
+	if err != nil {
+		t.Fatalf("failed to load sources: %v", err)
+	}
+	src.Discovery = filepath.Join(productionRoot, "protos")
+
+	var lib *config.Library
+	for _, l := range cfg.Libraries {
+		if l.Name == "google-cloud-compute-addresses-v1" {
+			lib = l
+			break
+		}
+	}
+	if lib == nil {
+		t.Fatal("expected google-cloud-compute-addresses-v1 in testdata/librarian.yaml")
+	}
+
+	tempDir := t.TempDir()
+	outDir := filepath.Join(tempDir, "google/cloud/compute/addresses/v1")
+	lib.Output = outDir
+
+	if err := cpp.Generate(t.Context(), cfg, lib, src); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Copy .clang-format from production to tempDir so clang-format uses project rules
+	clangFormatSrc := filepath.Join(productionRoot, ".clang-format")
+	if data, err := os.ReadFile(clangFormatSrc); err == nil {
+		_ = os.WriteFile(filepath.Join(tempDir, ".clang-format"), data, 0644)
+	}
+
+	if err := cpp.Format(t.Context(), lib); err != nil {
+		t.Fatalf("Format failed: %v", err)
+	}
+
+	// Compare generated files against production
+	var generatedFiles []string
+	err = filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(tempDir, path)
+		if err != nil {
+			return err
+		}
+		// Skip CMakeLists, BUILD, etc. if comparing generated C++ code
+		if strings.HasSuffix(rel, ".h") || strings.HasSuffix(rel, ".cc") {
+			generatedFiles = append(generatedFiles, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(generatedFiles) == 0 {
+		t.Fatal("no C++ files generated")
+	}
+
+	var mismatches []string
+	for _, rel := range generatedFiles {
+		gotPath := filepath.Join(tempDir, rel)
+		gotBytes, err := os.ReadFile(gotPath)
+		if err != nil {
+			t.Errorf("failed reading generated %s: %v", rel, err)
+			continue
+		}
+
+		prodPath := filepath.Join(productionRoot, rel)
+		prodBytes, err := os.ReadFile(prodPath)
+		if err != nil {
+			mismatches = append(mismatches, rel+" (missing in production)")
+			continue
+		}
+
+		if diff := cmp.Diff(string(prodBytes), string(gotBytes)); diff != "" {
+			mismatches = append(mismatches, rel)
+			t.Logf("diff in %s (-production +generated):\n%s", rel, diff)
+		}
+	}
+
+	if len(mismatches) > 0 {
+		t.Errorf("found %d mismatches between generated and production compute addresses:\n%s",
+			len(mismatches), strings.Join(mismatches, "\n"))
+	}
+}

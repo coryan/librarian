@@ -26,7 +26,7 @@ func TestAnnotateComments_ClassComments(t *testing.T) {
 	svc.Documentation = "TestService provides testing utilities."
 	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
 
-	ann := annotateComments(svc, "TestService", model)
+	ann := annotateComments(svc, "TestService", model, false)
 
 	if !strings.Contains(ann.ClassComment, "/// TestService provides testing utilities.") {
 		t.Errorf("class comment missing documentation line")
@@ -50,7 +50,7 @@ func TestAnnotateComments_MethodProtobufRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ann := annotateMethodComments(method, model)
+	ann := annotateMethodComments(method, model, false)
 	if !strings.Contains(ann.MethodComment, "@param request Unary RPCs") {
 		t.Errorf("expected @param request documentation")
 	}
@@ -80,13 +80,31 @@ func TestAnnotateComments_MethodSignature(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ann := annotateMethodComments(method, model)
+	ann := annotateMethodComments(method, model, false)
 	comments, ok := ann.SignatureComments[0]
 	if !ok {
 		t.Fatalf("expected SignatureComments[0]")
 	}
 	if !strings.Contains(comments, "@param name  The resource name.") {
 		t.Errorf("expected '@param name  The resource name.', got:\n%s", comments)
+	}
+}
+
+func TestAnnotateComments_DiscoveryLinks(t *testing.T) {
+	req := api.NewTestMessage("GetRequest").WithPackage("test.v1")
+	resp := api.NewTestMessage("GetResponse").WithPackage("test.v1")
+	method := api.NewTestMethod("Get").WithInput(req).WithOutput(resp)
+	svc := api.NewTestService("TestService").WithPackage("test.v1").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{req, resp}, nil, []*api.Service{svc})
+	model.AddDefinitionLocation("test.v1.GetRequest", api.SourceLocation{Filename: "test/v1/test.proto", Line: 10})
+	model.AddDefinitionLocation("test.v1.GetResponse", api.SourceLocation{Filename: "test/v1/test.proto", Line: 20})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	ann := annotateMethodComments(method, model, true)
+	if !strings.Contains(ann.MethodComment, "@cloud_cpp_reference_link") {
+		t.Errorf("expected @cloud_cpp_reference_link for discovery, got:\n%s", ann.MethodComment)
 	}
 }
 

@@ -49,7 +49,7 @@ func buildClientMethodList(ann *serviceAnnotations, methods []*api.Method, model
 
 		if isBidiStreaming(m) {
 			entry["is_bidi_streaming"] = true
-			entry["bidir_comment"] = formatMethodComments(m, "", model)
+			entry["bidir_comment"] = formatMethodComments(m, "", model, ann.IsDiscoveryDocumentProto)
 			list = append(list, entry)
 			continue
 		}
@@ -73,11 +73,11 @@ func buildClientMethodList(ann *serviceAnnotations, methods []*api.Method, model
 			entry["is_plain_unary"] = true
 		}
 
-		entry["req_comment"] = formatMethodCommentsProtobufRequest(m, model)
+		entry["req_comment"] = formatMethodCommentsProtobufRequest(m, model, ann.IsDiscoveryDocumentProto)
 
 		var sigList []map[string]any
 		for _, s := range mann.Signatures {
-			sigComment := formatMethodCommentsMethodSignature(m, s.MethodSignature, model)
+			sigComment := formatMethodCommentsMethodSignature(m, s.MethodSignature, model, ann.IsDiscoveryDocumentProto)
 			sigEntry := map[string]any{
 				"method_name":                       mann.MethodName(),
 				"request_type":                      mann.RequestType(),
@@ -110,7 +110,7 @@ func buildClientMethodList(ann *serviceAnnotations, methods []*api.Method, model
 	return list
 }
 
-func buildClientAsyncMethodList(asyncMethods []*api.Method, model *api.API) []map[string]any {
+func buildClientAsyncMethodList(ann *serviceAnnotations, asyncMethods []*api.Method, model *api.API) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
 		if isStreamingRead(m) || isStreamingWrite(m) {
@@ -127,12 +127,12 @@ func buildClientAsyncMethodList(asyncMethods []*api.Method, model *api.API) []ma
 			"request_type":     mann.RequestType(),
 			"return_type":      mann.ReturnType(),
 			"method_dep_macro": depMacro,
-			"req_comment":      formatMethodCommentsProtobufRequest(m, model),
+			"req_comment":      formatMethodCommentsProtobufRequest(m, model, ann.IsDiscoveryDocumentProto),
 		}
 
 		var sigList []map[string]any
 		for _, s := range mann.Signatures {
-			sigComment := formatMethodCommentsMethodSignature(m, s.MethodSignature, model)
+			sigComment := formatMethodCommentsMethodSignature(m, s.MethodSignature, model, ann.IsDiscoveryDocumentProto)
 			sigList = append(sigList, map[string]any{
 				"method_name":              mann.MethodName(),
 				"request_type":             mann.RequestType(),
@@ -144,6 +144,7 @@ func buildClientAsyncMethodList(asyncMethods []*api.Method, model *api.API) []ma
 			})
 		}
 		entry["signatures"] = sigList
+
 		list = append(list, entry)
 	}
 	return list
@@ -156,7 +157,7 @@ func generateClientHeader(svc *api.Service, ann *serviceAnnotations, methods, as
 	hasIAM, _ := hasIamPolicyExtension(methods)
 
 	connectionHeader := ann.ConnectionHeaderPath()
-	if !ann.HasGrpcTransport {
+	if !ann.HasGrpcTransport && ann.HasRestTransport {
 		connectionHeader = ann.ConnectionRestHeaderPath()
 	}
 
@@ -182,7 +183,7 @@ func generateClientHeader(svc *api.Service, ann *serviceAnnotations, methods, as
 
 	var protoIncludes []string
 	protoIncludes = append(protoIncludes, methodSignatureWellKnownProtobufTypeIncludes(methods)...)
-	if hasLongrunningMethod(methods) {
+	if ann.HasGRPCLongrunningOperation() {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 	slices.Sort(protoIncludes)
@@ -208,7 +209,7 @@ func generateClientHeader(svc *api.Service, ann *serviceAnnotations, methods, as
 		"proto_includes":        protoIncludes,
 		"system_includes":       sysIncludes,
 		"methods":               buildClientMethodList(ann, methods, model),
-		"async_methods":         buildClientAsyncMethodList(asyncMethods, model),
+		"async_methods":         buildClientAsyncMethodList(ann, asyncMethods, model),
 	}
 
 	content, err := renderTemplate("templates/client.h.mustache", data)
@@ -246,7 +247,7 @@ func generateClientCc(svc *api.Service, ann *serviceAnnotations, methods, asyncM
 		"service_name":          ann.ServiceName,
 		"includes":              includes,
 		"methods":               buildClientMethodList(ann, methods, model),
-		"async_methods":         buildClientAsyncMethodList(asyncMethods, model),
+		"async_methods":         buildClientAsyncMethodList(ann, asyncMethods, model),
 	}
 
 	content, err := renderTemplate("templates/client.cc.mustache", data)

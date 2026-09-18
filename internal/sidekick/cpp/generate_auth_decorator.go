@@ -90,7 +90,7 @@ func generateAuthDecoratorHeader(_ *api.Service, ann *serviceAnnotations, method
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	if hasLongrunningMethod(methods) {
+	if ann.HasGRPCLongrunningOperation() {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 

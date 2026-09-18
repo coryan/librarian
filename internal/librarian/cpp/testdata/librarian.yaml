@@ -31,3 +31,20 @@ libraries:
       initial_copyright_year: "2021"
       retryable_status_codes:
         - kUnavailable
+
+  - name: google-cloud-compute-addresses-v1
+    copyright_year: "2023"
+    apis:
+      - path: google/cloud/compute/addresses/v1/addresses.proto
+    roots:
+      - discovery
+      - googleapis
+    cpp:
+      product_path: google/cloud/compute/addresses/v1
+      initial_copyright_year: "2023"
+      service_endpoint_env_var: GOOGLE_CLOUD_CPP_ADDRESSES_ENDPOINT
+      is_discovery_document_proto: true
+      generate_rest_transport: true
+      generate_grpc_transport: false
+      retryable_status_codes:
+        - kUnavailable
