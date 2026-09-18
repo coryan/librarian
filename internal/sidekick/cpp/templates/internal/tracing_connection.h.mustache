@@ -38,6 +38,54 @@ class {{Codec.TracingConnectionClassName}}
     std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> child);
 
   Options options() override { return child_->options(); }
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+      {{RequestType}},
+      {{ResponseType}}>>
+  Async{{Name}}() override;
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsStreamingRead}}
+
+  StreamRange<{{{ResponseType}}}>
+  {{Name}}({{RequestType}} const& request) override;
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+{{#IsPaginated}}
+
+  StreamRange<{{{RangeOutputType}}}>
+  {{Name}}({{RequestType}} request) override;
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsLRO}}
+
+  {{{LroFutureReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+
+  StatusOr<google::longrunning::Operation>
+  {{Name}}(NoAwaitTag,
+      {{RequestType}} const& request) override;
+
+  {{{LroFutureReturnType}}}
+  {{Name}}(
+      google::longrunning::Operation const& operation) override;
+{{/IsLRO}}
+{{^IsLRO}}
+
+  {{{PlainReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+{{/IsLRO}}
+{{/IsPaginated}}
+{{/IsStreamingRead}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+
+  future<{{{PlainReturnType}}}>
+  Async{{Name}}({{RequestType}} const& request) override;
+{{/Codec.AsyncMethods}}
 
  private:
   std::shared_ptr<{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}> child_;

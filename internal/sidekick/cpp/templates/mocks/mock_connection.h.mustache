@@ -29,6 +29,81 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 class {{Codec.MockConnectionClassName}} : public {{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}} {
  public:
   MOCK_METHOD(Options, options, (), (override));
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+  MOCK_METHOD((std::unique_ptr<
+      ::google::cloud::AsyncStreamingReadWriteRpc<
+          {{RequestType}}, {{ResponseType}}>>),
+      Async{{Name}}, (), (override));
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsLRO}}
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, {{Name}}(Matcher<{{RequestType}} const&>(_)))
+  /// @endcode
+  MOCK_METHOD({{{LroFutureReturnType}}},
+  {{Name}},
+  ({{RequestType}} const& request), (override));
+
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// EXPECT_CALL(*mock, {{Name}}(_, _))
+  /// @endcode
+  MOCK_METHOD({{{LroStartReturnType}}},
+  {{Name}}, (NoAwaitTag,
+    {{RequestType}} const& request), (override));
+
+
+  /// To disambiguate calls, use:
+  ///
+  /// @code
+  /// using ::testing::_;
+  /// using ::testing::Matcher;
+  /// EXPECT_CALL(*mock, {{Name}}(Matcher<google::longrunning::Operation const&>(_)))
+  /// @endcode
+  MOCK_METHOD({{{LroFutureReturnType}}},
+  {{Name}}, (
+    google::longrunning::Operation const& operation), (override));
+{{/IsLRO}}
+{{^IsLRO}}
+{{#IsPaginated}}
+
+  MOCK_METHOD((StreamRange<{{{RangeOutputType}}}>),
+  {{Name}},
+  ({{RequestType}} request), (override));
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsStreamingRead}}
+
+  MOCK_METHOD(StreamRange<{{{ResponseType}}}>,
+  {{Name}},
+  ({{RequestType}} const& request), (override));
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+
+  MOCK_METHOD({{{PlainReturnType}}},
+  {{Name}},
+  ({{RequestType}} const& request), (override));
+{{/IsStreamingRead}}
+{{/IsPaginated}}
+{{/IsLRO}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+
+  MOCK_METHOD(future<{{{PlainReturnType}}}>,
+  Async{{Name}},
+  ({{RequestType}} const& request), (override));
+{{/Codec.AsyncMethods}}
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

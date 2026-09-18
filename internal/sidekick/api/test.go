@@ -189,6 +189,12 @@ func (m *Message) WithResource(resource *Resource) *Message {
 	return m
 }
 
+// WithDocumentation sets the documentation for the message.
+func (m *Message) WithDocumentation(doc string) *Message {
+	m.Documentation = doc
+	return m
+}
+
 // NewTestService creates a service with defaults for testing.
 // Default package is "test".
 func NewTestService(name string) *Service {
@@ -341,6 +347,18 @@ func (m *Method) WithSignatures(signatures ...*MethodSignature) *Method {
 	return m
 }
 
+// WithDocumentation sets the documentation for the method.
+func (m *Method) WithDocumentation(doc string) *Method {
+	m.Documentation = doc
+	return m
+}
+
+// WithDeprecated sets whether the method is deprecated.
+func (m *Method) WithDeprecated(deprecated bool) *Method {
+	m.Deprecated = deprecated
+	return m
+}
+
 // NewTestOneOf creates a OneOf with defaults for testing.
 func NewTestOneOf(name string) *OneOf {
 	return &OneOf{
@@ -440,6 +458,12 @@ func (f *Field) WithResourceReference(refType string) *Field {
 // WithChildTypeReference sets the child type resource reference on a field.
 func (f *Field) WithChildTypeReference(childType string) *Field {
 	f.ResourceReference = &ResourceReference{ChildType: childType}
+	return f
+}
+
+// WithDocumentation sets the documentation for the field.
+func (f *Field) WithDocumentation(doc string) *Field {
+	f.Documentation = doc
 	return f
 }
 

@@ -38,6 +38,102 @@ type serviceAnnotations struct {
 	OmitStubFactory       bool
 	CopyrightYear         string
 	Service               *api.Service
+	Methods               []*methodAnnotations
+	StubMethods           []*methodAnnotations
+	AsyncMethods          []*methodAnnotations
+	AsyncStubMethods      []*methodAnnotations
+}
+
+func (ann *serviceAnnotations) isDiscovery() bool {
+	return false
+}
+
+func (ann *serviceAnnotations) hasIamGetAndSet() bool {
+	if ann.Service == nil {
+		return false
+	}
+	hasGet := slices.ContainsFunc(ann.Service.Methods, isIamGetMethod)
+	hasSet := slices.ContainsFunc(ann.Service.Methods, isIamSetMethod)
+	return hasGet && hasSet
+}
+
+func (ann *serviceAnnotations) HasIamUpdater() bool {
+	return ann.hasIamGetAndSet()
+}
+
+func (ann *serviceAnnotations) HasGrpcLRO() bool {
+	return ann.HasGrpc && ann.HasLRO()
+}
+
+func (ann *serviceAnnotations) StreamingReadMethods() []*methodAnnotations {
+	var res []*methodAnnotations
+	for _, m := range ann.Methods {
+		if m.IsStreamingRead() {
+			res = append(res, m)
+		}
+	}
+	return res
+}
+
+func (ann *serviceAnnotations) HasStreamingReadMethod() bool {
+	return len(ann.StreamingReadMethods()) > 0
+}
+
+func (ann *serviceAnnotations) NonStreamingMethods() []*methodAnnotations {
+	var res []*methodAnnotations
+	for _, m := range ann.Methods {
+		if !m.IsStreaming() {
+			res = append(res, m)
+		}
+	}
+	return res
+}
+
+func (ann *serviceAnnotations) HasPaginatedMethod() bool {
+	return slices.ContainsFunc(ann.Methods, func(m *methodAnnotations) bool {
+		return m.IsPaginated
+	})
+}
+
+func (ann *serviceAnnotations) HasBidirStreamingMethod() bool {
+	return slices.ContainsFunc(ann.Methods, func(m *methodAnnotations) bool {
+		return m.IsBidiStreaming()
+	})
+}
+
+func (ann *serviceAnnotations) HasAsyncMethod() bool {
+	return len(ann.AsyncMethods) > 0
+}
+
+func (ann *serviceAnnotations) HasRequestId() bool {
+	if ann.Service == nil {
+		return false
+	}
+	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
+		return m.HasAutoPopulatedFields()
+	})
+}
+
+func (ann *serviceAnnotations) HasDurationInclude() bool {
+	for _, m := range ann.Methods {
+		for _, s := range m.Signatures {
+			for _, p := range s.Params {
+				if p.Field != nil && (p.Field.TypezID == "google.protobuf.Duration" || p.Field.TypezID == ".google.protobuf.Duration") {
+					return true
+				}
+			}
+		}
+	}
+	for _, m := range ann.AsyncMethods {
+		for _, s := range m.Signatures {
+			for _, p := range s.Params {
+				if p.Field != nil && (p.Field.TypezID == "google.protobuf.Duration" || p.Field.TypezID == ".google.protobuf.Duration") {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // HasEndpointLocation returns true if the service uses location-dependent endpoints.
@@ -420,8 +516,74 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 		CopyrightYear:         c.copyrightYear(),
 		Service:               service,
 	}
+
+	var methods []*methodAnnotations
+	var stubMethods []*methodAnnotations
+	var asyncMethods []*methodAnnotations
+	var asyncStubMethods []*methodAnnotations
+
+	for _, m := range service.Methods {
+		if c.isOmittedMethod(service.Name, m) {
+			if c.isGenAsyncRpc(service.Name, m.Name) {
+				mAnn := c.annotateMethod(service, m, ann)
+				stubAsync := *mAnn
+				asyncStubMethods = append(asyncStubMethods, &stubAsync)
+				if !mAnn.IsStreaming() && !mAnn.IsLRO {
+					asyncMethods = append(asyncMethods, &stubAsync)
+				}
+			}
+			continue
+		}
+
+		mAnn := c.annotateMethod(service, m, ann)
+		stubMethods = append(stubMethods, mAnn)
+		if !mAnn.IsStreamingWrite() {
+			methods = append(methods, mAnn)
+		}
+		if c.isGenAsyncRpc(service.Name, m.Name) {
+			stubAsync := *mAnn
+			asyncStubMethods = append(asyncStubMethods, &stubAsync)
+			if !mAnn.IsStreaming() && !mAnn.IsLRO {
+				asyncMethods = append(asyncMethods, &stubAsync)
+			}
+		}
+	}
+	ann.Methods = methods
+	ann.StubMethods = stubMethods
+	ann.AsyncMethods = asyncMethods
+	ann.AsyncStubMethods = asyncStubMethods
+
 	service.Codec = ann
 	return ann
+}
+
+func (c *codec) isOmittedMethod(serviceName string, m *api.Method) bool {
+	if m.IsLroPoller {
+		return true
+	}
+	if m.SourceServiceID != "" && m.Service != nil && m.SourceServiceID != m.Service.ID {
+		if m.PathInfo == nil {
+			return true
+		}
+	}
+	if c.Cpp == nil {
+		return false
+	}
+	methodName := m.Name
+	qualifiedName := serviceName + "." + methodName
+	return slices.ContainsFunc(c.Cpp.OmittedRPCs, func(o string) bool {
+		return o == methodName || o == qualifiedName
+	})
+}
+
+func (c *codec) isGenAsyncRpc(serviceName, methodName string) bool {
+	if c.Cpp == nil {
+		return false
+	}
+	qualifiedName := serviceName + "." + methodName
+	return slices.ContainsFunc(c.Cpp.GenAsyncRPCs, func(o string) bool {
+		return o == methodName || o == qualifiedName
+	})
 }
 
 func (c *codec) annotateModel() error {

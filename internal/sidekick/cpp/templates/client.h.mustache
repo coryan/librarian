@@ -25,10 +25,25 @@
 #include "{{Codec.RestConnectionHeaderPath}}"
 {{/Codec.HasGrpc}}
 #include "google/cloud/future.h"
+{{#Codec.HasIamUpdater}}
+#include "google/cloud/internal/make_status.h"
+{{/Codec.HasIamUpdater}}
+{{#Codec.HasLRO}}
+#include "google/cloud/no_await_tag.h"
+{{/Codec.HasLRO}}
 #include "google/cloud/options.h"
 #include "google/cloud/polling_policy.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/version.h"
+{{#Codec.HasIamUpdater}}
+#include "google/cloud/iam_updater.h"
+{{/Codec.HasIamUpdater}}
+{{#Codec.HasDurationInclude}}
+#include <google/protobuf/duration.pb.h>
+{{/Codec.HasDurationInclude}}
+{{#Codec.HasGrpcLRO}}
+#include <google/longrunning/operations.grpc.pb.h>
+{{/Codec.HasGrpcLRO}}
 #include <map>
 #include <memory>
 #include <string>
@@ -70,6 +85,83 @@ class {{Codec.ClientClassName}} {
   }
   ///@}
 
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+{{{FormatComments}}}{{{DeprecationMacro}}}  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+      {{RequestType}},
+      {{ResponseType}}>>
+  Async{{Name}}(Options opts = {});
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#Signatures}}
+
+{{{FormatComments}}}{{{DeprecationMacro}}}{{#Method.IsLRO}}  {{{Method.LroFutureReturnType}}}
+  {{Method.Name}}({{{ParamsString}}}Options opts = {});
+
+{{{FormatStartComments}}}{{{DeprecationMacro}}}  {{{Method.LroStartReturnType}}}
+  {{Method.Name}}(NoAwaitTag, {{{ParamsString}}}Options opts = {});
+{{/Method.IsLRO}}
+{{^Method.IsLRO}}
+{{#Method.IsPaginated}}
+  StreamRange<{{{Method.RangeOutputType}}}>
+  {{Method.Name}}({{{ParamsString}}}Options opts = {});
+{{/Method.IsPaginated}}
+{{^Method.IsPaginated}}
+{{#Method.IsStreamingRead}}
+  StreamRange<{{{Method.ResponseType}}}>
+  {{Method.Name}}({{{ParamsString}}}Options opts = {});
+{{/Method.IsStreamingRead}}
+{{^Method.IsStreamingRead}}
+  {{{Method.PlainReturnType}}}
+  {{Method.Name}}({{{ParamsString}}}Options opts = {});
+{{/Method.IsStreamingRead}}
+{{/Method.IsPaginated}}
+{{/Method.IsLRO}}
+{{/Signatures}}
+{{#IsIamSetMethodWithUpdater}}
+
+{{{IamUpdaterComments}}}  StatusOr<{{{IamUpdaterResponse}}}>
+  {{Name}}(std::string const& resource, IamUpdater const& updater, Options opts = {});
+{{/IsIamSetMethodWithUpdater}}
+
+{{{FormatComments}}}{{{DeprecationMacro}}}{{#IsLRO}}  {{{LroFutureReturnType}}}
+  {{Name}}({{RequestType}} const& request, Options opts = {});
+
+{{{FormatStartComments}}}{{{DeprecationMacro}}}  {{{LroStartReturnType}}}
+  {{Name}}(NoAwaitTag, {{RequestType}} const& request, Options opts = {});
+
+{{{FormatAwaitComments}}}{{{DeprecationMacro}}}  {{{LroFutureReturnType}}}
+  {{Name}}(google::longrunning::Operation const& operation, Options opts = {});
+{{/IsLRO}}
+{{^IsLRO}}
+{{#IsPaginated}}
+  StreamRange<{{{RangeOutputType}}}>
+  {{Name}}({{RequestType}} request, Options opts = {});
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsStreamingRead}}
+  StreamRange<{{{ResponseType}}}>
+  {{Name}}({{RequestType}} const& request, Options opts = {});
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+  {{{PlainReturnType}}}
+  {{Name}}({{RequestType}} const& request, Options opts = {});
+{{/IsStreamingRead}}
+{{/IsPaginated}}
+{{/IsLRO}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+{{#Signatures}}
+
+{{{FormatComments}}}{{{DeprecationMacro}}}  future<{{{Method.PlainReturnType}}}>
+  Async{{Method.Name}}({{{ParamsString}}}Options opts = {});
+{{/Signatures}}
+
+{{{FormatComments}}}{{{DeprecationMacro}}}  future<{{{PlainReturnType}}}>
+  Async{{Name}}({{RequestType}} const& request, Options opts = {});
+{{/Codec.AsyncMethods}}
  private:
   std::shared_ptr<{{Codec.ConnectionClassName}}> connection_;
   Options options_;

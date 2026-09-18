@@ -33,6 +33,18 @@ class {{Codec.IdempotencyPolicyClassName}} {
 
   /// Create a new copy of this object.
   virtual std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}> clone() const;
+{{#Codec.NonStreamingMethods}}
+{{#IsPaginated}}
+
+  virtual google::cloud::Idempotency
+  {{Name}}({{RequestType}} request);
+{{/IsPaginated}}
+{{^IsPaginated}}
+
+  virtual google::cloud::Idempotency
+  {{Name}}({{RequestType}} const& request);
+{{/IsPaginated}}
+{{/Codec.NonStreamingMethods}}
 };
 
 std::unique_ptr<{{Codec.IdempotencyPolicyClassName}}>

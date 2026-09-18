@@ -28,6 +28,9 @@
 #include "google/cloud/async_streaming_read_write_rpc.h"
 #include "google/cloud/background_threads.h"
 #include "google/cloud/backoff_policy.h"
+{{#Codec.HasRequestId}}
+#include "google/cloud/internal/invocation_id_generator.h"
+{{/Codec.HasRequestId}}
 #include "google/cloud/options.h"
 #include "google/cloud/status_or.h"
 #include "google/cloud/stream_range.h"
@@ -38,6 +41,12 @@ namespace google {
 namespace cloud {
 namespace {{Codec.InternalNamespace}} {
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
+{{#Codec.StreamingReadMethods}}
+
+void {{Codec.Name}}{{Name}}StreamingUpdater(
+    {{ResponseType}} const& response,
+    {{RequestType}}& request);
+{{/Codec.StreamingReadMethods}}
 
 class {{Codec.ConnectionImplClassName}}
     : public {{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}} {
@@ -50,11 +59,64 @@ class {{Codec.ConnectionImplClassName}}
     Options options);
 
   Options options() override { return options_; }
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+  std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+      {{RequestType}},
+      {{ResponseType}}>>
+  Async{{Name}}() override;
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsStreamingRead}}
+
+  StreamRange<{{{ResponseType}}}>
+  {{Name}}({{RequestType}} const& request) override;
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+{{#IsPaginated}}
+
+  StreamRange<{{{RangeOutputType}}}>
+  {{Name}}({{RequestType}} request) override;
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsLRO}}
+
+  {{{LroFutureReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+
+  StatusOr<google::longrunning::Operation>
+  {{Name}}(NoAwaitTag,
+      {{RequestType}} const& request) override;
+
+  {{{LroFutureReturnType}}}
+  {{Name}}(
+      google::longrunning::Operation const& operation) override;
+{{/IsLRO}}
+{{^IsLRO}}
+
+  {{{PlainReturnType}}}
+  {{Name}}({{RequestType}} const& request) override;
+{{/IsLRO}}
+{{/IsPaginated}}
+{{/IsStreamingRead}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+
+  future<{{{PlainReturnType}}}>
+  Async{{Name}}({{RequestType}} const& request) override;
+{{/Codec.AsyncMethods}}
 
  private:
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<{{Codec.InternalNamespace}}::{{Codec.StubClassName}}> stub_;
   Options options_;
+{{#Codec.HasRequestId}}
+  std::shared_ptr<google::cloud::internal::InvocationIdGenerator>
+      invocation_id_generator_ =
+          std::make_shared<google::cloud::internal::InvocationIdGenerator>();
+{{/Codec.HasRequestId}}
 };
 
 GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_END

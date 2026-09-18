@@ -65,3 +65,54 @@ func TestServiceNameToFileName(t *testing.T) {
 		})
 	}
 }
+
+func TestProtoNameToCppName(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{
+			input: ".google.test.admin.database.v1.GenerateAccessTokenRequest",
+			want:  "google::test::admin::database::v1::GenerateAccessTokenRequest",
+		},
+		{
+			input: "google.test.admin.database.v1.GenerateAccessTokenResponse",
+			want:  "google::test::admin::database::v1::GenerateAccessTokenResponse",
+		},
+		{
+			input: ".google.protobuf.Empty",
+			want:  "google::protobuf::Empty",
+		},
+		{
+			input: "google.longrunning.Operation",
+			want:  "google::longrunning::Operation",
+		},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			got := protoNameToCppName(test.input)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("protoNameToCppName(%q) mismatch (-want +got):\n%s", test.input, diff)
+			}
+		})
+	}
+}
+
+func TestCppFieldName(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  string
+	}{
+		{input: "name", want: "name"},
+		{input: "delete", want: "delete_"},
+		{input: "default", want: "default_"},
+		{input: "inline", want: "inline_"},
+		{input: "statements", want: "statements"},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			got := cppFieldName(test.input)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("cppFieldName(%q) mismatch (-want +got):\n%s", test.input, diff)
+			}
+		})
+	}
+}

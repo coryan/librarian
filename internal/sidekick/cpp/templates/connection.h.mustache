@@ -117,6 +117,52 @@ class {{Codec.ConnectionClassName}} {
   virtual ~{{Codec.ConnectionClassName}}() = 0;
 
   virtual Options options() { return Options{}; }
+{{#Codec.Methods}}
+{{#IsBidiStreaming}}
+
+  virtual std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
+      {{RequestType}},
+      {{ResponseType}}>>
+  Async{{Name}}();
+{{/IsBidiStreaming}}
+{{^IsBidiStreaming}}
+{{#IsLRO}}
+
+  virtual {{{LroFutureReturnType}}}
+  {{Name}}({{RequestType}} const& request);
+
+  virtual {{{LroStartReturnType}}}
+  {{Name}}(NoAwaitTag, {{RequestType}} const& request);
+
+  virtual {{{LroFutureReturnType}}}
+  {{Name}}( google::longrunning::Operation const& operation);
+{{/IsLRO}}
+{{^IsLRO}}
+{{#IsPaginated}}
+
+  virtual StreamRange<{{{RangeOutputType}}}>
+  {{Name}}({{RequestType}} request);
+{{/IsPaginated}}
+{{^IsPaginated}}
+{{#IsStreamingRead}}
+
+  virtual StreamRange<{{{ResponseType}}}>
+  {{Name}}({{RequestType}} const& request);
+{{/IsStreamingRead}}
+{{^IsStreamingRead}}
+
+  virtual {{{PlainReturnType}}}
+  {{Name}}({{RequestType}} const& request);
+{{/IsStreamingRead}}
+{{/IsPaginated}}
+{{/IsLRO}}
+{{/IsBidiStreaming}}
+{{/Codec.Methods}}
+{{#Codec.AsyncMethods}}
+
+  virtual future<{{{PlainReturnType}}}>
+  Async{{Name}}({{RequestType}} const& request);
+{{/Codec.AsyncMethods}}
 };
 
 {{#Codec.HasGrpc}}

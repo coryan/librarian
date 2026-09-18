@@ -178,3 +178,47 @@ func TestAnnotateService_DerivedFileNames(t *testing.T) {
 		})
 	}
 }
+
+func TestAnnotateService_NonStreamingMethods(t *testing.T) {
+	unary := api.NewTestMethod("Unary")
+	serverStreaming := api.NewTestMethod("ServerStreaming").WithServerSideStreaming()
+	clientStreaming := api.NewTestMethod("ClientStreaming").WithClientSideStreaming()
+	bidiStreaming := api.NewTestMethod("BidiStreaming").WithBidiStreaming()
+
+	svc := api.NewTestService("StreamingTestService").WithMethods(unary, serverStreaming, clientStreaming, bidiStreaming)
+	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
+
+	lib := &config.Library{
+		Name:   "test-lib",
+		Output: "out",
+		Cpp:    &config.CppLibrary{},
+	}
+
+	c := newCodec(model, "out", lib)
+	if err := c.annotateModel(); err != nil {
+		t.Fatalf("annotateModel() failed: %v", err)
+	}
+
+	ann, ok := svc.Codec.(*serviceAnnotations)
+	if !ok || ann == nil {
+		t.Fatalf("expected *serviceAnnotations on service.Codec")
+	}
+
+	nonStreaming := ann.NonStreamingMethods()
+	if len(nonStreaming) != 1 || nonStreaming[0].Name != "Unary" {
+		t.Errorf("NonStreamingMethods() want [Unary], got %+v", nonStreaming)
+	}
+
+	streamingRead := ann.StreamingReadMethods()
+	if len(streamingRead) != 1 || streamingRead[0].Name != "ServerStreaming" {
+		t.Errorf("StreamingReadMethods() want [ServerStreaming], got %+v", streamingRead)
+	}
+
+	if !ann.HasStreamingReadMethod() {
+		t.Errorf("HasStreamingReadMethod() want true, got false")
+	}
+
+	if !ann.HasBidirStreamingMethod() {
+		t.Errorf("HasBidirStreamingMethod() want true, got false")
+	}
+}
