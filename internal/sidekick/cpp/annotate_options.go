@@ -21,73 +21,76 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-// OptionsAnnotations contains C++-specific metadata for service options and defaults.
-type OptionsAnnotations struct {
-	// OptionsClassName is the service options class name (e.g. "GoldenKitchenSinkConnectionOptions").
-	OptionsClassName string
-
-	// ProductOptionsPage is the Doxygen group name for the options page.
-	ProductOptionsPage string
-
-	// ServiceEndpointEnvVar is the environment variable override for the service endpoint.
+// optionsAnnotations contains C++-specific metadata for service options and defaults.
+// Annotations are private to the package to encapsulate implementation details and enforce
+// accessor method usage for derived properties.
+type optionsAnnotations struct {
+	Service               *api.Service
+	ProductPath           string
 	ServiceEndpointEnvVar string
-
-	// EmulatorEndpointEnvVar is the environment variable override for the emulator endpoint.
 	EmulatorEndpointEnvVar string
-
-	// DefaultEndpoint is the default service endpoint host.
-	DefaultEndpoint string
-
-	// DefaultPort is the default port string.
-	DefaultPort string
-
-	// HasEndpointEnvVar indicates whether ServiceEndpointEnvVar is configured.
-	HasEndpointEnvVar bool
-
-	// HasEmulatorEnvVar indicates whether EmulatorEndpointEnvVar is configured.
-	HasEmulatorEnvVar bool
-
-	// EndpointLocationStyle specifies the endpoint location resolution style.
+	DefaultEndpoint       string
+	DefaultPort           string
 	EndpointLocationStyle string
 }
 
+func (o *optionsAnnotations) OptionsClassName() string {
+	if o == nil || o.Service == nil {
+		return ""
+	}
+	return o.Service.Name + "ConnectionOptions"
+}
+
+func (o *optionsAnnotations) ProductOptionsPage() string {
+	if o == nil {
+		return ""
+	}
+	return optionsGroup(o.ProductPath)
+}
+
+func (o *optionsAnnotations) HasEndpointEnvVar() bool {
+	return o != nil && o.ServiceEndpointEnvVar != ""
+}
+
+func (o *optionsAnnotations) HasEmulatorEnvVar() bool {
+	return o != nil && o.EmulatorEndpointEnvVar != ""
+}
+
 // annotateOptions computes C++ options metadata and environment variables for a service.
-func annotateOptions(svc *api.Service, lib *config.Library) *OptionsAnnotations {
+func annotateOptions(svc *api.Service, lib *config.Library) *optionsAnnotations {
 	if svc == nil {
 		return nil
 	}
 
 	productPath := ""
-	serviceEndpointEnvVar := ""
-	emulatorEndpointEnvVar := ""
-	endpointLocationStyle := ""
 	if lib != nil && lib.Cpp != nil {
-		productPath = lib.Cpp.ProductPath
-		serviceEndpointEnvVar = lib.Cpp.ServiceEndpointEnvVar
-		emulatorEndpointEnvVar = lib.Cpp.EmulatorEndpointEnvVar
-		endpointLocationStyle = lib.Cpp.EndpointLocationStyle
+		productPath = formatProductPath(lib.Cpp.ProductPath)
+	}
+
+	endpointEnvVar := ""
+	emulatorEnvVar := ""
+	locationStyle := ""
+	if lib != nil && lib.Cpp != nil {
+		endpointEnvVar = lib.Cpp.ServiceEndpointEnvVar
+		emulatorEnvVar = lib.Cpp.EmulatorEndpointEnvVar
+		locationStyle = lib.Cpp.EndpointLocationStyle
 	}
 
 	defaultEndpoint := svc.DefaultHost
 	defaultPort := "443"
-	if defaultEndpoint != "" {
-		parts := strings.Split(defaultEndpoint, ":")
+	if parts := strings.Split(defaultEndpoint, ":"); len(parts) == 2 {
 		defaultEndpoint = parts[0]
-		if len(parts) > 1 {
-			defaultPort = parts[1]
-		}
+		defaultPort = parts[1]
 	}
 
-	ann := &OptionsAnnotations{
-		OptionsClassName:       svc.Name + "ConnectionOptions",
-		ProductOptionsPage:     optionsGroup(formatProductPath(productPath)),
-		ServiceEndpointEnvVar:  serviceEndpointEnvVar,
-		EmulatorEndpointEnvVar: emulatorEndpointEnvVar,
-		DefaultEndpoint:        defaultEndpoint,
-		DefaultPort:            defaultPort,
-		HasEndpointEnvVar:      serviceEndpointEnvVar != "",
-		HasEmulatorEnvVar:      emulatorEndpointEnvVar != "",
-		EndpointLocationStyle:  endpointLocationStyle,
+	ann := &optionsAnnotations{
+		Service:               svc,
+		ProductPath:           productPath,
+		ServiceEndpointEnvVar: endpointEnvVar,
+		EmulatorEndpointEnvVar: emulatorEnvVar,
+		DefaultEndpoint:       defaultEndpoint,
+		DefaultPort:           defaultPort,
+		EndpointLocationStyle: locationStyle,
 	}
 
 	return ann

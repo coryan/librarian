@@ -33,64 +33,64 @@ func hasRequestIDService(methods []*api.Method) bool {
 	return slices.ContainsFunc(methods, hasRequestID)
 }
 
-func buildStreamingUpdatersList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]string {
+func buildStreamingUpdatersList(ann *serviceAnnotations, methods []*api.Method) []map[string]string {
 	var list []map[string]string
 	for _, m := range methods {
-		if isStreamingRead(m) {
-			mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
+		if mann.IsStreamingRead() {
 			list = append(list, map[string]string{
-				"service_name":  mVars["service_name"],
-				"method_name":   mVars["method_name"],
-				"request_type":  mVars["request_type"],
-				"response_type": mVars["response_type"],
+				"service_name":  ann.ServiceName,
+				"method_name":   mann.MethodName(),
+				"request_type":  mann.RequestType(),
+				"response_type": mann.ResponseType(),
 			})
 		}
 	}
 	return list
 }
 
-func buildConnectionImplMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildConnectionImplMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":                       mVars["method_name"],
-			"request_type":                      mVars["request_type"],
-			"response_type":                     mVars["response_type"],
-			"return_type":                       mVars["return_type"],
-			"range_output_type":                 mVars["range_output_type"],
-			"range_output_field_name":           mVars["range_output_field_name"],
-			"longrunning_operation_type":        mVars["longrunning_operation_type"],
-			"longrunning_deduced_response_type": mVars["longrunning_deduced_response_type"],
-			"longrunning_metadata_type":         mVars["longrunning_metadata_type"],
-			"request_id_field_name":             mVars["request_id_field_name"],
-			"has_request_id":                    hasRequestID(m),
+			"method_name":                       mann.MethodName(),
+			"request_type":                      mann.RequestType(),
+			"response_type":                     mann.ResponseType(),
+			"return_type":                       mann.ReturnType(),
+			"range_output_type":                 mann.RangeOutputType(),
+			"range_output_field_name":           mann.RangeOutputFieldName(),
+			"longrunning_operation_type":        mann.LongrunningOperationType(),
+			"longrunning_deduced_response_type": mann.LongrunningDeducedResponseType(),
+			"longrunning_metadata_type":         mann.LongrunningMetadataType(),
+			"request_id_field_name":             mann.RequestIDFieldName(),
+			"has_request_id":                    mann.HasRequestID(),
 		}
 
-		if isBidiStreaming(m) {
+		if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-		} else if isStreamingRead(m) {
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-		} else if isStreamingWrite(m) {
+		} else if mann.IsStreamingWrite() {
 			continue
-		} else if isPaginated(m) {
+		} else if mann.IsPaginated() {
 			entry["is_paginated"] = true
-		} else if isLongrunning(m) {
+		} else if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
-			returnFragment := "future<StatusOr<" + mVars["longrunning_deduced_response_type"] + ">>"
+			returnFragment := "future<StatusOr<" + mann.LongrunningDeducedResponseType() + ">>"
 			if isResponseTypeEmpty(m) {
 				returnFragment = "future<Status>"
 				entry["is_response_type_empty"] = true
 			}
 
 			requestIdFragment := ""
-			if hasRequestID(m) {
-				requestIdFragment = "\n  if (request_copy." + mVars["request_id_field_name"] + "().empty()) {\n    request_copy.set_" + mVars["request_id_field_name"] + "(invocation_id_generator_->MakeInvocationId());\n  }"
+			if mann.HasRequestID() {
+				requestIdFragment = "\n  if (request_copy." + mann.RequestIDFieldName() + "().empty()) {\n    request_copy.set_" + mann.RequestIDFieldName() + "(invocation_id_generator_->MakeInvocationId());\n  }"
 			}
 
-			extractValueFragment := "    &google::cloud::internal::ExtractLongRunningResultResponse<" + mVars["longrunning_deduced_response_type"] + ">,"
+			extractValueFragment := "    &google::cloud::internal::ExtractLongRunningResultResponse<" + mann.LongrunningDeducedResponseType() + ">,"
 			if isLongrunningMetadataTypeUsedAsResponse(m) {
-				extractValueFragment = "    &google::cloud::internal::ExtractLongRunningResultMetadata<" + mVars["longrunning_deduced_response_type"] + ">,"
+				extractValueFragment = "    &google::cloud::internal::ExtractLongRunningResultMetadata<" + mann.LongrunningDeducedResponseType() + ">,"
 			}
 
 			elideProtobufEmptyFragment := ""
@@ -110,22 +110,22 @@ func buildConnectionImplMethodList(svc *api.Service, methods []*api.Method, serv
 	return list
 }
 
-func buildConnectionImplAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildConnectionImplAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
-		if isStreamingRead(m) || isStreamingWrite(m) {
+		mann := m.Codec.(*methodAnnotations)
+		if mann.IsStreamingRead() || mann.IsStreamingWrite() {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
 		requestIdFragment := ""
-		if hasRequestID(m) {
-			requestIdFragment = "\n  if (request_copy." + mVars["request_id_field_name"] + "().empty()) {\n    request_copy.set_" + mVars["request_id_field_name"] + "(invocation_id_generator_->MakeInvocationId());\n  }"
+		if mann.HasRequestID() {
+			requestIdFragment = "\n  if (request_copy." + mann.RequestIDFieldName() + "().empty()) {\n    request_copy.set_" + mann.RequestIDFieldName() + "(invocation_id_generator_->MakeInvocationId());\n  }"
 		}
 		entry := map[string]any{
-			"method_name":               mVars["method_name"],
-			"request_type":              mVars["request_type"],
-			"response_type":             mVars["response_type"],
-			"return_type":               mVars["return_type"],
+			"method_name":               mann.MethodName(),
+			"request_type":              mann.RequestType(),
+			"response_type":             mann.ResponseType(),
+			"return_type":               mann.ReturnType(),
 			"async_request_id_fragment": requestIdFragment,
 		}
 		list = append(list, entry)
@@ -133,17 +133,17 @@ func buildConnectionImplAsyncMethodList(svc *api.Service, asyncMethods []*api.Me
 	return list
 }
 
-func generateConnectionImplHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["connection_impl_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateConnectionImplHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.ConnectionImplHeaderPath()
+	guard := ann.ConnectionImplHeaderIncludeGuard()
 
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		serviceVars["idempotency_policy_header_path"],
-		serviceVars["options_header_path"],
-		serviceVars["stub_header_path"],
-		serviceVars["connection_header_path"],
-		serviceVars["retry_traits_header_path"],
+		ann.IdempotencyHeaderPath(),
+		ann.OptionsHeaderPath(),
+		ann.StubHeaderPath(),
+		ann.ConnectionHeaderPath(),
+		ann.RetryTraitsHeaderPath(),
 		"google/cloud/background_threads.h",
 		"google/cloud/backoff_policy.h",
 		"google/cloud/options.h",
@@ -171,17 +171,17 @@ func generateConnectionImplHeader(svc *api.Service, serviceVars map[string]strin
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_namespace":          serviceVars["product_namespace"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"connection_class_name":      serviceVars["connection_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_namespace":          ann.Namespace(),
+		"product_internal_namespace": ann.InternalNamespace(),
+		"connection_class_name":      ann.ConnectionClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"streaming_updaters":         buildStreamingUpdatersList(svc, methods, serviceVars, lib, model),
-		"methods":                    buildConnectionImplMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"streaming_updaters":         buildStreamingUpdatersList(ann, methods),
+		"methods":                    buildConnectionImplMethodList(methods),
+		"async_methods":              buildConnectionImplAsyncMethodList(asyncMethods),
 		"has_request_id":             hasRequestIDService(methods),
 	}
 
@@ -193,13 +193,13 @@ func generateConnectionImplHeader(svc *api.Service, serviceVars map[string]strin
 	return filepath.Clean(headerPath), content
 }
 
-func generateConnectionImplCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["connection_impl_cc_path"]
+func generateConnectionImplCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.ConnectionImplCcPath()
 
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		serviceVars["connection_impl_header_path"],
-		serviceVars["option_defaults_header_path"],
+		ann.ConnectionImplHeaderPath(),
+		ann.OptionDefaultsHeaderPath(),
 		"google/cloud/background_threads.h",
 		"google/cloud/common_options.h",
 		"google/cloud/grpc_options.h",
@@ -223,20 +223,20 @@ func generateConnectionImplCc(svc *api.Service, serviceVars map[string]string, m
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_namespace":          serviceVars["product_namespace"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"connection_class_name":      serviceVars["connection_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
-		"service_name":               serviceVars["service_name"],
-		"retry_policy_name":          serviceVars["retry_policy_name"],
-		"idempotency_class_name":     serviceVars["idempotency_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_namespace":          ann.Namespace(),
+		"product_internal_namespace": ann.InternalNamespace(),
+		"connection_class_name":      ann.ConnectionClassName(),
+		"stub_class_name":            ann.StubClassName(),
+		"service_name":               ann.ServiceName,
+		"retry_policy_name":          ann.RetryPolicyName(),
+		"idempotency_class_name":     ann.IdempotencyClassName(),
 		"local_includes":             localIncludes,
 		"has_lro":                    hasLongrunningMethod(methods),
-		"streaming_updaters":         buildStreamingUpdatersList(svc, methods, serviceVars, lib, model),
-		"methods":                    buildConnectionImplMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"streaming_updaters":         buildStreamingUpdatersList(ann, methods),
+		"methods":                    buildConnectionImplMethodList(methods),
+		"async_methods":              buildConnectionImplAsyncMethodList(asyncMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/connection_impl.cc.mustache", data)

@@ -22,13 +22,13 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateOptionsHeader(_ *api.Service, serviceVars map[string]string, methods []*api.Method, _ *config.Library) (string, string) {
-	headerPath := serviceVars["options_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateOptionsHeader(_ *api.Service, ann *serviceAnnotations, methods []*api.Method, _ *config.Library) (string, string) {
+	headerPath := ann.OptionsHeaderPath()
+	guard := ann.OptionsHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["connection_header_path"],
-		serviceVars["idempotency_policy_header_path"],
+		ann.ConnectionHeaderPath(),
+		ann.IdempotencyHeaderPath(),
 		"google/cloud/backoff_policy.h",
 		"google/cloud/options.h",
 		"google/cloud/version.h",
@@ -37,13 +37,13 @@ func generateOptionsHeader(_ *api.Service, serviceVars map[string]string, method
 
 	data := map[string]any{
 		"header_include_guard":   guard,
-		"copyright_year":         serviceVars["copyright_year"],
-		"proto_file_name":        serviceVars["proto_file_name"],
-		"product_namespace":      serviceVars["product_namespace"],
-		"product_options_page":   serviceVars["product_options_page"],
-		"retry_policy_name":      serviceVars["retry_policy_name"],
-		"service_name":           serviceVars["service_name"],
-		"idempotency_class_name": serviceVars["idempotency_class_name"],
+		"copyright_year":         ann.CopyrightYear,
+		"proto_file_name":        ann.ProtoFileName,
+		"product_namespace":      ann.Namespace(),
+		"product_options_page":   ann.OptionsGroupName(),
+		"retry_policy_name":      ann.RetryPolicyName(),
+		"service_name":           ann.ServiceName,
+		"idempotency_class_name": ann.IdempotencyClassName(),
 		"has_lro":                hasLongrunningMethod(methods),
 		"local_includes":         localIncludes,
 	}

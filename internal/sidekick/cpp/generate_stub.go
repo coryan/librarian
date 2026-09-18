@@ -23,13 +23,13 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-type mixinStubInfo struct {
+type mixinStub struct {
 	stubName string
 	stubFQN  string
 	header   string
 }
 
-func getMixinStubs(svc *api.Service, methods []*api.Method) []mixinStubInfo {
+func getMixinStubs(svc *api.Service, methods []*api.Method) []mixinStub {
 	wellKnown := []struct {
 		id       string
 		stubName string
@@ -63,37 +63,52 @@ func getMixinStubs(svc *api.Service, methods []*api.Method) []mixinStubInfo {
 		}
 	}
 
-	var result []mixinStubInfo
+	var result []mixinStub
 	for _, wk := range wellKnown {
 		if seen[wk.id] {
-			result = append(result, mixinStubInfo{
+			result = append(result, mixinStub{
 				stubName: wk.stubName,
 				stubFQN:  wk.stubFQN,
 				header:   wk.header,
 			})
+			delete(seen, wk.id)
+		}
+	}
+
+	for _, m := range methods {
+		if m.SourceService != nil && m.SourceService.ID != svc.ID && seen[m.SourceService.ID] {
+			sourceName := m.SourceService.Name
+			stubName := strings.ToLower(sourceName) + "_stub"
+			header := strings.TrimPrefix(strings.ReplaceAll(m.SourceService.ID, ".", "/"), "/") + ".grpc.pb.h"
+			result = append(result, mixinStub{
+				stubName: stubName,
+				stubFQN:  protoNameToCppName(m.SourceService.ID[1:]),
+				header:   header,
+			})
+			delete(seen, m.SourceService.ID)
 		}
 	}
 	return result
 }
 
-func buildStubMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildStubMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
-			"grpc_stub":     mVars["grpc_stub"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
+			"grpc_stub":     mann.GrpcStub(),
 		}
-		if isStreamingWrite(m) {
+		if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
-		} else if isBidiStreaming(m) {
+		} else if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-		} else if isLongrunning(m) {
+		} else if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
-		} else if isStreamingRead(m) {
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
 		} else if isResponseTypeEmpty(m) {
 			entry["is_response_type_empty"] = true
@@ -107,23 +122,23 @@ func buildStubMethodList(svc *api.Service, methods []*api.Method, serviceVars ma
 	return list
 }
 
-func buildStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildStubAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
-		if isBidiStreaming(m) || isLongrunning(m) {
+		mann := m.Codec.(*methodAnnotations)
+		if mann.IsBidiStreaming() || mann.IsLongrunning() {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
-			"grpc_stub":     mVars["grpc_stub"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
+			"grpc_stub":     mann.GrpcStub(),
 		}
-		if isStreamingRead(m) {
+		if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-		} else if isStreamingWrite(m) {
+		} else if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
 		} else if isResponseTypeEmpty(m) {
 			entry["is_response_type_empty"] = true
@@ -137,9 +152,9 @@ func buildStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serv
 	return list
 }
 
-func generateStubHeader(svc *api.Service, serviceVars map[string]string, methods []*api.Method, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["stub_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateStubHeader(svc *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.StubHeaderPath()
+	guard := ann.StubHeaderIncludeGuard()
 
 	hasAsync := len(asyncMethods) > 0 || hasLongrunningMethod(methods)
 	needsCompletionQueue := hasAsync || hasBidiStreamingMethod(methods)
@@ -174,15 +189,8 @@ func generateStubHeader(svc *api.Service, serviceVars map[string]string, methods
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	if serviceVars["additional_pb_header_paths"] != "" {
-		var additionalPb []string
-		for h := range strings.SplitSeq(serviceVars["additional_pb_header_paths"], ",") {
-			if h != "" {
-				additionalPb = append(additionalPb, h)
-			}
-		}
-		slices.Sort(additionalPb)
-		protoIncludes = append(protoIncludes, additionalPb...)
+	if len(ann.AdditionalPbHeaderPaths) > 0 {
+		protoIncludes = append(protoIncludes, ann.AdditionalPbHeaderPaths...)
 	}
 	allMixins := getMixinStubs(svc, methods)
 	var mixinHeaders []string
@@ -195,8 +203,8 @@ func generateStubHeader(svc *api.Service, serviceVars map[string]string, methods
 	protoIncludes = append(protoIncludes, mixinHeaders...)
 
 	var mainPb []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		mainPb = append(mainPb, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		mainPb = append(mainPb, h)
 	}
 	includeLroHeader := hasLongrunningMethod(methods) && !slices.Contains(mixinHeaders, "google/longrunning/operations.grpc.pb.h")
 	if includeLroHeader {
@@ -220,15 +228,15 @@ func generateStubHeader(svc *api.Service, serviceVars map[string]string, methods
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"stub_class_name":            serviceVars["stub_class_name"],
-		"grpc_stub_fqn":              serviceVars["grpc_stub_fqn"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"stub_class_name":            ann.StubClassName(),
+		"grpc_stub_fqn":              ann.GrpcStubFQN(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildStubMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildStubAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildStubMethodList(methods),
+		"async_methods":              buildStubAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLro,
 		"has_mixins":                 len(filteredMixins) > 0,
 		"mixins":                     filteredMixins,
@@ -242,11 +250,11 @@ func generateStubHeader(svc *api.Service, serviceVars map[string]string, methods
 	return filepath.Clean(headerPath), content
 }
 
-func generateStubCc(svc *api.Service, serviceVars map[string]string, methods []*api.Method, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["stub_cc_path"]
+func generateStubCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.StubCcPath()
 
 	var ccLocalIncludes = []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/grpc_error_delegate.h",
 		"google/cloud/status_or.h",
 	}
@@ -265,22 +273,22 @@ func generateStubCc(svc *api.Service, serviceVars map[string]string, methods []*
 	slices.Sort(ccLocalIncludes)
 
 	var pbIncludes []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		pbIncludes = append(pbIncludes, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		pbIncludes = append(pbIncludes, h)
 	}
 	if hasLongrunningMethod(methods) {
 		pbIncludes = append(pbIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             ccLocalIncludes,
 		"proto_includes":             pbIncludes,
-		"methods":                    buildStubMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildStubAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildStubMethodList(methods),
+		"async_methods":              buildStubAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 

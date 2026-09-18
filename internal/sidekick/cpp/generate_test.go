@@ -21,7 +21,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
+
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
 	"github.com/googleapis/librarian/internal/sources"
@@ -486,20 +488,24 @@ func TestGenerateSourcesCc(t *testing.T) {
 		Name: "test",
 		Cpp: &config.CppLibrary{
 			CppDefault: config.CppDefault{
-				ProductPath: "test/v1",
+				ProductPath:           "test/v1",
+				GenerateRestTransport: true,
 			},
 		},
 	}
-	serviceVars := buildServiceVars(svc, lib, model)
+	ann := annotateService(svc, lib, model)
 
-	outPath, content := generateSourcesCc(serviceVars, true, true, lib)
-	if outPath != "test/v1/internal/test_sources.cc" {
-		t.Errorf("got outPath %q, want test/v1/internal/test_sources.cc", outPath)
+	outPath, content := generateSourcesCc(ann)
+	if diff := cmp.Diff("test/v1/internal/test_sources.cc", outPath); diff != "" {
+		t.Errorf("outPath mismatch (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(content, "#include \"test/v1/test_client.cc\"") {
-		t.Errorf("expected client.cc include in sources.cc, got:\n%s", content)
+	gotClientInc := extractBlock(t, content, "#include \"test/v1/test_client.cc\"", "#include \"test/v1/test_client.cc\"")
+	if diff := cmp.Diff("#include \"test/v1/test_client.cc\"", gotClientInc); diff != "" {
+		t.Errorf("client include mismatch (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(content, "#include \"test/v1/internal/test_rest_stub.cc\"") {
-		t.Errorf("expected rest_stub.cc include in sources.cc, got:\n%s", content)
+	gotRestStubInc := extractBlock(t, content, "#include \"test/v1/internal/test_rest_stub.cc\"", "#include \"test/v1/internal/test_rest_stub.cc\"")
+	if diff := cmp.Diff("#include \"test/v1/internal/test_rest_stub.cc\"", gotRestStubInc); diff != "" {
+		t.Errorf("rest stub include mismatch (-want +got):\n%s", diff)
 	}
 }
+

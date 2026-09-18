@@ -18,9 +18,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
+
 
 func TestHTTPVerb(t *testing.T) {
 	tests := []struct {
@@ -248,13 +250,13 @@ func TestFormatHTTPQueryParameters_ExcludesBodyFieldPath(t *testing.T) {
 	}
 }
 
-func TestServiceVars_PreserveProtoFieldNamesInJson(t *testing.T) {
+func TestAnnotateService_PreserveProtoFieldNamesInJson(t *testing.T) {
 	svc := api.NewTestService("TestService")
 	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
 
-	varsDefault := buildServiceVars(svc, nil, model)
-	if varsDefault["preserve_proto_field_names_in_json"] != "false" {
-		t.Errorf("got %q, want 'false'", varsDefault["preserve_proto_field_names_in_json"])
+	annDefault := annotateService(svc, nil, model)
+	if annDefault.PreserveProtoFieldNamesInJson {
+		t.Errorf("got %v, want false", annDefault.PreserveProtoFieldNamesInJson)
 	}
 
 	libTrue := &config.Library{
@@ -264,9 +266,9 @@ func TestServiceVars_PreserveProtoFieldNamesInJson(t *testing.T) {
 			},
 		},
 	}
-	varsTrue := buildServiceVars(svc, libTrue, model)
-	if varsTrue["preserve_proto_field_names_in_json"] != "true" {
-		t.Errorf("got %q, want 'true'", varsTrue["preserve_proto_field_names_in_json"])
+	annTrue := annotateService(svc, libTrue, model)
+	if !annTrue.PreserveProtoFieldNamesInJson {
+		t.Errorf("got %v, want true", annTrue.PreserveProtoFieldNamesInJson)
 	}
 }
 
@@ -285,28 +287,31 @@ func TestConnectionGenerator_EndpointLocationStyle(t *testing.T) {
 			},
 		},
 	}
-	vars := buildServiceVars(svc, lib, model)
+	ann := annotateService(svc, lib, model)
 
-	_, headerContent := generateConnectionHeader(svc, vars, nil, nil, lib, model)
-	if !strings.Contains(headerContent, "#include <string>") {
-		t.Errorf("expected <string> include in connection header for location-dependent service")
+	_, headerContent := generateConnectionHeader(svc, ann, nil, nil, lib, model)
+	gotInclude := extractBlock(t, headerContent, "#include <string>", "#include <string>")
+	if diff := cmp.Diff("#include <string>", gotInclude); diff != "" {
+		t.Errorf("include mismatch (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(headerContent, "MakeTestServiceConnection(\n    std::string const& location, Options options = {});") {
-		t.Errorf("expected MakeTestServiceConnection with location parameter in header, got: %s", headerContent)
+	gotFactory := extractBlock(t, headerContent, "std::shared_ptr<TestServiceConnection> MakeTestServiceConnection(\n    std::string const& location", ");")
+	wantFactory := "std::shared_ptr<TestServiceConnection> MakeTestServiceConnection(\n    std::string const& location, Options options = {});"
+	if diff := cmp.Diff(wantFactory, gotFactory); diff != "" {
+		t.Errorf("factory declaration mismatch (-want +got):\n%s", diff)
 	}
 	if !strings.Contains(headerContent, "@deprecated Please use the `location` overload instead.") {
 		t.Errorf("expected deprecated doc comment in header for LOCATION_DEPENDENT_COMPAT, got: %s", headerContent)
 	}
 
-	_, ccContent := generateConnectionCc(svc, vars, nil, nil, lib, model)
-	if !strings.Contains(ccContent, "MakeTestServiceConnection(\n    std::string const& location, Options options)") {
-		t.Errorf("expected MakeTestServiceConnection(location, options) in cc, got: %s", ccContent)
+	_, ccContent := generateConnectionCc(svc, ann, nil, nil, lib, model)
+	gotDef := extractBlock(t, ccContent, "MakeTestServiceConnection(\n    std::string const& location, Options options) {", "\n}")
+	if !strings.Contains(gotDef, "TestServiceDefaultOptions(\n      location, std::move(options))") {
+		t.Errorf("expected DefaultOptions with location argument in cc, got: %s", gotDef)
 	}
-	if !strings.Contains(ccContent, "TestServiceDefaultOptions(\n      location, std::move(options))") {
-		t.Errorf("expected DefaultOptions with location argument in cc, got: %s", ccContent)
-	}
-	if !strings.Contains(ccContent, "return MakeTestServiceConnection(std::string{}, std::move(options));") {
-		t.Errorf("expected compatibility overload delegation in cc, got: %s", ccContent)
+	gotCompatOverload := extractBlock(t, ccContent, "MakeTestServiceConnection(\n    Options options) {", "\n}")
+	wantCompatOverload := "MakeTestServiceConnection(\n    Options options) {\n  return MakeTestServiceConnection(std::string{}, std::move(options));\n}"
+	if diff := cmp.Diff(wantCompatOverload, gotCompatOverload); diff != "" {
+		t.Errorf("compatibility overload mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -326,8 +331,8 @@ func TestRestConnectionGenerator_EndpointLocationStyleDocs(t *testing.T) {
 			},
 		},
 	}
-	varsCompat := buildServiceVars(svc, libCompat, model)
-	_, headerCompat := generateRestConnectionHeader(varsCompat, libCompat)
+	annCompat := annotateService(svc, libCompat, model)
+	_, headerCompat := generateRestConnectionHeader(annCompat)
 	if !strings.Contains(headerCompat, "@deprecated Please use the `location` overload instead.") {
 		t.Errorf("expected deprecated doc comment in REST header for LOCATION_DEPENDENT_COMPAT, got: %s", headerCompat)
 	}
@@ -341,9 +346,10 @@ func TestRestConnectionGenerator_EndpointLocationStyleDocs(t *testing.T) {
 			},
 		},
 	}
-	varsOpt := buildServiceVars(svc, libOpt, model)
-	_, headerOpt := generateRestConnectionHeader(varsOpt, libOpt)
+	annOpt := annotateService(svc, libOpt, model)
+	_, headerOpt := generateRestConnectionHeader(annOpt)
 	if !strings.Contains(headerOpt, "creating a connection to the global service endpoint.") {
 		t.Errorf("expected global endpoint doc comment in REST header for LOCATION_OPTIONALLY_DEPENDENT, got: %s", headerOpt)
 	}
 }
+

@@ -22,12 +22,12 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateStubFactoryHeader(_ *api.Service, serviceVars map[string]string, _ *config.Library) (string, string) {
-	headerPath := serviceVars["stub_factory_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateStubFactoryHeader(_ *api.Service, ann *serviceAnnotations, _ *config.Library) (string, string) {
+	headerPath := ann.StubFactoryHeaderPath()
+	guard := ann.StubFactoryHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/internal/unified_grpc_credentials.h",
 		"google/cloud/options.h",
 		"google/cloud/version.h",
@@ -36,10 +36,10 @@ func generateStubFactoryHeader(_ *api.Service, serviceVars map[string]string, _ 
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 	}
 
@@ -51,16 +51,16 @@ func generateStubFactoryHeader(_ *api.Service, serviceVars map[string]string, _ 
 	return filepath.Clean(headerPath), content
 }
 
-func generateStubFactoryCc(svc *api.Service, serviceVars map[string]string, methods []*api.Method, _ *config.Library) (string, string) {
-	ccPath := serviceVars["stub_factory_cc_path"]
+func generateStubFactoryCc(svc *api.Service, ann *serviceAnnotations, methods []*api.Method, _ *config.Library) (string, string) {
+	ccPath := ann.StubFactoryCcPath()
 
 	localIncludes := []string{
-		serviceVars["stub_factory_header_path"],
-		serviceVars["auth_header_path"],
-		serviceVars["logging_header_path"],
-		serviceVars["metadata_header_path"],
-		serviceVars["stub_header_path"],
-		serviceVars["tracing_stub_header_path"],
+		ann.StubFactoryHeaderPath(),
+		ann.AuthHeaderPath(),
+		ann.LoggingHeaderPath(),
+		ann.MetadataHeaderPath(),
+		ann.StubHeaderPath(),
+		ann.TracingStubHeaderPath(),
 		"google/cloud/common_options.h",
 		"google/cloud/grpc_options.h",
 		"google/cloud/internal/algorithm.h",
@@ -73,8 +73,8 @@ func generateStubFactoryCc(svc *api.Service, serviceVars map[string]string, meth
 	}
 
 	var pbIncludes []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		pbIncludes = append(pbIncludes, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		pbIncludes = append(pbIncludes, h)
 	}
 	allMixins := getMixinStubs(svc, methods)
 	for _, mixin := range allMixins {
@@ -85,7 +85,7 @@ func generateStubFactoryCc(svc *api.Service, serviceVars map[string]string, meth
 	slices.Sort(pbIncludes)
 
 	hasLro := hasLongrunningMethod(methods)
-	var filteredMixins []mixinStubInfo
+	var filteredMixins []mixinStub
 	for _, mixin := range allMixins {
 		if hasLro && mixin.stubName == "operations_stub" {
 			continue
@@ -104,15 +104,15 @@ func generateStubFactoryCc(svc *api.Service, serviceVars map[string]string, meth
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"stub_class_name":            serviceVars["stub_class_name"],
-		"grpc_stub_fqn":              serviceVars["grpc_stub_fqn"],
-		"auth_class_name":            serviceVars["auth_class_name"],
-		"metadata_class_name":        serviceVars["metadata_class_name"],
-		"logging_class_name":         serviceVars["logging_class_name"],
-		"tracing_stub_class_name":    serviceVars["tracing_stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"stub_class_name":            ann.StubClassName(),
+		"grpc_stub_fqn":              ann.GrpcStubFQN(),
+		"auth_class_name":            ann.AuthClassName(),
+		"metadata_class_name":        ann.MetadataClassName(),
+		"logging_class_name":         ann.LoggingClassName(),
+		"tracing_stub_class_name":    ann.TracingStubClassName(),
 		"has_lro":                    hasLro,
 		"local_includes":             localIncludes,
 		"proto_includes":             pbIncludes,

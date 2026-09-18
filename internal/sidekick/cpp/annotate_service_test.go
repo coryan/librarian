@@ -17,6 +17,7 @@ package cpp
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
@@ -43,40 +44,40 @@ func TestAnnotateService_NamespacesAndClassNames(t *testing.T) {
 
 	ann := annotateService(svc, lib, model)
 
-	if ann.ServiceName != "GoldenThingAdmin" {
-		t.Errorf("got ServiceName %q, want 'GoldenThingAdmin'", ann.ServiceName)
+	if diff := cmp.Diff("GoldenThingAdmin", ann.ServiceName); diff != "" {
+		t.Errorf("ServiceName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.Namespace != "golden_v1" {
-		t.Errorf("got Namespace %q, want 'golden_v1'", ann.Namespace)
+	if diff := cmp.Diff("golden_v1", ann.Namespace()); diff != "" {
+		t.Errorf("Namespace mismatch (-want +got):\n%s", diff)
 	}
-	if ann.InternalNamespace != "golden_v1_internal" {
-		t.Errorf("got InternalNamespace %q, want 'golden_v1_internal'", ann.InternalNamespace)
+	if diff := cmp.Diff("golden_v1_internal", ann.InternalNamespace()); diff != "" {
+		t.Errorf("InternalNamespace mismatch (-want +got):\n%s", diff)
 	}
-	if ann.MocksNamespace != "golden_v1_mocks" {
-		t.Errorf("got MocksNamespace %q, want 'golden_v1_mocks'", ann.MocksNamespace)
+	if diff := cmp.Diff("golden_v1_mocks", ann.MocksNamespace()); diff != "" {
+		t.Errorf("MocksNamespace mismatch (-want +got):\n%s", diff)
 	}
 
 	// Class names
-	if ann.ClientClassName != "GoldenThingAdminClient" {
-		t.Errorf("got ClientClassName %q, want 'GoldenThingAdminClient'", ann.ClientClassName)
+	if diff := cmp.Diff("GoldenThingAdminClient", ann.ClientClassName()); diff != "" {
+		t.Errorf("ClientClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConnectionClassName != "GoldenThingAdminConnection" {
-		t.Errorf("got ConnectionClassName %q, want 'GoldenThingAdminConnection'", ann.ConnectionClassName)
+	if diff := cmp.Diff("GoldenThingAdminConnection", ann.ConnectionClassName()); diff != "" {
+		t.Errorf("ConnectionClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConnectionImplClassName != "GoldenThingAdminConnectionImpl" {
-		t.Errorf("got ConnectionImplClassName %q, want 'GoldenThingAdminConnectionImpl'", ann.ConnectionImplClassName)
+	if diff := cmp.Diff("GoldenThingAdminConnectionImpl", ann.ConnectionImplClassName()); diff != "" {
+		t.Errorf("ConnectionImplClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.MockConnectionClassName != "MockGoldenThingAdminConnection" {
-		t.Errorf("got MockConnectionClassName %q, want 'MockGoldenThingAdminConnection'", ann.MockConnectionClassName)
+	if diff := cmp.Diff("MockGoldenThingAdminConnection", ann.MockConnectionClassName()); diff != "" {
+		t.Errorf("MockConnectionClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.StubClassName != "GoldenThingAdminStub" {
-		t.Errorf("got StubClassName %q, want 'GoldenThingAdminStub'", ann.StubClassName)
+	if diff := cmp.Diff("GoldenThingAdminStub", ann.StubClassName()); diff != "" {
+		t.Errorf("StubClassName mismatch (-want +got):\n%s", diff)
 	}
 
 	// Include guard
 	expectedGuard := "GOOGLE_CLOUD_CPP_GENERATOR_INTEGRATION_TESTS_GOLDEN_V1_GOLDEN_THING_ADMIN_CLIENT_H"
-	if ann.ClientHeaderIncludeGuard != expectedGuard {
-		t.Errorf("got ClientHeaderIncludeGuard %q, want %q", ann.ClientHeaderIncludeGuard, expectedGuard)
+	if diff := cmp.Diff(expectedGuard, ann.ClientHeaderIncludeGuard()); diff != "" {
+		t.Errorf("ClientHeaderIncludeGuard mismatch (-want +got):\n%s", diff)
 	}
 
 	// Decorators
@@ -93,8 +94,8 @@ func TestAnnotateService_NamespacesAndClassNames(t *testing.T) {
 	if ann.Comments == nil || ann.Comments.ClassComment == "" {
 		t.Errorf("expected ann.Comments.ClassComment to be populated")
 	}
-	if ann.Options == nil || ann.Options.OptionsClassName == "" {
-		t.Errorf("expected ann.Options.OptionsClassName to be populated")
+	if ann.Options == nil || ann.Options.OptionsClassName() == "" {
+		t.Errorf("expected ann.Options.OptionsClassName() to be populated")
 	}
 }
 
@@ -175,25 +176,25 @@ func TestAnnotateService_Rest(t *testing.T) {
 	}
 
 	ann := annotateService(svc, lib, model)
-	if ann.StubRestClassName != "FooBarRestStub" {
-		t.Errorf("got StubRestClassName %q, want 'FooBarRestStub'", ann.StubRestClassName)
+	if diff := cmp.Diff("FooBarRestStub", ann.StubRestClassName()); diff != "" {
+		t.Errorf("StubRestClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConnectionImplRestClassName != "FooBarRestConnectionImpl" {
-		t.Errorf("got ConnectionImplRestClassName %q, want 'FooBarRestConnectionImpl'", ann.ConnectionImplRestClassName)
+	if diff := cmp.Diff("FooBarRestConnectionImpl", ann.ConnectionImplRestClassName()); diff != "" {
+		t.Errorf("ConnectionImplRestClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.LoggingRestClassName != "FooBarRestLogging" {
-		t.Errorf("got LoggingRestClassName %q, want 'FooBarRestLogging'", ann.LoggingRestClassName)
+	if diff := cmp.Diff("FooBarRestLogging", ann.LoggingRestClassName()); diff != "" {
+		t.Errorf("LoggingRestClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.MetadataRestClassName != "FooBarRestMetadata" {
-		t.Errorf("got MetadataRestClassName %q, want 'FooBarRestMetadata'", ann.MetadataRestClassName)
+	if diff := cmp.Diff("FooBarRestMetadata", ann.MetadataRestClassName()); diff != "" {
+		t.Errorf("MetadataRestClassName mismatch (-want +got):\n%s", diff)
 	}
 	if !ann.PreserveProtoFieldNamesInJson {
 		t.Errorf("expected PreserveProtoFieldNamesInJson=true")
 	}
-	if ann.ConnectionRestHeaderPath != "test/v1/foo_bar_rest_connection.h" {
-		t.Errorf("got ConnectionRestHeaderPath %q, want 'test/v1/foo_bar_rest_connection.h'", ann.ConnectionRestHeaderPath)
+	if diff := cmp.Diff("test/v1/foo_bar_rest_connection.h", ann.ConnectionRestHeaderPath()); diff != "" {
+		t.Errorf("ConnectionRestHeaderPath mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConnectionRestHeaderIncludeGuard != "GOOGLE_CLOUD_CPP_TEST_V1_FOO_BAR_REST_CONNECTION_H" {
-		t.Errorf("got ConnectionRestHeaderIncludeGuard %q, want 'GOOGLE_CLOUD_CPP_TEST_V1_FOO_BAR_REST_CONNECTION_H'", ann.ConnectionRestHeaderIncludeGuard)
+	if diff := cmp.Diff("GOOGLE_CLOUD_CPP_TEST_V1_FOO_BAR_REST_CONNECTION_H", ann.ConnectionRestHeaderIncludeGuard()); diff != "" {
+		t.Errorf("ConnectionRestHeaderIncludeGuard mismatch (-want +got):\n%s", diff)
 	}
 }

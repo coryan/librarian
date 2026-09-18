@@ -25,7 +25,7 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func hasExplicitRoutingMethod(methods []*api.Method) bool {
+func hasRoutingParameters(methods []*api.Method) bool {
 	for _, m := range methods {
 		if len(m.Routing) > 0 {
 			return true
@@ -104,7 +104,7 @@ func formatRoutingFieldAccessor(fieldPath []string) string {
 	return strings.Join(fieldPath, "().")
 }
 
-func setMetadataText(m *api.Method, isPointer bool, optionsStr string, requestType string, mVars map[string]string) string {
+func setMetadataText(m *api.Method, mann *methodAnnotations, isPointer bool, optionsStr string) string {
 	context := "context"
 	if isPointer {
 		context = "*context"
@@ -112,7 +112,7 @@ func setMetadataText(m *api.Method, isPointer bool, optionsStr string, requestTy
 
 	orderedRouting := getOrderedRouting(m)
 	if len(orderedRouting) == 0 {
-		if params, ok := mVars["method_request_params"]; ok && params != "" {
+		if params := mann.MethodRequestParams(); params != "" {
 			return fmt.Sprintf("  SetMetadata(%s, %s, absl::StrCat(%s));", context, optionsStr, params)
 		}
 		return fmt.Sprintf("  SetMetadata(%s, %s);", context, optionsStr)
@@ -122,6 +122,7 @@ func setMetadataText(m *api.Method, isPointer bool, optionsStr string, requestTy
 	sb.WriteString("  std::vector<std::string> params;\n")
 	sb.WriteString("  params.reserve(" + strconv.Itoa(len(orderedRouting)) + ");\n\n")
 
+	requestType := mann.RequestType()
 	for _, r := range orderedRouting {
 		allMatchAll := true
 		for _, v := range r.Variants {
@@ -173,72 +174,72 @@ func setMetadataText(m *api.Method, isPointer bool, optionsStr string, requestTy
 	return sb.String()
 }
 
-func buildMetadataDecoratorMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildMetadataDecoratorMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
-		if isStreamingWrite(m) {
+		if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "options", mVars["request_type"], mVars)
-		} else if isBidiStreaming(m) {
+			entry["set_metadata"] = setMetadataText(m, mann, true, "options")
+		} else if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "*options", mVars["request_type"], mVars)
-		} else if isLongrunning(m) {
+			entry["set_metadata"] = setMetadataText(m, mann, true, "*options")
+		} else if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
-			entry["async_set_metadata"] = setMetadataText(m, true, "*options", mVars["request_type"], mVars)
-			entry["sync_set_metadata"] = setMetadataText(m, false, "options", mVars["request_type"], mVars)
-		} else if isStreamingRead(m) {
+			entry["async_set_metadata"] = setMetadataText(m, mann, true, "*options")
+			entry["sync_set_metadata"] = setMetadataText(m, mann, false, "options")
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "options", mVars["request_type"], mVars)
+			entry["set_metadata"] = setMetadataText(m, mann, true, "options")
 		} else {
 			entry["is_plain_unary"] = true
-			entry["set_metadata"] = setMetadataText(m, false, "options", mVars["request_type"], mVars)
+			entry["set_metadata"] = setMetadataText(m, mann, false, "options")
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func buildMetadataDecoratorAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildMetadataDecoratorAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
 		if isBidiStreaming(m) || isLongrunning(m) {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
-		if isStreamingRead(m) {
+		if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "*options", mVars["request_type"], mVars)
-		} else if isStreamingWrite(m) {
+			entry["set_metadata"] = setMetadataText(m, mann, true, "*options")
+		} else if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "*options", mVars["request_type"], mVars)
+			entry["set_metadata"] = setMetadataText(m, mann, true, "*options")
 		} else {
 			entry["is_unary"] = true
-			entry["set_metadata"] = setMetadataText(m, true, "*options", mVars["request_type"], mVars)
+			entry["set_metadata"] = setMetadataText(m, mann, true, "*options")
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func generateMetadataDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["metadata_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateMetadataDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.MetadataHeaderPath()
+	guard := ann.MetadataHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/options.h",
 		"google/cloud/version.h",
 	}
@@ -251,15 +252,15 @@ func generateMetadataDecoratorHeader(svc *api.Service, serviceVars map[string]st
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"metadata_class_name":        serviceVars["metadata_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"metadata_class_name":        ann.MetadataClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildMetadataDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildMetadataDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildMetadataDecoratorMethodList(methods),
+		"async_methods":              buildMetadataDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -271,48 +272,44 @@ func generateMetadataDecoratorHeader(svc *api.Service, serviceVars map[string]st
 	return filepath.Clean(headerPath), content
 }
 
-func generateMetadataDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["metadata_cc_path"]
+func generateMetadataDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.MetadataCcPath()
 
 	localIncludes := []string{
-		serviceVars["metadata_header_path"],
-		"google/cloud/internal/absl_str_cat_quiet.h",
-	}
-	if hasExplicitRoutingMethod(methods) {
-		localIncludes = append(localIncludes, "google/cloud/internal/absl_str_join_quiet.h")
-	}
-	localIncludes = append(localIncludes,
-		"google/cloud/internal/api_client_header.h",
+		ann.MetadataHeaderPath(),
 		"google/cloud/grpc_options.h",
-	)
-	if hasExplicitRoutingMethod(methods) {
-		localIncludes = append(localIncludes, "google/cloud/internal/routing_matcher.h")
-	}
-	localIncludes = append(localIncludes,
-		"google/cloud/status_or.h",
+		"google/cloud/internal/absl_str_cat_quiet.h",
+		"google/cloud/internal/api_client_header.h",
 		"google/cloud/internal/url_encode.h",
-	)
+		"google/cloud/status_or.h",
+	}
+	if hasRoutingParameters(methods) {
+		localIncludes = append(localIncludes,
+			"google/cloud/internal/absl_str_join_quiet.h",
+			"google/cloud/internal/routing_matcher.h",
+		)
+	}
 	if len(localIncludes) > 1 {
 		slices.Sort(localIncludes[1:])
 	}
 
 	var pbIncludes []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		pbIncludes = append(pbIncludes, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		pbIncludes = append(pbIncludes, h)
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"metadata_class_name":        serviceVars["metadata_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"metadata_class_name":        ann.MetadataClassName(),
+		"stub_class_name":            ann.StubClassName(),
+		"api_version":                ann.APIVersion,
 		"local_includes":             localIncludes,
 		"proto_includes":             pbIncludes,
-		"methods":                    buildMetadataDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildMetadataDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildMetadataDecoratorMethodList(methods),
+		"async_methods":              buildMetadataDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
-		"api_version":                serviceVars["api_version"],
 	}
 
 	content, err := renderTemplate("templates/internal/metadata_decorator.cc.mustache", data)

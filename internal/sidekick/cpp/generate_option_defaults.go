@@ -22,24 +22,21 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateOptionDefaultsHeader(_ *api.Service, serviceVars map[string]string, lib *config.Library) (string, string) {
-	headerPath := serviceVars["option_defaults_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateOptionDefaultsHeader(_ *api.Service, ann *serviceAnnotations, _ *config.Library) (string, string) {
+	headerPath := ann.OptionDefaultsHeaderPath()
+	guard := ann.OptionDefaultsHeaderIncludeGuard()
 
-	locationStyle := ""
-	if lib != nil && lib.Cpp != nil {
-		locationStyle = lib.Cpp.EndpointLocationStyle
-	}
+	locationStyle := ann.EndpointLocationStyle
 	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
 		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
 		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"service_name":               serviceVars["service_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"service_name":               ann.ServiceName,
 		"is_location_dependent":      isLocationDependent,
 	}
 
@@ -51,25 +48,22 @@ func generateOptionDefaultsHeader(_ *api.Service, serviceVars map[string]string,
 	return filepath.Clean(headerPath), content
 }
 
-func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library) (string, string) {
-	ccPath := serviceVars["option_defaults_cc_path"]
+func generateOptionDefaultsCc(_ *api.Service, ann *serviceAnnotations, methods []*api.Method, _ *config.Library) (string, string) {
+	ccPath := ann.OptionDefaultsCcPath()
 
-	locationStyle := ""
-	if lib != nil && lib.Cpp != nil {
-		locationStyle = lib.Cpp.EndpointLocationStyle
-	}
+	locationStyle := ann.EndpointLocationStyle
 	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
 		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
 		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
 
 	includes := []string{
-		serviceVars["connection_header_path"],
-		serviceVars["options_header_path"],
+		ann.ConnectionHeaderPath(),
+		ann.OptionsHeaderPath(),
 		"google/cloud/internal/populate_common_options.h",
 		"google/cloud/internal/populate_grpc_options.h",
 	}
 	slices.Sort(includes)
-	localIncludes := append([]string{serviceVars["option_defaults_header_path"]}, includes...)
+	localIncludes := append([]string{ann.OptionDefaultsHeaderPath()}, includes...)
 	if isLocationDependent {
 		localIncludes = append(localIncludes, "google/cloud/internal/absl_str_cat_quiet.h")
 	}
@@ -77,29 +71,29 @@ func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, met
 	var endpointExpr string
 	switch locationStyle {
 	case "LOCATION_DEPENDENT":
-		endpointExpr = `absl::StrCat(location, "-", "` + serviceVars["service_endpoint"] + `")`
+		endpointExpr = `absl::StrCat(location, "-", "` + ann.ServiceEndpoint + `")`
 	case "LOCATION_DEPENDENT_COMPAT":
-		endpointExpr = `absl::StrCat(location, location.empty() ? "" : "-", "` + serviceVars["service_endpoint"] + `")`
+		endpointExpr = `absl::StrCat(location, location.empty() ? "" : "-", "` + ann.ServiceEndpoint + `")`
 	case "LOCATION_OPTIONALLY_DEPENDENT":
 		endpointExpr = `// optional location tag for generating docs
-      absl::StrCat(location, location.empty() ? "" : "-", "` + serviceVars["service_endpoint"] + `")`
+      absl::StrCat(location, location.empty() ? "" : "-", "` + ann.ServiceEndpoint + `")`
 	default:
-		endpointExpr = `"` + serviceVars["service_endpoint"] + `"`
+		endpointExpr = `"` + ann.ServiceEndpoint + `"`
 	}
 
 	data := map[string]any{
-		"copyright_year":                 serviceVars["copyright_year"],
-		"proto_file_name":                serviceVars["proto_file_name"],
-		"product_internal_namespace":     serviceVars["product_internal_namespace"],
-		"product_namespace":              serviceVars["product_namespace"],
-		"service_name":                   serviceVars["service_name"],
-		"service_endpoint_env_var":       serviceVars["service_endpoint_env_var"],
-		"emulator_endpoint_env_var":      serviceVars["emulator_endpoint_env_var"],
-		"service_authority_env_var":      serviceVars["service_authority_env_var"],
+		"copyright_year":                 ann.CopyrightYear,
+		"proto_file_name":                ann.ProtoFileName,
+		"product_internal_namespace":     ann.InternalNamespace(),
+		"product_namespace":              ann.Namespace(),
+		"service_name":                   ann.ServiceName,
+		"service_endpoint_env_var":       ann.ServiceEndpointEnvVar,
+		"emulator_endpoint_env_var":      ann.EmulatorEndpointEnvVar,
+		"service_authority_env_var":      ann.ServiceAuthorityEnvVar,
 		"endpoint_expression":            endpointExpr,
-		"retry_policy_name":              serviceVars["retry_policy_name"],
-		"limited_time_retry_policy_name": serviceVars["limited_time_retry_policy_name"],
-		"idempotency_class_name":         serviceVars["idempotency_class_name"],
+		"retry_policy_name":              ann.RetryPolicyName(),
+		"limited_time_retry_policy_name": ann.LimitedTimeRetryPolicyName(),
+		"idempotency_class_name":         ann.IdempotencyClassName(),
 		"is_location_dependent":          isLocationDependent,
 		"has_lro":                        hasLongrunningMethod(methods),
 		"local_includes":                 localIncludes,

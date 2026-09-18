@@ -17,11 +17,12 @@ package cpp
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
 func TestAnnotateField_Scalars(t *testing.T) {
-	tests := []struct {
+	for _, test := range []struct {
 		name         string
 		typez        api.Typez
 		wantCppType  string
@@ -36,17 +37,15 @@ func TestAnnotateField_Scalars(t *testing.T) {
 		{"bool_field", api.TypezBool, "bool", "bool"},
 		{"string_field", api.TypezString, "std::string", "std::string const&"},
 		{"bytes_field", api.TypezBytes, "std::string", "std::string const&"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			field := api.NewTestField(tc.name).WithType(tc.typez)
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			field := api.NewTestField(test.name).WithType(test.typez)
 			ann := annotateField(field)
-			if ann.CppType != tc.wantCppType {
-				t.Errorf("got CppType %q, want %q", ann.CppType, tc.wantCppType)
+			if diff := cmp.Diff(test.wantCppType, ann.CppType()); diff != "" {
+				t.Errorf("CppType mismatch (-want +got):\n%s", diff)
 			}
-			if ann.ConstRefType != tc.wantConstRef {
-				t.Errorf("got ConstRefType %q, want %q", ann.ConstRefType, tc.wantConstRef)
+			if diff := cmp.Diff(test.wantConstRef, ann.ConstRefType()); diff != "" {
+				t.Errorf("ConstRefType mismatch (-want +got):\n%s", diff)
 			}
 			if field.Codec != ann {
 				t.Errorf("field.Codec not set to annotations")
@@ -58,14 +57,14 @@ func TestAnnotateField_Scalars(t *testing.T) {
 func TestAnnotateField_Repeated(t *testing.T) {
 	strField := api.NewTestField("names").WithType(api.TypezString).WithRepeated()
 	ann := annotateField(strField)
-	if !ann.IsRepeated {
-		t.Errorf("expected IsRepeated=true")
+	if !ann.IsRepeated() {
+		t.Errorf("expected IsRepeated()=true")
 	}
-	if ann.CppType != "std::vector<std::string>" {
-		t.Errorf("got CppType %q, want std::vector<std::string>", ann.CppType)
+	if diff := cmp.Diff("std::vector<std::string>", ann.CppType()); diff != "" {
+		t.Errorf("CppType mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConstRefType != "std::vector<std::string> const&" {
-		t.Errorf("got ConstRefType %q, want std::vector<std::string> const&", ann.ConstRefType)
+	if diff := cmp.Diff("std::vector<std::string> const&", ann.ConstRefType()); diff != "" {
+		t.Errorf("ConstRefType mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -78,17 +77,21 @@ func TestAnnotateField_Map(t *testing.T) {
 	mapField.MessageType = mapEntryMsg
 
 	ann := annotateField(mapField)
-	if !ann.IsMap {
-		t.Errorf("expected IsMap=true")
+	if !ann.IsMap() {
+		t.Errorf("expected IsMap()=true")
 	}
-	if ann.KeyType != "std::string" || ann.ValueType != "std::string" {
-		t.Errorf("got KeyType=%q, ValueType=%q; want std::string", ann.KeyType, ann.ValueType)
+	if diff := cmp.Diff("std::string", ann.KeyType); diff != "" {
+		t.Errorf("KeyType mismatch (-want +got):\n%s", diff)
 	}
-	if ann.CppType != "std::map<std::string, std::string>" {
-		t.Errorf("got CppType %q, want std::map<std::string, std::string>", ann.CppType)
+	if diff := cmp.Diff("std::string", ann.ValueType); diff != "" {
+		t.Errorf("ValueType mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConstRefType != "std::map<std::string, std::string> const&" {
-		t.Errorf("got ConstRefType %q, want std::map<std::string, std::string> const&", ann.ConstRefType)
+
+	if diff := cmp.Diff("std::map<std::string, std::string>", ann.CppType()); diff != "" {
+		t.Errorf("CppType mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff("std::map<std::string, std::string> const&", ann.ConstRefType()); diff != "" {
+		t.Errorf("ConstRefType mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -98,13 +101,13 @@ func TestAnnotateField_Message(t *testing.T) {
 	field.TypezID = msg.ID
 
 	ann := annotateField(field)
-	if !ann.IsMessage {
-		t.Errorf("expected IsMessage=true")
+	if !ann.IsMessage() {
+		t.Errorf("expected IsMessage()=true")
 	}
-	if ann.CppType != "google::test::v1::Resource" {
-		t.Errorf("got CppType %q, want google::test::v1::Resource", ann.CppType)
+	if diff := cmp.Diff("google::test::v1::Resource", ann.CppType()); diff != "" {
+		t.Errorf("CppType mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ConstRefType != "google::test::v1::Resource const&" {
-		t.Errorf("got ConstRefType %q, want google::test::v1::Resource const&", ann.ConstRefType)
+	if diff := cmp.Diff("google::test::v1::Resource const&", ann.ConstRefType()); diff != "" {
+		t.Errorf("ConstRefType mismatch (-want +got):\n%s", diff)
 	}
 }

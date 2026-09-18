@@ -22,23 +22,23 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildDecoratorMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildDecoratorMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
-		if isStreamingWrite(m) {
+		if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
-		} else if isBidiStreaming(m) {
+		} else if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-		} else if isLongrunning(m) {
+		} else if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
-		} else if isStreamingRead(m) {
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
 		} else {
 			entry["is_plain_unary"] = true
@@ -48,22 +48,22 @@ func buildDecoratorMethodList(svc *api.Service, methods []*api.Method, serviceVa
 	return list
 }
 
-func buildDecoratorAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildDecoratorAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
-		if isBidiStreaming(m) || isLongrunning(m) {
+		mann := m.Codec.(*methodAnnotations)
+		if mann.IsBidiStreaming() || mann.IsLongrunning() {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
-		if isStreamingRead(m) {
+		if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-		} else if isStreamingWrite(m) {
+		} else if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
 		} else {
 			entry["is_unary"] = true
@@ -78,12 +78,12 @@ func buildDecoratorAsyncMethodList(svc *api.Service, asyncMethods []*api.Method,
 	return list
 }
 
-func generateAuthDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["auth_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateAuthDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.AuthHeaderPath()
+	guard := ann.AuthHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/internal/unified_grpc_credentials.h",
 		"google/cloud/version.h",
 	}
@@ -96,15 +96,15 @@ func generateAuthDecoratorHeader(svc *api.Service, serviceVars map[string]string
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"auth_class_name":            serviceVars["auth_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"auth_class_name":            ann.AuthClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -116,10 +116,10 @@ func generateAuthDecoratorHeader(svc *api.Service, serviceVars map[string]string
 	return filepath.Clean(headerPath), content
 }
 
-func generateAuthDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["auth_cc_path"]
+func generateAuthDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.AuthCcPath()
 
-	localIncludes := []string{serviceVars["auth_header_path"]}
+	localIncludes := []string{ann.AuthHeaderPath()}
 	if hasBidiStreamingMethod(methods) {
 		localIncludes = append(localIncludes, "google/cloud/internal/async_read_write_stream_auth.h")
 	}
@@ -137,20 +137,20 @@ func generateAuthDecoratorCc(svc *api.Service, serviceVars map[string]string, me
 	}
 
 	var pbIncludes []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		pbIncludes = append(pbIncludes, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		pbIncludes = append(pbIncludes, h)
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"auth_class_name":            serviceVars["auth_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"auth_class_name":            ann.AuthClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             pbIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 

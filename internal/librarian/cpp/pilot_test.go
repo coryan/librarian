@@ -1,3 +1,5 @@
+//go:build integration
+
 // Copyright 2026 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cpp
+package cpp_test
 
 import (
 	"os"
@@ -23,53 +25,67 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
-	"github.com/googleapis/librarian/internal/sources"
+	"github.com/googleapis/librarian/internal/librarian"
+	"github.com/googleapis/librarian/internal/librarian/cpp"
+	"github.com/googleapis/librarian/internal/yaml"
 )
+
+func findProductionRoot() string {
+	if dir := os.Getenv("GOOGLE_CLOUD_CPP_DIR"); dir != "" {
+		if _, err := os.Stat(dir); err == nil {
+			return dir
+		}
+	}
+	candidates := []string{
+		"../../../../../google-cloud-cpp/main",
+		"../../../../../google-cloud-cpp",
+		"../../../../google-cloud-cpp/main",
+		"../../../../google-cloud-cpp",
+		"../../../google-cloud-cpp/main",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(filepath.Join(c, "google/cloud/secretmanager")); err == nil {
+			abs, err := filepath.Abs(c)
+			if err == nil {
+				return abs
+			}
+			return c
+		}
+	}
+	return ""
+}
 
 func TestPilotSecretManagerParity(t *testing.T) {
 	if _, err := exec.LookPath("protoc"); err != nil {
 		t.Skip("skipping test because protoc is not installed")
 	}
 
-	googleapisCache := "/usr/local/google/home/coryan/.cache/librarian/github.com/googleapis/googleapis@0db4dc67dd805d20294c6dc34068c37f546d71da"
-	if _, err := os.Stat(googleapisCache); err != nil {
-		t.Skipf("skipping test because googleapis cache not found: %v", err)
+	productionRoot := findProductionRoot()
+	if productionRoot == "" {
+		t.Skip("skipping test because production google-cloud-cpp not found")
 	}
 
-	productionRoot := "/usr/local/google/home/coryan/google-cloud-cpp/main"
-	if _, err := os.Stat(productionRoot); err != nil {
-		t.Skipf("skipping test because production google-cloud-cpp not found: %v", err)
+	cfg, err := yaml.Read[config.Config]("testdata/librarian.yaml")
+	if err != nil {
+		t.Fatalf("failed to read testdata/librarian.yaml: %v", err)
+	}
+
+	src, err := librarian.LoadSources(t.Context(), cfg.Sources)
+	if err != nil {
+		t.Fatalf("failed to load sources: %v", err)
+	}
+
+	if len(cfg.Libraries) == 0 {
+		t.Fatal("expected at least one library in testdata/librarian.yaml")
 	}
 
 	tempDir := t.TempDir()
 	outDir := filepath.Join(tempDir, "google/cloud/secretmanager")
 
-	lib := &config.Library{
-		Name:          "google-cloud-secretmanager-v1",
-		CopyrightYear: "2021",
-		Output:        outDir,
-		APIs: []*config.API{
-			{Path: "google/cloud/secretmanager/v1/service.proto"},
-		},
-		Roots: []string{"googleapis"},
-		Cpp: &config.CppLibrary{
-			CppDefault: config.CppDefault{
-				ProductPath:           "google/cloud/secretmanager/v1",
-				ForwardingProductPath: "google/cloud/secretmanager",
-				InitialCopyrightYear:  "2021",
-				RetryableStatusCodes:  []string{"kUnavailable"},
-			},
-		},
-	}
+	lib := cfg.Libraries[0]
+	lib.Output = outDir
 
-	cfg := &config.Config{
-		Language: config.LanguageCpp,
-	}
-	src := &sources.Sources{
-		Googleapis: googleapisCache,
-	}
-
-	if err := Generate(t.Context(), cfg, lib, src); err != nil {
+	if err := cpp.Generate(t.Context(), cfg, lib, src); err != nil {
 		t.Fatalf("Generate failed: %v", err)
 	}
 
@@ -79,13 +95,13 @@ func TestPilotSecretManagerParity(t *testing.T) {
 		_ = os.WriteFile(filepath.Join(tempDir, ".clang-format"), data, 0644)
 	}
 
-	if err := Format(t.Context(), lib); err != nil {
+	if err := cpp.Format(t.Context(), lib); err != nil {
 		t.Fatalf("Format failed: %v", err)
 	}
 
 	// Compare generated files against production
 	var generatedFiles []string
-	err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err
 		}

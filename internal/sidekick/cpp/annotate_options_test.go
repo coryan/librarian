@@ -17,6 +17,7 @@ package cpp
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
@@ -27,16 +28,16 @@ func TestAnnotateOptions_Defaults(t *testing.T) {
 
 	ann := annotateOptions(svc, nil)
 
-	if ann.OptionsClassName != "KitchenSinkConnectionOptions" {
-		t.Errorf("got OptionsClassName %q, want 'KitchenSinkConnectionOptions'", ann.OptionsClassName)
+	if diff := cmp.Diff("KitchenSinkConnectionOptions", ann.OptionsClassName()); diff != "" {
+		t.Errorf("OptionsClassName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.DefaultEndpoint != "kitchensink.googleapis.com" {
-		t.Errorf("got DefaultEndpoint %q, want 'kitchensink.googleapis.com'", ann.DefaultEndpoint)
+	if diff := cmp.Diff("kitchensink.googleapis.com", ann.DefaultEndpoint); diff != "" {
+		t.Errorf("DefaultEndpoint mismatch (-want +got):\n%s", diff)
 	}
-	if ann.DefaultPort != "443" {
-		t.Errorf("got DefaultPort %q, want '443'", ann.DefaultPort)
+	if diff := cmp.Diff("443", ann.DefaultPort); diff != "" {
+		t.Errorf("DefaultPort mismatch (-want +got):\n%s", diff)
 	}
-	if ann.HasEndpointEnvVar || ann.HasEmulatorEnvVar {
+	if ann.HasEndpointEnvVar() || ann.HasEmulatorEnvVar() {
 		t.Errorf("expected no env vars by default")
 	}
 }
@@ -57,14 +58,14 @@ func TestAnnotateOptions_WithEnvVars(t *testing.T) {
 
 	ann := annotateOptions(svc, lib)
 
-	if !ann.HasEndpointEnvVar || ann.ServiceEndpointEnvVar != "KITCHEN_SINK_ENDPOINT" {
+	if !ann.HasEndpointEnvVar() || ann.ServiceEndpointEnvVar != "KITCHEN_SINK_ENDPOINT" {
 		t.Errorf("got ServiceEndpointEnvVar %q, want 'KITCHEN_SINK_ENDPOINT'", ann.ServiceEndpointEnvVar)
 	}
-	if !ann.HasEmulatorEnvVar || ann.EmulatorEndpointEnvVar != "KITCHEN_SINK_EMULATOR_HOST" {
+	if !ann.HasEmulatorEnvVar() || ann.EmulatorEndpointEnvVar != "KITCHEN_SINK_EMULATOR_HOST" {
 		t.Errorf("got EmulatorEndpointEnvVar %q, want 'KITCHEN_SINK_EMULATOR_HOST'", ann.EmulatorEndpointEnvVar)
 	}
-	if ann.DefaultPort != "8443" {
-		t.Errorf("got DefaultPort %q, want '8443'", ann.DefaultPort)
+	if diff := cmp.Diff("8443", ann.DefaultPort); diff != "" {
+		t.Errorf("DefaultPort mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -80,7 +81,7 @@ func TestAnnotateOptions_LocationStyle(t *testing.T) {
 	}
 
 	ann := annotateOptions(svc, lib)
-	if ann.EndpointLocationStyle != "LOCATION_DEPENDENT" {
-		t.Errorf("got EndpointLocationStyle %q, want 'LOCATION_DEPENDENT'", ann.EndpointLocationStyle)
+	if diff := cmp.Diff("LOCATION_DEPENDENT", ann.EndpointLocationStyle); diff != "" {
+		t.Errorf("EndpointLocationStyle mismatch (-want +got):\n%s", diff)
 	}
 }

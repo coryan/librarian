@@ -89,50 +89,50 @@ func setRestMetadataText(m *api.Method, isAsync bool, requestType string) string
 	return sb.String()
 }
 
-func buildRestMetadataDecoratorMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestMetadataDecoratorMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestMethods(methods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
 		if isLongrunning(m) {
 			entry["is_longrunning"] = true
-			entry["async_set_metadata"] = setRestMetadataText(m, true, mVars["request_type"])
-			entry["sync_set_metadata"] = setRestMetadataText(m, false, mVars["request_type"])
+			entry["async_set_metadata"] = setRestMetadataText(m, true, mann.RequestType())
+			entry["sync_set_metadata"] = setRestMetadataText(m, false, mann.RequestType())
 		} else {
-			entry["sync_set_metadata"] = setRestMetadataText(m, false, mVars["request_type"])
+			entry["sync_set_metadata"] = setRestMetadataText(m, false, mann.RequestType())
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func buildRestMetadataDecoratorAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestMetadataDecoratorAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestAsyncMethods(asyncMethods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":        mVars["method_name"],
-			"request_type":       mVars["request_type"],
-			"response_type":      mVars["response_type"],
-			"return_type":        mVars["return_type"],
-			"async_set_metadata": setRestMetadataText(m, true, mVars["request_type"]),
+			"method_name":        mann.MethodName(),
+			"request_type":       mann.RequestType(),
+			"response_type":      mann.ResponseType(),
+			"return_type":        mann.ReturnType(),
+			"async_set_metadata": setRestMetadataText(m, true, mann.RequestType()),
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func generateRestMetadataDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["metadata_rest_header_path"]
+func generateRestMetadataDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.MetadataRestHeaderPath()
 	guard := formatHeaderIncludeGuard(headerPath)
 
 	localIncludes := []string{
-		serviceVars["stub_rest_header_path"],
+		ann.StubRestHeaderPath(),
 		"google/cloud/future.h",
 		"google/cloud/rest_options.h",
 		"google/cloud/version.h",
@@ -140,7 +140,7 @@ func generateRestMetadataDecoratorHeader(svc *api.Service, serviceVars map[strin
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	protoIncludes = append(protoIncludes, serviceVars["proto_header_path"])
+	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
 	}
@@ -148,15 +148,15 @@ func generateRestMetadataDecoratorHeader(svc *api.Service, serviceVars map[strin
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"metadata_rest_class_name":   serviceVars["metadata_rest_class_name"],
-		"stub_rest_class_name":       serviceVars["stub_rest_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"metadata_rest_class_name":   ann.MetadataRestClassName(),
+		"stub_rest_class_name":       ann.StubRestClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildRestMetadataDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildRestMetadataDecoratorMethodList(methods),
+		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -168,11 +168,11 @@ func generateRestMetadataDecoratorHeader(svc *api.Service, serviceVars map[strin
 	return filepath.Clean(headerPath), content
 }
 
-func generateRestMetadataDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["metadata_rest_cc_path"]
+func generateRestMetadataDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.MetadataRestCcPath()
 
 	localIncludes := []string{
-		serviceVars["metadata_rest_header_path"],
+		ann.MetadataRestHeaderPath(),
 		"absl/strings/str_format.h",
 		"google/cloud/internal/absl_str_cat_quiet.h",
 		"google/cloud/internal/api_client_header.h",
@@ -185,17 +185,18 @@ func generateRestMetadataDecoratorCc(svc *api.Service, serviceVars map[string]st
 	slices.Sort(localIncludes[1:])
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"metadata_rest_class_name":   serviceVars["metadata_rest_class_name"],
-		"stub_rest_class_name":       serviceVars["stub_rest_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"metadata_rest_class_name":   ann.MetadataRestClassName(),
+		"stub_rest_class_name":       ann.StubRestClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildRestMetadataDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildRestMetadataDecoratorMethodList(methods),
+		"async_methods":              buildRestMetadataDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
-		"api_version":                serviceVars["api_version"],
+		"api_version":                ann.APIVersion,
 	}
+
 
 	content, err := renderTemplate("templates/internal/rest_metadata_decorator.cc.mustache", data)
 	if err != nil {
@@ -204,3 +205,4 @@ func generateRestMetadataDecoratorCc(svc *api.Service, serviceVars map[string]st
 
 	return filepath.Clean(ccPath), content
 }
+

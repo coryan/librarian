@@ -22,20 +22,20 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildRestConnectionImplMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestConnectionImplMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestMethods(methods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":                       mVars["method_name"],
-			"request_type":                      mVars["request_type"],
-			"response_type":                     mVars["response_type"],
-			"return_type":                       mVars["return_type"],
-			"range_output_type":                 mVars["range_output_type"],
-			"range_output_field_name":           mVars["range_output_field_name"],
-			"longrunning_operation_type":        mVars["longrunning_operation_type"],
-			"longrunning_deduced_response_type": mVars["longrunning_deduced_response_type"],
-			"longrunning_metadata_type":         mVars["longrunning_metadata_type"],
+			"method_name":                       mann.MethodName(),
+			"request_type":                      mann.RequestType(),
+			"response_type":                     mann.ResponseType(),
+			"return_type":                       mann.ReturnType(),
+			"range_output_type":                 mann.RangeOutputType(),
+			"range_output_field_name":           mann.RangeOutputFieldName(),
+			"longrunning_operation_type":        mann.LongrunningOperationType(),
+			"longrunning_deduced_response_type": mann.LongrunningDeducedResponseType(),
+			"longrunning_metadata_type":         mann.LongrunningMetadataType(),
 		}
 
 		if isPaginated(m) {
@@ -45,9 +45,9 @@ func buildRestConnectionImplMethodList(svc *api.Service, methods []*api.Method, 
 			if isResponseTypeEmpty(m) {
 				entry["is_response_type_empty"] = true
 			}
-			extractor := "&google::cloud::internal::ExtractLongRunningResultResponse<" + mVars["longrunning_deduced_response_type"] + ">"
+			extractor := "&google::cloud::internal::ExtractLongRunningResultResponse<" + mann.LongrunningDeducedResponseType() + ">"
 			if isLongrunningMetadataTypeUsedAsResponse(m) {
-				extractor = "&google::cloud::internal::ExtractLongRunningResultMetadata<" + mVars["longrunning_deduced_response_type"] + ">"
+				extractor = "&google::cloud::internal::ExtractLongRunningResultMetadata<" + mann.LongrunningDeducedResponseType() + ">"
 			}
 			entry["lro_extractor"] = extractor
 		} else {
@@ -58,33 +58,33 @@ func buildRestConnectionImplMethodList(svc *api.Service, methods []*api.Method, 
 	return list
 }
 
-func buildRestConnectionImplAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestConnectionImplAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestAsyncMethods(asyncMethods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func generateRestConnectionImplHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["connection_impl_rest_header_path"]
+func generateRestConnectionImplHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.ConnectionImplRestHeaderPath()
 	guard := formatHeaderIncludeGuard(headerPath)
 
 	restMethods := getRestMethods(methods)
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		serviceVars["connection_header_path"],
-		serviceVars["idempotency_policy_header_path"],
-		serviceVars["options_header_path"],
-		serviceVars["stub_rest_header_path"],
-		serviceVars["retry_traits_header_path"],
+		ann.ConnectionHeaderPath(),
+		ann.IdempotencyPolicyHeaderPath(),
+		ann.OptionsHeaderPath(),
+		ann.StubRestHeaderPath(),
+		ann.RetryTraitsHeaderPath(),
 		"google/cloud/background_threads.h",
 		"google/cloud/backoff_policy.h",
 		"google/cloud/options.h",
@@ -103,20 +103,21 @@ func generateRestConnectionImplHeader(svc *api.Service, serviceVars map[string]s
 
 	data := map[string]any{
 		"header_include_guard":            guard,
-		"copyright_year":                  serviceVars["copyright_year"],
-		"proto_file_name":                 serviceVars["proto_file_name"],
-		"product_namespace":               serviceVars["product_namespace"],
-		"product_internal_namespace":      serviceVars["product_internal_namespace"],
-		"connection_class_name":           serviceVars["connection_class_name"],
-		"connection_impl_rest_class_name": serviceVars["connection_impl_rest_class_name"],
-		"stub_rest_class_name":            serviceVars["stub_rest_class_name"],
-		"service_name":                    serviceVars["service_name"],
-		"retry_policy_name":               serviceVars["retry_policy_name"],
-		"idempotency_class_name":          serviceVars["idempotency_class_name"],
+		"copyright_year":                  ann.CopyrightYear,
+		"proto_file_name":                 ann.ProtoFileName,
+		"product_namespace":               ann.Namespace(),
+		"product_internal_namespace":      ann.InternalNamespace(),
+		"connection_class_name":           ann.ConnectionClassName(),
+		"connection_impl_rest_class_name": ann.ConnectionImplRestClassName(),
+		"stub_rest_class_name":            ann.StubRestClassName(),
+		"service_name":                    ann.ServiceName,
+		"retry_policy_name":               ann.RetryPolicyName(),
+
+		"idempotency_class_name":          ann.IdempotencyClassName(),
 		"local_includes":                  localIncludes,
 		"proto_includes":                  protoIncludes,
-		"methods":                         buildRestConnectionImplMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":                   buildRestConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                         buildRestConnectionImplMethodList(methods),
+		"async_methods":                   buildRestConnectionImplAsyncMethodList(asyncMethods),
 		"has_lro":                         hasLongrunningMethod(restMethods),
 	}
 
@@ -128,14 +129,14 @@ func generateRestConnectionImplHeader(svc *api.Service, serviceVars map[string]s
 	return filepath.Clean(headerPath), content
 }
 
-func generateRestConnectionImplCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["connection_impl_rest_cc_path"]
+func generateRestConnectionImplCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.ConnectionImplRestCcPath()
 
 	restMethods := getRestMethods(methods)
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		serviceVars["connection_impl_rest_header_path"],
-		serviceVars["stub_factory_rest_header_path"],
+		ann.ConnectionImplRestHeaderPath(),
+		ann.StubFactoryRestHeaderPath(),
 		"google/cloud/common_options.h",
 		"google/cloud/credentials.h",
 	)
@@ -158,19 +159,20 @@ func generateRestConnectionImplCc(svc *api.Service, serviceVars map[string]strin
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
-		"copyright_year":                  serviceVars["copyright_year"],
-		"proto_file_name":                 serviceVars["proto_file_name"],
-		"product_namespace":               serviceVars["product_namespace"],
-		"product_internal_namespace":      serviceVars["product_internal_namespace"],
-		"connection_class_name":           serviceVars["connection_class_name"],
-		"connection_impl_rest_class_name": serviceVars["connection_impl_rest_class_name"],
-		"stub_rest_class_name":            serviceVars["stub_rest_class_name"],
-		"service_name":                    serviceVars["service_name"],
-		"retry_policy_name":               serviceVars["retry_policy_name"],
-		"idempotency_class_name":          serviceVars["idempotency_class_name"],
+		"copyright_year":                  ann.CopyrightYear,
+		"proto_file_name":                 ann.ProtoFileName,
+		"product_namespace":               ann.Namespace(),
+		"product_internal_namespace":      ann.InternalNamespace(),
+		"connection_class_name":           ann.ConnectionClassName(),
+		"connection_impl_rest_class_name": ann.ConnectionImplRestClassName(),
+		"stub_rest_class_name":            ann.StubRestClassName(),
+		"service_name":                    ann.ServiceName,
+		"retry_policy_name":               ann.RetryPolicyName(),
+
+		"idempotency_class_name":          ann.IdempotencyClassName(),
 		"local_includes":                  localIncludes,
-		"methods":                         buildRestConnectionImplMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":                   buildRestConnectionImplAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                         buildRestConnectionImplMethodList(methods),
+		"async_methods":                   buildRestConnectionImplAsyncMethodList(asyncMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/rest_connection_impl.cc.mustache", data)
@@ -180,3 +182,4 @@ func generateRestConnectionImplCc(svc *api.Service, serviceVars map[string]strin
 
 	return filepath.Clean(ccPath), content
 }
+

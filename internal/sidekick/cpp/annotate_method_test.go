@@ -17,6 +17,7 @@ package cpp
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
@@ -32,20 +33,20 @@ func TestAnnotateMethod_Unary(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if ann.MethodName != "Get" {
-		t.Errorf("got MethodName %q, want 'Get'", ann.MethodName)
+	if diff := cmp.Diff("Get", ann.MethodName()); diff != "" {
+		t.Errorf("MethodName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.MethodNameSnake != "get" {
-		t.Errorf("got MethodNameSnake %q, want 'get'", ann.MethodNameSnake)
+	if diff := cmp.Diff("get", ann.MethodNameSnake()); diff != "" {
+		t.Errorf("MethodNameSnake mismatch (-want +got):\n%s", diff)
 	}
-	if ann.ReturnType != "StatusOr<test::v1::GetResponse>" {
-		t.Errorf("got ReturnType %q, want 'StatusOr<test::v1::GetResponse>'", ann.ReturnType)
+	if diff := cmp.Diff("StatusOr<test::v1::GetResponse>", ann.ReturnType()); diff != "" {
+		t.Errorf("ReturnType mismatch (-want +got):\n%s", diff)
 	}
-	if ann.RequestType != "test::v1::GetRequest" {
-		t.Errorf("got RequestType %q, want 'test::v1::GetRequest'", ann.RequestType)
+	if diff := cmp.Diff("test::v1::GetRequest", ann.RequestType()); diff != "" {
+		t.Errorf("RequestType mismatch (-want +got):\n%s", diff)
 	}
-	if !ann.IsNonStreaming {
-		t.Errorf("expected IsNonStreaming=true")
+	if !ann.IsNonStreaming() {
+		t.Errorf("expected IsNonStreaming()=true")
 	}
 	if method.Codec != ann {
 		t.Errorf("method.Codec not set to annotations")
@@ -67,8 +68,8 @@ func TestAnnotateMethod_EmptyReturn(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if ann.ReturnType != "Status" {
-		t.Errorf("got ReturnType %q, want 'Status'", ann.ReturnType)
+	if diff := cmp.Diff("Status", ann.ReturnType()); diff != "" {
+		t.Errorf("ReturnType mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -87,15 +88,15 @@ func TestAnnotateMethod_Longrunning(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if !ann.IsLongrunning {
-		t.Errorf("expected IsLongrunning=true")
+	if !ann.IsLongrunning() {
+		t.Errorf("expected IsLongrunning()=true")
 	}
-	if ann.LongrunningMetadataType != "test::v1::CreateMetadata" {
-		t.Errorf("got LongrunningMetadataType %q, want test::v1::CreateMetadata", ann.LongrunningMetadataType)
+	if diff := cmp.Diff("test::v1::CreateMetadata", ann.LongrunningMetadataType()); diff != "" {
+		t.Errorf("LongrunningMetadataType mismatch (-want +got):\n%s", diff)
 	}
 	// When ResponseTypeID is Empty, deduced response type falls back to metadata
-	if ann.LongrunningDeducedResponseType != "test::v1::CreateMetadata" {
-		t.Errorf("got LongrunningDeducedResponseType %q, want test::v1::CreateMetadata", ann.LongrunningDeducedResponseType)
+	if diff := cmp.Diff("test::v1::CreateMetadata", ann.LongrunningDeducedResponseType()); diff != "" {
+		t.Errorf("LongrunningDeducedResponseType mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -125,14 +126,14 @@ func TestAnnotateMethod_Pagination(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if !ann.IsPaginated {
-		t.Errorf("expected IsPaginated=true")
+	if !ann.IsPaginated() {
+		t.Errorf("expected IsPaginated()=true")
 	}
-	if ann.RangeOutputFieldName != "items" {
-		t.Errorf("got RangeOutputFieldName %q, want 'items'", ann.RangeOutputFieldName)
+	if diff := cmp.Diff("items", ann.RangeOutputFieldName()); diff != "" {
+		t.Errorf("RangeOutputFieldName mismatch (-want +got):\n%s", diff)
 	}
-	if ann.RangeOutputType != "test::v1::Item" {
-		t.Errorf("got RangeOutputType %q, want 'test::v1::Item'", ann.RangeOutputType)
+	if diff := cmp.Diff("test::v1::Item", ann.RangeOutputType()); diff != "" {
+		t.Errorf("RangeOutputType mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -151,18 +152,18 @@ func TestAnnotateMethod_Streaming(t *testing.T) {
 	}
 
 	bidiAnn := annotateMethod(bidiMethod, svc, nil, model)
-	if !bidiAnn.IsBidiStreaming {
-		t.Errorf("expected IsBidiStreaming=true for Bidi")
+	if !bidiAnn.IsBidiStreaming() {
+		t.Errorf("expected IsBidiStreaming()=true for Bidi")
 	}
 
 	serverAnn := annotateMethod(serverMethod, svc, nil, model)
-	if !serverAnn.IsStreamingRead {
-		t.Errorf("expected IsStreamingRead=true for Server")
+	if !serverAnn.IsStreamingRead() {
+		t.Errorf("expected IsStreamingRead()=true for Server")
 	}
 
 	clientAnn := annotateMethod(clientMethod, svc, nil, model)
-	if !clientAnn.IsStreamingWrite {
-		t.Errorf("expected IsStreamingWrite=true for Client")
+	if !clientAnn.IsStreamingWrite() {
+		t.Errorf("expected IsStreamingWrite()=true for Client")
 	}
 }
 
@@ -213,11 +214,11 @@ func TestAnnotateMethod_RequestID(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if !ann.HasRequestID {
-		t.Errorf("expected HasRequestID=true")
+	if !ann.HasRequestID() {
+		t.Errorf("expected HasRequestID()=true")
 	}
-	if ann.RequestIDFieldName != "request_id" {
-		t.Errorf("got RequestIDFieldName %q, want 'request_id'", ann.RequestIDFieldName)
+	if diff := cmp.Diff("request_id", ann.RequestIDFieldName()); diff != "" {
+		t.Errorf("RequestIDFieldName mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -246,8 +247,8 @@ func TestAnnotateMethod_IdempotencyOverride(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, lib, model)
-	if ann.Idempotency != "kIdempotent" {
-		t.Errorf("got Idempotency %q, want 'kIdempotent'", ann.Idempotency)
+	if diff := cmp.Diff("kIdempotent", ann.Idempotency); diff != "" {
+		t.Errorf("Idempotency mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -275,14 +276,14 @@ func TestAnnotateMethod_Rest(t *testing.T) {
 	}
 
 	ann := annotateMethod(method, svc, nil, model)
-	if !ann.IsRestMethod {
-		t.Errorf("expected IsRestMethod=true")
+	if !ann.IsRestMethod() {
+		t.Errorf("expected IsRestMethod()=true")
 	}
-	if ann.HTTPVerb != "Get" {
-		t.Errorf("got HTTPVerb %q, want 'Get'", ann.HTTPVerb)
+	if diff := cmp.Diff("Get", ann.HTTPVerb); diff != "" {
+		t.Errorf("HTTPVerb mismatch (-want +got):\n%s", diff)
 	}
-	if ann.RequestResource != "request" {
-		t.Errorf("got RequestResource %q, want 'request'", ann.RequestResource)
+	if diff := cmp.Diff("request", ann.RequestResource); diff != "" {
+		t.Errorf("RequestResource mismatch (-want +got):\n%s", diff)
 	}
 	if ann.RestPath == "" {
 		t.Errorf("expected non-empty RestPath")

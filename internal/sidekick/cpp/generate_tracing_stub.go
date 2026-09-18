@@ -22,12 +22,12 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateTracingStubHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["tracing_stub_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateTracingStubHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.TracingStubHeaderPath()
+	guard := ann.TracingStubHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/internal/trace_propagator.h",
 		"google/cloud/options.h",
 		"google/cloud/version.h",
@@ -36,14 +36,14 @@ func generateTracingStubHeader(svc *api.Service, serviceVars map[string]string, 
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"tracing_stub_class_name":    serviceVars["tracing_stub_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"tracing_stub_class_name":    ann.TracingStubClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -55,29 +55,29 @@ func generateTracingStubHeader(svc *api.Service, serviceVars map[string]string, 
 	return filepath.Clean(headerPath), content
 }
 
-func buildTracingStubMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildTracingStubMethodList(ann *serviceAnnotations, methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		reqIdFragment := ""
-		if len(m.AutoPopulated) > 0 {
-			reqIdFragment = "\n  span->SetAttribute(\"gl-cpp.request_id\", request." + mVars["request_id_field_name"] + "());"
+		if mann.HasRequestID() {
+			reqIdFragment = "\n  span->SetAttribute(\"gl-cpp.request_id\", request." + mann.RequestIDFieldName() + "());"
 		}
 		entry := map[string]any{
-			"method_name":         mVars["method_name"],
-			"request_type":        mVars["request_type"],
-			"response_type":       mVars["response_type"],
-			"return_type":         mVars["return_type"],
-			"grpc_service":        mVars["grpc_service"],
+			"method_name":         mann.MethodName(),
+			"request_type":        mann.RequestType(),
+			"response_type":       mann.ResponseType(),
+			"return_type":         mann.ReturnType(),
+			"grpc_service":        ann.GrpcService,
 			"request_id_fragment": reqIdFragment,
 		}
-		if isStreamingWrite(m) {
+		if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
-		} else if isBidiStreaming(m) {
+		} else if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-		} else if isLongrunning(m) {
+		} else if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
-		} else if isStreamingRead(m) {
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
 		} else {
 			entry["is_plain_unary"] = true
@@ -87,28 +87,28 @@ func buildTracingStubMethodList(svc *api.Service, methods []*api.Method, service
 	return list
 }
 
-func buildTracingStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildTracingStubAsyncMethodList(ann *serviceAnnotations, asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
 		if isBidiStreaming(m) || isLongrunning(m) {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		reqIdFragment := ""
-		if len(m.AutoPopulated) > 0 {
-			reqIdFragment = "\n  span->SetAttribute(\"gl-cpp.request_id\", request." + mVars["request_id_field_name"] + "());"
+		if mann.HasRequestID() {
+			reqIdFragment = "\n  span->SetAttribute(\"gl-cpp.request_id\", request." + mann.RequestIDFieldName() + "());"
 		}
 		entry := map[string]any{
-			"method_name":         mVars["method_name"],
-			"request_type":        mVars["request_type"],
-			"response_type":       mVars["response_type"],
-			"return_type":         mVars["return_type"],
-			"grpc_service":        mVars["grpc_service"],
+			"method_name":         mann.MethodName(),
+			"request_type":        mann.RequestType(),
+			"response_type":       mann.ResponseType(),
+			"return_type":         mann.ReturnType(),
+			"grpc_service":        ann.GrpcService,
 			"request_id_fragment": reqIdFragment,
 		}
-		if isStreamingRead(m) {
+		if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
-		} else if isStreamingWrite(m) {
+		} else if mann.IsStreamingWrite() {
 			entry["is_streaming_write"] = true
 		} else {
 			entry["is_unary"] = true
@@ -118,10 +118,10 @@ func buildTracingStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Metho
 	return list
 }
 
-func generateTracingStubCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["tracing_stub_cc_path"]
+func generateTracingStubCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.TracingStubCcPath()
 
-	localIncludes := []string{serviceVars["tracing_stub_header_path"]}
+	localIncludes := []string{ann.TracingStubHeaderPath()}
 	if hasAsynchronousStreamingReadMethod(asyncMethods) {
 		localIncludes = append(localIncludes, "google/cloud/internal/async_streaming_read_rpc_tracing.h")
 	}
@@ -143,14 +143,14 @@ func generateTracingStubCc(svc *api.Service, serviceVars map[string]string, meth
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"tracing_stub_class_name":    serviceVars["tracing_stub_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"tracing_stub_class_name":    ann.TracingStubClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildTracingStubMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildTracingStubAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildTracingStubMethodList(ann, methods),
+		"async_methods":              buildTracingStubAsyncMethodList(ann, asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 

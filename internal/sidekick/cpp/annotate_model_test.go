@@ -17,6 +17,7 @@ package cpp
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
@@ -59,21 +60,25 @@ func TestAnnotateModel_Success(t *testing.T) {
 	// Verify field annotations
 	if field1.Codec == nil {
 		t.Errorf("expected field1.Codec to be populated")
-	} else if fa, ok := field1.Codec.(*FieldAnnotations); !ok || fa.CppType != "std::string" {
-		t.Errorf("expected FieldAnnotations with CppType std::string, got %#v", field1.Codec)
+	} else if fa, ok := field1.Codec.(*fieldAnnotations); !ok || fa.CppType() != "std::string" {
+		t.Errorf("expected fieldAnnotations with CppType() std::string, got %#v", field1.Codec)
 	}
 
 	// Verify method annotations
 	if m.Codec == nil {
 		t.Errorf("expected m.Codec to be populated")
-	} else if ma, ok := m.Codec.(*MethodAnnotations); !ok || ma.MethodName != "TestMethod" {
-		t.Errorf("expected MethodAnnotations with MethodName TestMethod, got %#v", m.Codec)
+	} else if ma, ok := m.Codec.(*methodAnnotations); !ok || ma.MethodName() != "TestMethod" {
+		t.Errorf("expected methodAnnotations with MethodName() TestMethod, got %#v", m.Codec)
 	}
 
 	// Verify service annotations
 	if svc.Codec == nil {
 		t.Errorf("expected svc.Codec to be populated")
-	} else if sa, ok := svc.Codec.(*ServiceAnnotations); !ok || sa.ServiceName != "TestService" {
-		t.Errorf("expected ServiceAnnotations with ServiceName TestService, got %#v", svc.Codec)
+	} else if sa, ok := svc.Codec.(*serviceAnnotations); !ok || sa.ServiceName != "TestService" {
+		t.Errorf("expected serviceAnnotations with ServiceName TestService, got %#v", svc.Codec)
+	} else {
+		if diff := cmp.Diff("TestService", sa.ServiceName); diff != "" {
+			t.Errorf("ServiceName mismatch (-want +got):\n%s", diff)
+		}
 	}
 }

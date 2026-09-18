@@ -22,153 +22,259 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-// MethodAnnotations contains C++-specific metadata for an RPC method.
-type MethodAnnotations struct {
-	// MethodName is the CamelCase name of the RPC method.
-	MethodName string
-
-	// MethodNameSnake is the snake_case name of the RPC method.
-	MethodNameSnake string
-
-	// RequestType is the fully qualified C++ type name for the request message.
-	RequestType string
-
-	// ResponseType is the fully qualified C++ type name for the response message.
-	ResponseType string
-
-	// ResponseMessageType is the un-namespaced protobuf message name of the response.
-	ResponseMessageType string
-
-	// ReturnType is the C++ return type for synchronous unary operations (e.g. StatusOr<T> or Status).
-	ReturnType string
-
-	// Idempotency is the idempotency classification (e.g. "kIdempotent", "kNonIdempotent").
-	Idempotency string
-
-	// Streaming and RPC characteristics.
-	IsNonStreaming   bool
-	IsStreamingRead  bool
-	IsStreamingWrite bool
-	IsBidiStreaming  bool
-	IsPaginated      bool
-	IsLongrunning    bool
-	IsDeprecated     bool
-
-	// REST metadata
-	IsRestMethod    bool
+// methodAnnotations contains C++-specific metadata for an RPC method.
+// Annotations are private to the package to encapsulate implementation details and enforce
+// accessor method usage for derived properties.
+type methodAnnotations struct {
+	Method          *api.Method
+	Service         *api.Service
+	Model           *api.API
+	Idempotency     string
+	Signatures      []*signatureAnnotations
+	Comments        *commentAnnotations
 	HTTPVerb        string
 	RequestResource string
 	RestPath        string
 	RestPathAsync   string
 	HTTPQueryParams string
-
-	// HasRequestID indicates if the method uses request ID auto-population.
-	HasRequestID bool
-
-	// RequestIDFieldName is the name of the request ID field, if any.
-	RequestIDFieldName string
-
-	// Long-running operation metadata types.
-	LongrunningOperationType              string
-	LongrunningMetadataType               string
-	LongrunningResponseType               string
-	LongrunningDeducedResponseType        string
-	LongrunningDeducedResponseMessageType string
-
-	// Pagination metadata.
-	RangeOutputFieldName string
-	RangeOutputType      string
-
-	// Signatures contains the method signature overload descriptors.
-	Signatures []*SignatureAnnotations
-
-	// Comments contains formatted Doxygen comments for the method and its overloads.
-	Comments *CommentAnnotations
 }
 
-// SignatureAnnotations describes a single method signature overload.
-type SignatureAnnotations struct {
-	// MethodSignature is the underlying API method signature model.
+
+func (m *methodAnnotations) MethodName() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	return m.Method.Name
+}
+
+func (m *methodAnnotations) MethodNameSnake() string {
+	return camelCaseToSnakeCase(m.MethodName())
+}
+
+func (m *methodAnnotations) RequestType() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	return protoNameToCppName(m.Method.InputTypeID)
+}
+
+func (m *methodAnnotations) ResponseType() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	return protoNameToCppName(m.Method.OutputTypeID)
+}
+
+func (m *methodAnnotations) ResponseMessageType() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	return strings.TrimPrefix(m.Method.OutputTypeID, ".")
+}
+
+func (m *methodAnnotations) ReturnType() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	if isResponseTypeEmpty(m.Method) {
+		return "Status"
+	}
+	return "StatusOr<" + m.ResponseType() + ">"
+}
+
+func (m *methodAnnotations) IsNonStreaming() bool {
+	return m != nil && m.Method != nil && isNonStreaming(m.Method)
+}
+
+func (m *methodAnnotations) IsStreamingRead() bool {
+	return m != nil && m.Method != nil && isStreamingRead(m.Method)
+}
+
+func (m *methodAnnotations) IsStreamingWrite() bool {
+	return m != nil && m.Method != nil && isStreamingWrite(m.Method)
+}
+
+func (m *methodAnnotations) IsBidiStreaming() bool {
+	return m != nil && m.Method != nil && isBidiStreaming(m.Method)
+}
+
+func (m *methodAnnotations) IsPaginated() bool {
+	return m != nil && m.Method != nil && isPaginated(m.Method)
+}
+
+func (m *methodAnnotations) IsLongrunning() bool {
+	return m != nil && m.Method != nil && isLongrunning(m.Method)
+}
+
+func (m *methodAnnotations) IsDeprecated() bool {
+	return m != nil && m.Method != nil && isDeprecated(m.Method)
+}
+
+func (m *methodAnnotations) HasRequestID() bool {
+	return m != nil && m.Method != nil && hasRequestID(m.Method)
+}
+
+func (m *methodAnnotations) RequestIDFieldName() string {
+	if m != nil && m.Method != nil && len(m.Method.AutoPopulated) > 0 {
+		return m.Method.AutoPopulated[0].Name
+	}
+	return ""
+}
+
+func (m *methodAnnotations) LongrunningOperationType() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	return protoNameToCppName(m.Method.OutputTypeID)
+}
+
+func (m *methodAnnotations) LongrunningMetadataType() string {
+	if m != nil && m.Method != nil && m.Method.OperationInfo != nil {
+		return protoNameToCppName(m.Method.OperationInfo.MetadataTypeID)
+	}
+	return ""
+}
+
+func (m *methodAnnotations) LongrunningResponseType() string {
+	if m != nil && m.Method != nil && m.Method.OperationInfo != nil {
+		return protoNameToCppName(m.Method.OperationInfo.ResponseTypeID)
+	}
+	return ""
+}
+
+func (m *methodAnnotations) LongrunningDeducedResponseType() string {
+	if m == nil || m.Method == nil || m.Method.OperationInfo == nil {
+		return ""
+	}
+	deduced := m.Method.OperationInfo.ResponseTypeID
+	if deduced == ".google.protobuf.Empty" || deduced == "google.protobuf.Empty" {
+		deduced = m.Method.OperationInfo.MetadataTypeID
+	}
+	return protoNameToCppName(deduced)
+}
+
+func (m *methodAnnotations) LongrunningDeducedResponseMessageType() string {
+	if m == nil || m.Method == nil || m.Method.OperationInfo == nil {
+		return ""
+	}
+	deduced := m.Method.OperationInfo.ResponseTypeID
+	if deduced == ".google.protobuf.Empty" || deduced == "google.protobuf.Empty" {
+		deduced = m.Method.OperationInfo.MetadataTypeID
+	}
+	return strings.TrimPrefix(deduced, ".")
+}
+
+func (m *methodAnnotations) pageableItem() *api.Field {
+	if m == nil || m.Method == nil {
+		return nil
+	}
+	if m.Method.OutputType != nil && m.Method.OutputType.Pagination != nil {
+		return m.Method.OutputType.Pagination.PageableItem
+	}
+	if m.Model != nil {
+		if respMsg := m.Model.Message(m.Method.OutputTypeID); respMsg != nil && respMsg.Pagination != nil {
+			return respMsg.Pagination.PageableItem
+		}
+	}
+	return nil
+}
+
+func (m *methodAnnotations) RangeOutputFieldName() string {
+	if item := m.pageableItem(); item != nil {
+		return item.Name
+	}
+	return ""
+}
+
+func (m *methodAnnotations) RangeOutputType() string {
+	if item := m.pageableItem(); item != nil {
+		switch item.Typez {
+		case api.TypezMessage:
+			return protoNameToCppName(item.TypezID)
+		case api.TypezString:
+			return "std::string"
+		}
+	}
+	return ""
+}
+
+
+func (m *methodAnnotations) GrpcStub() string {
+	if m != nil && m.Method != nil && m.Service != nil && m.Method.SourceService != nil && m.Method.SourceService.ID != m.Service.ID {
+		return strings.ToLower(m.Method.SourceService.Name) + "_stub_"
+	}
+	return "grpc_stub_"
+}
+
+func (m *methodAnnotations) MethodRequestParams() string {
+	if m == nil || m.Method == nil {
+		return ""
+	}
+	if len(m.Method.Routing) == 0 && m.Method.PathInfo != nil && len(m.Method.PathInfo.Bindings) > 0 {
+		template := m.Method.PathInfo.Bindings[0].PathTemplate
+		if template != nil {
+			var params []string
+			for _, seg := range template.Segments {
+				if seg.Variable != nil && len(seg.Variable.FieldPath) > 0 {
+					fieldName := strings.Join(seg.Variable.FieldPath, ".")
+					accessor := formatFieldAccessor(seg.Variable.FieldPath)
+					params = append(params, fmt.Sprintf(`"%s=", internal::UrlEncode(request.%s())`, fieldName, accessor))
+				}
+			}
+			if len(params) > 0 {
+				return strings.Join(params, `, "&", `)
+			}
+		}
+	}
+	return ""
+}
+
+func (m *methodAnnotations) IsRestMethod() bool {
+	return m != nil && m.Method != nil && isRestMethod(m.Method)
+}
+
+// signatureAnnotations describes a single method signature overload.
+// Annotations are private to the package to encapsulate implementation details and enforce
+// accessor method usage for derived properties.
+type signatureAnnotations struct {
 	MethodSignature *api.MethodSignature
-
-	// Params is the list of C++ parameter declarations (e.g. "std::string const& parent").
-	Params []string
-
-	// ParamNames is the list of parameter variable names.
-	ParamNames []string
-
-	// ParamTypes is the list of parameter C++ types.
-	ParamTypes []string
-
-	// Setters contains C++ statements copying signature parameters into the request object.
-	Setters string
+	Params          []string
+	ParamNames      []string
+	ParamTypes      []string
+	Setters         string
+	Index           int
 }
+
+func (s *signatureAnnotations) SignatureString() string {
+	if s == nil || len(s.Params) == 0 {
+		return ""
+	}
+	return strings.Join(s.Params, ", ") + ", "
+}
+
+func (s *signatureAnnotations) RequestSetters() string {
+	if s == nil {
+		return ""
+	}
+	return s.Setters
+}
+
 
 // annotateMethod enriches an api.Method with C++-specific metadata and types.
-func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model *api.API) *MethodAnnotations {
+func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model *api.API) *methodAnnotations {
 	if m == nil {
 		return nil
 	}
 
-	methodName := m.Name
-	ann := &MethodAnnotations{
-		MethodName:          methodName,
-		MethodNameSnake:     camelCaseToSnakeCase(methodName),
-		RequestType:         protoNameToCppName(m.InputTypeID),
-		ResponseType:        protoNameToCppName(m.OutputTypeID),
-		ResponseMessageType: strings.TrimPrefix(m.OutputTypeID, "."),
-		IsNonStreaming:      isNonStreaming(m),
-		IsStreamingRead:     isStreamingRead(m),
-		IsStreamingWrite:    isStreamingWrite(m),
-		IsBidiStreaming:     isBidiStreaming(m),
-		IsPaginated:         isPaginated(m),
-		IsLongrunning:       isLongrunning(m),
-		IsDeprecated:        isDeprecated(m),
-		Idempotency:         defaultIdempotency(m, svc.Name, lib),
+	ann := &methodAnnotations{
+		Method:      m,
+		Service:     svc,
+		Model:       model,
+		Idempotency: defaultIdempotency(m, svc.Name, lib),
 	}
 
-	if isResponseTypeEmpty(m) {
-		ann.ReturnType = "Status"
-	} else {
-		ann.ReturnType = "StatusOr<" + ann.ResponseType + ">"
-	}
-
-	if hasRequestID(m) {
-		ann.HasRequestID = true
-		ann.RequestIDFieldName = m.AutoPopulated[0].Name
-	}
-
-	if isLongrunning(m) {
-		ann.LongrunningOperationType = protoNameToCppName(m.OutputTypeID)
-		if m.OperationInfo != nil {
-			ann.LongrunningMetadataType = protoNameToCppName(m.OperationInfo.MetadataTypeID)
-			ann.LongrunningResponseType = protoNameToCppName(m.OperationInfo.ResponseTypeID)
-
-			deduced := m.OperationInfo.ResponseTypeID
-			if deduced == ".google.protobuf.Empty" || deduced == "google.protobuf.Empty" {
-				deduced = m.OperationInfo.MetadataTypeID
-			}
-			ann.LongrunningDeducedResponseType = protoNameToCppName(deduced)
-			ann.LongrunningDeducedResponseMessageType = strings.TrimPrefix(deduced, ".")
-		}
-	}
-
-	if isPaginated(m) && model != nil {
-		respMsg := model.Message(m.OutputTypeID)
-		if respMsg != nil && respMsg.Pagination != nil && respMsg.Pagination.PageableItem != nil {
-			item := respMsg.Pagination.PageableItem
-			ann.RangeOutputFieldName = item.Name
-			switch item.Typez {
-			case api.TypezMessage:
-				ann.RangeOutputType = protoNameToCppName(item.TypezID)
-			case api.TypezString:
-				ann.RangeOutputType = "std::string"
-			}
-		}
-	}
 
 	if isRestMethod(m) {
-		ann.IsRestMethod = true
 		if len(m.PathInfo.Bindings) > 0 {
 			ann.HTTPVerb = httpVerb(m.PathInfo.Bindings[0].Verb)
 			ann.RequestResource = formatRequestResource(m)
@@ -179,7 +285,15 @@ func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model 
 	}
 
 	// Method signatures
+	omitted := make(map[string]bool)
+	if lib != nil && lib.Cpp != nil {
+		for _, o := range lib.Cpp.OmittedRPCs {
+			omitted[o] = true
+		}
+	}
+
 	seenUIDs := make(map[string]bool)
+	validIndex := 0
 	for _, sig := range m.Signatures {
 		var sigPieces []string
 		var uidPieces []string
@@ -220,19 +334,27 @@ func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model 
 			uidPieces = append(uidPieces, cppType)
 		}
 
-		uid := strings.Join(uidPieces, ", ")
+		uid := strings.Join(uidPieces, ", ") + ", "
 		if seenUIDs[uid] {
 			continue
 		}
 		seenUIDs[uid] = true
 
-		ann.Signatures = append(ann.Signatures, &SignatureAnnotations{
+		sigName := fmt.Sprintf("%s(%s)", m.Name, strings.Join(uidPieces, ", "))
+		qualifiedSigName := fmt.Sprintf("%s.%s", svc.Name, sigName)
+		if omitted[sigName] || omitted[qualifiedSigName] {
+			continue
+		}
+
+		ann.Signatures = append(ann.Signatures, &signatureAnnotations{
 			MethodSignature: sig,
 			Params:          sigPieces,
 			ParamNames:      paramNames,
 			ParamTypes:      paramTypes,
 			Setters:         setters.String(),
+			Index:           validIndex,
 		})
+		validIndex++
 	}
 
 	ann.Comments = annotateMethodComments(m, model)

@@ -26,12 +26,12 @@ func hasStreamingMethod(methods []*api.Method) bool {
 	return hasStreamingReadMethod(methods) || hasStreamingWriteMethod(methods) || hasBidiStreamingMethod(methods)
 }
 
-func generateLoggingDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["logging_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateLoggingDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.LoggingHeaderPath()
+	guard := ann.LoggingHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/tracing_options.h",
 		"google/cloud/version.h",
 	}
@@ -44,15 +44,15 @@ func generateLoggingDecoratorHeader(svc *api.Service, serviceVars map[string]str
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"logging_class_name":         serviceVars["logging_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"logging_class_name":         ann.LoggingClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 		"has_streaming":              hasStreamingMethod(methods),
 	}
@@ -65,11 +65,11 @@ func generateLoggingDecoratorHeader(svc *api.Service, serviceVars map[string]str
 	return filepath.Clean(headerPath), content
 }
 
-func generateLoggingDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["logging_cc_path"]
+func generateLoggingDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.LoggingCcPath()
 
 	localIncludes := []string{
-		serviceVars["logging_header_path"],
+		ann.LoggingHeaderPath(),
 		"google/cloud/internal/log_wrapper.h",
 	}
 	if hasStreamingReadMethod(methods) {
@@ -93,20 +93,20 @@ func generateLoggingDecoratorCc(svc *api.Service, serviceVars map[string]string,
 	}
 
 	var pbIncludes []string
-	if serviceVars["proto_grpc_header_path"] != "" {
-		pbIncludes = append(pbIncludes, serviceVars["proto_grpc_header_path"])
+	if h := ann.ProtoGrpcHeaderPath(); h != "" {
+		pbIncludes = append(pbIncludes, h)
 	}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"logging_class_name":         serviceVars["logging_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"logging_class_name":         ann.LoggingClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             pbIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 		"has_streaming":              hasStreamingMethod(methods),
 	}

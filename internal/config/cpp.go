@@ -65,6 +65,15 @@ func (c *CppDefault) HasGrpcTransport() bool {
 	return *c.GenerateGrpcTransport
 }
 
+// HasRestTransport returns whether REST transport generation is enabled.
+func (c *CppDefault) HasRestTransport() bool {
+	if c == nil {
+		return false
+	}
+	return c.GenerateRestTransport
+}
+
+
 // CppLibrary contains C++-specific library configuration.
 // It inherits from CppDefault, allowing library-specific overrides of global settings.
 type CppLibrary struct {

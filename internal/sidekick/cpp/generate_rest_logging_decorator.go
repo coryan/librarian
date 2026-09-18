@@ -22,17 +22,17 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildRestLoggingDecoratorMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestLoggingDecoratorMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestMethods(methods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
-		if isLongrunning(m) {
+		if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
 		}
 		list = append(list, entry)
@@ -40,27 +40,27 @@ func buildRestLoggingDecoratorMethodList(svc *api.Service, methods []*api.Method
 	return list
 }
 
-func buildRestLoggingDecoratorAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestLoggingDecoratorAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range getRestAsyncMethods(asyncMethods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
 		list = append(list, entry)
 	}
 	return list
 }
 
-func generateRestLoggingDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["logging_rest_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateRestLoggingDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.LoggingRestHeaderPath()
+	guard := ann.LoggingRestHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_rest_header_path"],
+		ann.StubRestHeaderPath(),
 		"google/cloud/future.h",
 		"google/cloud/internal/rest_context.h",
 		"google/cloud/tracing_options.h",
@@ -69,7 +69,7 @@ func generateRestLoggingDecoratorHeader(svc *api.Service, serviceVars map[string
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	protoIncludes = append(protoIncludes, serviceVars["proto_header_path"])
+	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
 	}
@@ -77,15 +77,15 @@ func generateRestLoggingDecoratorHeader(svc *api.Service, serviceVars map[string
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"logging_rest_class_name":    serviceVars["logging_rest_class_name"],
-		"stub_rest_class_name":       serviceVars["stub_rest_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"logging_rest_class_name":    ann.LoggingRestClassName(),
+		"stub_rest_class_name":       ann.StubRestClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildRestLoggingDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildRestLoggingDecoratorMethodList(methods),
+		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -97,25 +97,25 @@ func generateRestLoggingDecoratorHeader(svc *api.Service, serviceVars map[string
 	return filepath.Clean(headerPath), content
 }
 
-func generateRestLoggingDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["logging_rest_cc_path"]
+func generateRestLoggingDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.LoggingRestCcPath()
 
 	localIncludes := []string{
-		serviceVars["logging_rest_header_path"],
+		ann.LoggingRestHeaderPath(),
 		"google/cloud/internal/log_wrapper.h",
 		"google/cloud/status_or.h",
 	}
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"logging_rest_class_name":    serviceVars["logging_rest_class_name"],
-		"stub_rest_class_name":       serviceVars["stub_rest_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"logging_rest_class_name":    ann.LoggingRestClassName(),
+		"stub_rest_class_name":       ann.StubRestClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildRestLoggingDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildRestLoggingDecoratorMethodList(methods),
+		"async_methods":              buildRestLoggingDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 

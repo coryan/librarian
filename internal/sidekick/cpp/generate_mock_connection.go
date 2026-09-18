@@ -21,32 +21,32 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateMockConnectionHeader(svc *api.Service, serviceVars map[string]string, methods []*api.Method, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["mock_connection_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateMockConnectionHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.MockConnectionHeaderPath()
+	guard := ann.MockConnectionHeaderIncludeGuard()
 
 	var methodList []map[string]any
 	for _, m := range methods {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":                       mVars["method_name"],
-			"request_type":                      mVars["request_type"],
-			"response_type":                     mVars["response_type"],
-			"return_type":                       mVars["return_type"],
-			"range_output_type":                 mVars["range_output_type"],
-			"longrunning_deduced_response_type": mVars["longrunning_deduced_response_type"],
-			"longrunning_operation_type":        mVars["longrunning_operation_type"],
+			"method_name":                       mann.MethodName(),
+			"request_type":                      mann.RequestType(),
+			"response_type":                     mann.ResponseType(),
+			"return_type":                       mann.ReturnType(),
+			"range_output_type":                 mann.RangeOutputType(),
+			"longrunning_deduced_response_type": mann.LongrunningDeducedResponseType(),
+			"longrunning_operation_type":        mann.LongrunningOperationType(),
 		}
 
-		if isBidiStreaming(m) {
+		if mann.IsBidiStreaming() {
 			entry["is_bidi_streaming"] = true
-		} else if isNonStreaming(m) && !isLongrunning(m) && !isPaginated(m) {
+		} else if mann.IsNonStreaming() && !mann.IsLongrunning() && !mann.IsPaginated() {
 			entry["is_plain"] = true
-		} else if isNonStreaming(m) && isLongrunning(m) && !isPaginated(m) {
+		} else if mann.IsNonStreaming() && mann.IsLongrunning() && !mann.IsPaginated() {
 			entry["is_longrunning"] = true
-		} else if isNonStreaming(m) && !isLongrunning(m) && isPaginated(m) {
+		} else if mann.IsNonStreaming() && !mann.IsLongrunning() && mann.IsPaginated() {
 			entry["is_paginated"] = true
-		} else if isStreamingRead(m) {
+		} else if mann.IsStreamingRead() {
 			entry["is_streaming_read"] = true
 		}
 
@@ -55,26 +55,26 @@ func generateMockConnectionHeader(svc *api.Service, serviceVars map[string]strin
 
 	var asyncMethodList []map[string]any
 	for _, m := range asyncMethods {
-		if isNonStreaming(m) && !isLongrunning(m) && !isPaginated(m) {
-			mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
+		if mann.IsNonStreaming() && !mann.IsLongrunning() && !mann.IsPaginated() {
 			asyncMethodList = append(asyncMethodList, map[string]any{
-				"method_name":  mVars["method_name"],
-				"request_type": mVars["request_type"],
-				"return_type":  mVars["return_type"],
+				"method_name":  mann.MethodName(),
+				"request_type": mann.RequestType(),
+				"return_type":  mann.ReturnType(),
 			})
 		}
 	}
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_mocks_namespace":    serviceVars["product_mocks_namespace"],
-		"product_namespace":          serviceVars["product_namespace"],
-		"connection_class_name":      serviceVars["connection_class_name"],
-		"client_class_name":          serviceVars["client_class_name"],
-		"mock_connection_class_name": serviceVars["mock_connection_class_name"],
-		"local_includes":             []string{serviceVars["connection_header_path"]},
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_mocks_namespace":    ann.MocksNamespace(),
+		"product_namespace":          ann.Namespace(),
+		"connection_class_name":      ann.ConnectionClassName(),
+		"client_class_name":          ann.ClientClassName(),
+		"mock_connection_class_name": ann.MockConnectionClassName(),
+		"local_includes":             []string{ann.ConnectionHeaderPath()},
 		"methods":                    methodList,
 		"async_methods":              asyncMethodList,
 	}

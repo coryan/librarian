@@ -23,23 +23,27 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildRestStubMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestStubMethodList(ann *serviceAnnotations, methods []*api.Method) []map[string]any {
 	var list []map[string]any
+	preserveJson := "false"
+	if ann.PreserveProtoFieldNamesInJson {
+		preserveJson = "true"
+	}
 	for _, m := range getRestMethods(methods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":                        mVars["method_name"],
-			"request_type":                       mVars["request_type"],
-			"response_type":                      mVars["response_type"],
-			"return_type":                        mVars["return_type"],
-			"method_http_verb":                   mVars["method_http_verb"],
-			"method_http_query_parameters":       mVars["method_http_query_parameters"],
-			"request_resource":                   mVars["request_resource"],
-			"preserve_proto_field_names_in_json": mVars["preserve_proto_field_names_in_json"],
-			"method_rest_path":                   mVars["method_rest_path"],
-			"method_rest_path_async":             mVars["method_rest_path_async"],
+			"method_name":                        mann.MethodName(),
+			"request_type":                       mann.RequestType(),
+			"response_type":                      mann.ResponseType(),
+			"return_type":                        mann.ReturnType(),
+			"method_http_verb":                   mann.HTTPVerb,
+			"method_http_query_parameters":       mann.HTTPQueryParams,
+			"request_resource":                   mann.RequestResource,
+			"preserve_proto_field_names_in_json": preserveJson,
+			"method_rest_path":                   mann.RestPath,
+			"method_rest_path_async":             mann.RestPathAsync,
 		}
-		if isLongrunning(m) {
+		if mann.IsLongrunning() {
 			entry["is_longrunning"] = true
 		} else if isResponseTypeEmpty(m) {
 			entry["is_response_type_empty"] = true
@@ -49,20 +53,24 @@ func buildRestStubMethodList(svc *api.Service, methods []*api.Method, serviceVar
 	return list
 }
 
-func buildRestStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildRestStubAsyncMethodList(ann *serviceAnnotations, asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
+	preserveJson := "false"
+	if ann.PreserveProtoFieldNamesInJson {
+		preserveJson = "true"
+	}
 	for _, m := range getRestAsyncMethods(asyncMethods) {
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":                        mVars["method_name"],
-			"request_type":                       mVars["request_type"],
-			"response_type":                      mVars["response_type"],
-			"return_type":                        mVars["return_type"],
-			"method_http_verb":                   mVars["method_http_verb"],
-			"method_http_query_parameters":       mVars["method_http_query_parameters"],
-			"request_resource":                   mVars["request_resource"],
-			"preserve_proto_field_names_in_json": mVars["preserve_proto_field_names_in_json"],
-			"method_rest_path_async":             mVars["method_rest_path_async"],
+			"method_name":                        mann.MethodName(),
+			"request_type":                       mann.RequestType(),
+			"response_type":                      mann.ResponseType(),
+			"return_type":                        mann.ReturnType(),
+			"method_http_verb":                   mann.HTTPVerb,
+			"method_http_query_parameters":       mann.HTTPQueryParams,
+			"request_resource":                   mann.RequestResource,
+			"preserve_proto_field_names_in_json": preserveJson,
+			"method_rest_path_async":             mann.RestPathAsync,
 		}
 		if isResponseTypeEmpty(m) {
 			entry["is_response_type_empty"] = true
@@ -72,9 +80,9 @@ func buildRestStubAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, 
 	return list
 }
 
-func generateRestStubHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["stub_rest_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateRestStubHeader(svc *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, model *api.API) (string, string) {
+	headerPath := ann.StubRestHeaderPath()
+	guard := ann.StubRestHeaderIncludeGuard()
 
 	localIncludes := []string{
 		"google/cloud/completion_queue.h",
@@ -86,15 +94,8 @@ func generateRestStubHeader(svc *api.Service, serviceVars map[string]string, met
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	if addPaths, ok := serviceVars["additional_pb_header_paths"]; ok && addPaths != "" {
-		var additionalProtoIncludes []string
-		for add := range strings.SplitSeq(addPaths, ",") {
-			if add != "" {
-				additionalProtoIncludes = append(additionalProtoIncludes, add)
-			}
-		}
-		slices.Sort(additionalProtoIncludes)
-		protoIncludes = append(protoIncludes, additionalProtoIncludes...)
+	if len(ann.AdditionalPbHeaderPaths) > 0 {
+		protoIncludes = append(protoIncludes, ann.AdditionalPbHeaderPaths...)
 	}
 
 	var mixinHeaders []string
@@ -121,7 +122,7 @@ func generateRestStubHeader(svc *api.Service, serviceVars map[string]string, met
 	protoIncludes = append(protoIncludes, mixinHeaders...)
 
 	var mainProtoIncludes []string
-	mainProtoIncludes = append(mainProtoIncludes, serviceVars["proto_header_path"])
+	mainProtoIncludes = append(mainProtoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) && !seenMixin["google/longrunning/operations.pb.h"] {
 		mainProtoIncludes = append(mainProtoIncludes, "google/longrunning/operations.pb.h")
 	}
@@ -130,14 +131,14 @@ func generateRestStubHeader(svc *api.Service, serviceVars map[string]string, met
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"stub_rest_class_name":       serviceVars["stub_rest_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"stub_rest_class_name":       ann.StubRestClassName(),
 		"local_includes":             localIncludes,
 		"proto_includes":             protoIncludes,
-		"methods":                    buildRestStubMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildRestStubAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildRestStubMethodList(ann, methods),
+		"async_methods":              buildRestStubAsyncMethodList(ann, asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -149,11 +150,11 @@ func generateRestStubHeader(svc *api.Service, serviceVars map[string]string, met
 	return filepath.Clean(headerPath), content
 }
 
-func generateRestStubCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["stub_rest_cc_path"]
+func generateRestStubCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.StubRestCcPath()
 
 	localIncludes := []string{
-		serviceVars["stub_rest_header_path"],
+		ann.StubRestHeaderPath(),
 		"google/cloud/common_options.h",
 		"google/cloud/internal/absl_str_cat_quiet.h",
 		"google/cloud/internal/rest_stub_helpers.h",
@@ -162,25 +163,30 @@ func generateRestStubCc(svc *api.Service, serviceVars map[string]string, methods
 	slices.Sort(localIncludes)
 
 	var protoIncludes []string
-	protoIncludes = append(protoIncludes, serviceVars["proto_header_path"])
+	protoIncludes = append(protoIncludes, ann.ProtoHeaderPath())
 	if hasLongrunningMethod(methods) {
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.pb.h")
 	}
 	slices.Sort(protoIncludes)
 
+	preserveJson := "false"
+	if ann.PreserveProtoFieldNamesInJson {
+		preserveJson = "true"
+	}
+
 	data := map[string]any{
-		"copyright_year":                         serviceVars["copyright_year"],
-		"proto_file_name":                        serviceVars["proto_file_name"],
-		"product_internal_namespace":             serviceVars["product_internal_namespace"],
-		"stub_rest_class_name":                   serviceVars["stub_rest_class_name"],
+		"copyright_year":                         ann.CopyrightYear,
+		"proto_file_name":                        ann.ProtoFileName,
+		"product_internal_namespace":             ann.InternalNamespace(),
+		"stub_rest_class_name":                   ann.StubRestClassName(),
 		"local_includes":                         localIncludes,
 		"proto_includes":                         protoIncludes,
-		"methods":                                buildRestStubMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":                          buildRestStubAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                                buildRestStubMethodList(ann, methods),
+		"async_methods":                          buildRestStubAsyncMethodList(ann, asyncMethods),
 		"has_lro":                                hasLongrunningMethod(methods),
-		"longrunning_get_operation_path_rest":    serviceVars["longrunning_get_operation_path_rest"],
-		"longrunning_cancel_operation_path_rest": serviceVars["longrunning_cancel_operation_path_rest"],
-		"preserve_proto_field_names_in_json":     serviceVars["preserve_proto_field_names_in_json"],
+		"longrunning_get_operation_path_rest":    ann.LongrunningGetOperationPathRest(),
+		"longrunning_cancel_operation_path_rest": ann.LongrunningCancelOperationPathRest(),
+		"preserve_proto_field_names_in_json":     preserveJson,
 	}
 
 	content, err := renderTemplate("templates/internal/rest_stub.cc.mustache", data)

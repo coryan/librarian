@@ -22,26 +22,26 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateRoundRobinDecoratorHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["round_robin_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateRoundRobinDecoratorHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.RoundRobinHeaderPath()
+	guard := ann.RoundRobinHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["stub_header_path"],
+		ann.StubHeaderPath(),
 		"google/cloud/version.h",
 	}
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
 		"header_include_guard":       guard,
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"round_robin_class_name":     serviceVars["round_robin_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"round_robin_class_name":     ann.RoundRobinClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 
@@ -53,20 +53,20 @@ func generateRoundRobinDecoratorHeader(svc *api.Service, serviceVars map[string]
 	return filepath.Clean(headerPath), content
 }
 
-func generateRoundRobinDecoratorCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["round_robin_cc_path"]
+func generateRoundRobinDecoratorCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.RoundRobinCcPath()
 
-	localIncludes := []string{serviceVars["round_robin_header_path"]}
+	localIncludes := []string{ann.RoundRobinHeaderPath()}
 
 	data := map[string]any{
-		"copyright_year":             serviceVars["copyright_year"],
-		"proto_file_name":            serviceVars["proto_file_name"],
-		"product_internal_namespace": serviceVars["product_internal_namespace"],
-		"round_robin_class_name":     serviceVars["round_robin_class_name"],
-		"stub_class_name":            serviceVars["stub_class_name"],
+		"copyright_year":             ann.CopyrightYear,
+		"proto_file_name":            ann.ProtoFileName,
+		"product_internal_namespace": ann.InternalNamespace(),
+		"round_robin_class_name":     ann.RoundRobinClassName(),
+		"stub_class_name":            ann.StubClassName(),
 		"local_includes":             localIncludes,
-		"methods":                    buildDecoratorMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":              buildDecoratorAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                    buildDecoratorMethodList(methods),
+		"async_methods":              buildDecoratorAsyncMethodList(asyncMethods),
 		"has_lro":                    hasLongrunningMethod(methods),
 	}
 

@@ -22,18 +22,18 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func buildTracingConnectionMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildTracingConnectionMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
 		if isStreamingWrite(m) {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		entry := map[string]any{
-			"method_name":   mVars["method_name"],
-			"request_type":  mVars["request_type"],
-			"response_type": mVars["response_type"],
-			"return_type":   mVars["return_type"],
+			"method_name":   mann.MethodName(),
+			"request_type":  mann.RequestType(),
+			"response_type": mann.ResponseType(),
+			"return_type":   mann.ReturnType(),
 		}
 		if isBidiStreaming(m) {
 			entry["is_bidi_streaming"] = true
@@ -41,16 +41,16 @@ func buildTracingConnectionMethodList(svc *api.Service, methods []*api.Method, s
 			entry["is_streaming_read"] = true
 		} else if isPaginated(m) {
 			entry["is_paginated"] = true
-			entry["range_output_type"] = mVars["range_output_type"]
+			entry["range_output_type"] = mann.RangeOutputType()
 		} else if isLongrunning(m) {
 			entry["is_longrunning"] = true
-			entry["longrunning_operation_type"] = mVars["longrunning_operation_type"]
+			entry["longrunning_operation_type"] = mann.LongrunningOperationType()
 			if isResponseTypeEmpty(m) {
 				entry["is_response_type_empty"] = true
 				entry["lro_return_type"] = "future<Status>"
 			} else {
-				entry["longrunning_deduced_response_type"] = mVars["longrunning_deduced_response_type"]
-				entry["lro_return_type"] = "future<StatusOr<" + mVars["longrunning_deduced_response_type"] + ">>"
+				entry["longrunning_deduced_response_type"] = mann.LongrunningDeducedResponseType()
+				entry["lro_return_type"] = "future<StatusOr<" + mann.LongrunningDeducedResponseType() + ">>"
 			}
 		} else {
 			entry["is_plain_unary"] = true
@@ -60,44 +60,44 @@ func buildTracingConnectionMethodList(svc *api.Service, methods []*api.Method, s
 	return list
 }
 
-func buildTracingConnectionAsyncMethodList(svc *api.Service, asyncMethods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildTracingConnectionAsyncMethodList(asyncMethods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range asyncMethods {
 		if isStreamingRead(m) || isStreamingWrite(m) {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		list = append(list, map[string]any{
-			"method_name":  mVars["method_name"],
-			"request_type": mVars["request_type"],
-			"return_type":  mVars["return_type"],
+			"method_name":  mann.MethodName(),
+			"request_type": mann.RequestType(),
+			"return_type":  mann.ReturnType(),
 		})
 	}
 	return list
 }
 
-func generateTracingConnectionHeader(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["tracing_connection_header_path"]
+func generateTracingConnectionHeader(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	headerPath := ann.TracingConnectionHeaderPath()
 	guard := formatHeaderIncludeGuard(headerPath)
 
 	localIncludes := []string{
-		serviceVars["connection_header_path"],
+		ann.ConnectionHeaderPath(),
 		"google/cloud/version.h",
 	}
 	slices.Sort(localIncludes)
 
 	data := map[string]any{
 		"header_include_guard":          guard,
-		"copyright_year":                serviceVars["copyright_year"],
-		"proto_file_name":               serviceVars["proto_file_name"],
-		"product_internal_namespace":    serviceVars["product_internal_namespace"],
-		"product_namespace":             serviceVars["product_namespace"],
-		"connection_class_name":         serviceVars["connection_class_name"],
-		"tracing_connection_class_name": serviceVars["tracing_connection_class_name"],
+		"copyright_year":                ann.CopyrightYear,
+		"proto_file_name":               ann.ProtoFileName,
+		"product_internal_namespace":    ann.InternalNamespace(),
+		"product_namespace":             ann.Namespace(),
+		"connection_class_name":         ann.ConnectionClassName(),
+		"tracing_connection_class_name": ann.TracingConnectionClassName(),
 		"local_includes":                localIncludes,
 		"system_includes":               []string{"memory"},
-		"methods":                       buildTracingConnectionMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":                 buildTracingConnectionAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                       buildTracingConnectionMethodList(methods),
+		"async_methods":                 buildTracingConnectionAsyncMethodList(asyncMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/tracing_connection.h.mustache", data)
@@ -108,11 +108,11 @@ func generateTracingConnectionHeader(svc *api.Service, serviceVars map[string]st
 	return filepath.Clean(headerPath), content
 }
 
-func generateTracingConnectionCc(svc *api.Service, serviceVars map[string]string, methods, asyncMethods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["tracing_connection_cc_path"]
+func generateTracingConnectionCc(_ *api.Service, ann *serviceAnnotations, methods, asyncMethods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.TracingConnectionCcPath()
 
 	localIncludes := []string{
-		serviceVars["tracing_connection_header_path"],
+		ann.TracingConnectionHeaderPath(),
 		"google/cloud/internal/opentelemetry.h",
 	}
 	if hasPaginatedMethod(methods) || hasStreamingReadMethod(methods) {
@@ -123,16 +123,16 @@ func generateTracingConnectionCc(svc *api.Service, serviceVars map[string]string
 	}
 
 	data := map[string]any{
-		"copyright_year":                serviceVars["copyright_year"],
-		"proto_file_name":               serviceVars["proto_file_name"],
-		"product_internal_namespace":    serviceVars["product_internal_namespace"],
-		"product_namespace":             serviceVars["product_namespace"],
-		"connection_class_name":         serviceVars["connection_class_name"],
-		"tracing_connection_class_name": serviceVars["tracing_connection_class_name"],
+		"copyright_year":                ann.CopyrightYear,
+		"proto_file_name":               ann.ProtoFileName,
+		"product_internal_namespace":    ann.InternalNamespace(),
+		"product_namespace":             ann.Namespace(),
+		"connection_class_name":         ann.ConnectionClassName(),
+		"tracing_connection_class_name": ann.TracingConnectionClassName(),
 		"local_includes":                localIncludes,
 		"system_includes":               []string{"memory", "utility"},
-		"methods":                       buildTracingConnectionMethodList(svc, methods, serviceVars, lib, model),
-		"async_methods":                 buildTracingConnectionAsyncMethodList(svc, asyncMethods, serviceVars, lib, model),
+		"methods":                       buildTracingConnectionMethodList(methods),
+		"async_methods":                 buildTracingConnectionAsyncMethodList(asyncMethods),
 	}
 
 	content, err := renderTemplate("templates/internal/tracing_connection.cc.mustache", data)
@@ -142,3 +142,4 @@ func generateTracingConnectionCc(svc *api.Service, serviceVars map[string]string
 
 	return filepath.Clean(ccPath), content
 }
+

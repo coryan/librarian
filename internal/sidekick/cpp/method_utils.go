@@ -16,9 +16,7 @@ package cpp
 
 import (
 	"fmt"
-	"maps"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/googleapis/librarian/internal/config"
@@ -217,162 +215,6 @@ func defaultIdempotency(m *api.Method, svcName string, lib *config.Library) stri
 	return "kNonIdempotent"
 }
 
-func buildMethodVars(svc *api.Service, m *api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) map[string]string {
-	vars := make(map[string]string)
-	maps.Copy(vars, serviceVars)
-
-	methodName := m.Name
-	vars["method_name"] = methodName
-	vars["method_name_snake"] = camelCaseToSnakeCase(methodName)
-	vars["request_type"] = protoNameToCppName(m.InputTypeID)
-	vars["response_type"] = protoNameToCppName(m.OutputTypeID)
-	vars["response_message_type"] = strings.TrimPrefix(m.OutputTypeID, ".")
-
-	if isResponseTypeEmpty(m) {
-		vars["return_type"] = "Status"
-	} else {
-		vars["return_type"] = "StatusOr<" + vars["response_type"] + ">"
-	}
-
-	if m.SourceService != nil && m.SourceService.ID != svc.ID {
-		vars["grpc_stub"] = strings.ToLower(m.SourceService.Name) + "_stub_"
-	} else {
-		vars["grpc_stub"] = "grpc_stub_"
-	}
-
-	vars["idempotency"] = defaultIdempotency(m, svc.Name, lib)
-
-	if len(m.AutoPopulated) > 0 {
-		vars["request_id_field_name"] = m.AutoPopulated[0].Name
-	}
-
-	if isLongrunning(m) {
-		vars["longrunning_operation_type"] = protoNameToCppName(m.OutputTypeID)
-		if m.OperationInfo != nil {
-			vars["longrunning_metadata_type"] = protoNameToCppName(m.OperationInfo.MetadataTypeID)
-			vars["longrunning_response_type"] = protoNameToCppName(m.OperationInfo.ResponseTypeID)
-
-			deduced := m.OperationInfo.ResponseTypeID
-			if deduced == ".google.protobuf.Empty" || deduced == "google.protobuf.Empty" {
-				deduced = m.OperationInfo.MetadataTypeID
-			}
-			vars["longrunning_deduced_response_type"] = protoNameToCppName(deduced)
-			vars["longrunning_deduced_response_message_type"] = strings.TrimPrefix(deduced, ".")
-		}
-	}
-
-	if isPaginated(m) {
-		respMsg := model.Message(m.OutputTypeID)
-		if respMsg != nil && respMsg.Pagination != nil && respMsg.Pagination.PageableItem != nil {
-			item := respMsg.Pagination.PageableItem
-			vars["range_output_field_name"] = item.Name
-			switch item.Typez {
-			case api.TypezMessage:
-				vars["range_output_type"] = protoNameToCppName(item.TypezID)
-			case api.TypezString:
-				vars["range_output_type"] = "std::string"
-			}
-		}
-	}
-
-	// Signatures
-	omitted := make(map[string]bool)
-	if lib != nil && lib.Cpp != nil {
-		for _, o := range lib.Cpp.OmittedRPCs {
-			omitted[o] = true
-		}
-	}
-
-	seenUIDs := make(map[string]bool)
-	validSigIndex := 0
-	for _, sig := range m.Signatures {
-		var sigPieces []string
-		var uidPieces []string
-		var setters strings.Builder
-		for _, f := range sig.Fields {
-			paramName := f.Name
-			var cppType string
-			if f.Map {
-				// Map type
-				keyType := "std::string"
-				valType := "std::string"
-				if f.MessageType != nil && len(f.MessageType.Fields) >= 2 {
-					keyType = cppTypeToString(f.MessageType.Fields[0])
-					valType = cppTypeToString(f.MessageType.Fields[1])
-				}
-				cppType = fmt.Sprintf("std::map<%s, %s> const&", keyType, valType)
-				fmt.Fprintf(&setters, "  *request.mutable_%s() = {%s.begin(), %s.end()};\n", paramName, paramName, paramName)
-			} else if f.Repeated {
-				elemType := cppTypeToString(f)
-				cppType = fmt.Sprintf("std::vector<%s> const&", elemType)
-				fmt.Fprintf(&setters, "  *request.mutable_%s() = {%s.begin(), %s.end()};\n", paramName, paramName, paramName)
-			} else if f.Typez == api.TypezMessage {
-				cppType = cppTypeToString(f) + " const&"
-				fmt.Fprintf(&setters, "  *request.mutable_%s() = %s;\n", paramName, paramName)
-			} else if f.Typez == api.TypezString || f.Typez == api.TypezBytes {
-				cppType = cppTypeToString(f) + " const&"
-				fmt.Fprintf(&setters, "  request.set_%s(%s);\n", paramName, paramName)
-			} else {
-				cppType = cppTypeToString(f)
-				fmt.Fprintf(&setters, "  request.set_%s(%s);\n", paramName, paramName)
-			}
-			sigPieces = append(sigPieces, fmt.Sprintf("%s %s", cppType, paramName))
-			uidPieces = append(uidPieces, cppType)
-		}
-		uid := strings.Join(uidPieces, ", ") + ", "
-		if seenUIDs[uid] {
-			continue
-		}
-		seenUIDs[uid] = true
-
-		sigName := fmt.Sprintf("%s(%s)", methodName, strings.Join(uidPieces, ", "))
-		qualifiedSigName := fmt.Sprintf("%s.%s", svc.Name, sigName)
-		if omitted[sigName] || omitted[qualifiedSigName] {
-			continue
-		}
-
-		key := "method_signature" + strconv.Itoa(validSigIndex)
-		key2 := "method_request_setters" + strconv.Itoa(validSigIndex)
-		sigStr := ""
-		if len(sigPieces) > 0 {
-			sigStr = strings.Join(sigPieces, ", ") + ", "
-		}
-		vars[key] = sigStr
-		vars[key2] = setters.String()
-		validSigIndex++
-	}
-	vars["method_signature_count"] = strconv.Itoa(validSigIndex)
-
-	// Routing / Request params
-	if len(m.Routing) == 0 && m.PathInfo != nil && len(m.PathInfo.Bindings) > 0 {
-		template := m.PathInfo.Bindings[0].PathTemplate
-		if template != nil {
-			var params []string
-			for _, seg := range template.Segments {
-				if seg.Variable != nil && len(seg.Variable.FieldPath) > 0 {
-					fieldName := strings.Join(seg.Variable.FieldPath, ".")
-					accessor := formatFieldAccessor(seg.Variable.FieldPath)
-					params = append(params, fmt.Sprintf(`"%s=", internal::UrlEncode(request.%s())`, fieldName, accessor))
-				}
-			}
-			if len(params) > 0 {
-				vars["method_request_params"] = strings.Join(params, `, "&", `)
-			}
-		}
-	}
-
-	// REST method vars
-	if m.PathInfo != nil && len(m.PathInfo.Bindings) > 0 {
-		vars["method_http_verb"] = httpVerb(m.PathInfo.Bindings[0].Verb)
-		vars["request_resource"] = formatRequestResource(m)
-		vars["method_rest_path"] = formatRestPath(m, false)
-		vars["method_rest_path_async"] = formatRestPath(m, true)
-		vars["method_http_query_parameters"] = formatHTTPQueryParameters(m, model)
-	}
-
-	return vars
-}
-
 func methodSignatureWellKnownProtobufTypeIncludes(methods []*api.Method) []string {
 	var includes []string
 	seen := make(map[string]bool)
@@ -392,3 +234,86 @@ func methodSignatureWellKnownProtobufTypeIncludes(methods []*api.Method) []strin
 	slices.Sort(includes)
 	return includes
 }
+
+type signatureInfo struct {
+	index int
+	sig   *api.MethodSignature
+}
+
+func getValidSignatures(svc *api.Service, m *api.Method, lib *config.Library) []signatureInfo {
+	omitted := make(map[string]bool)
+	if lib != nil && lib.Cpp != nil {
+		for _, o := range lib.Cpp.OmittedRPCs {
+			omitted[o] = true
+		}
+	}
+
+	var res []signatureInfo
+	seenUIDs := make(map[string]bool)
+	validIndex := 0
+	for _, sig := range m.Signatures {
+		var uidPieces []string
+		for _, f := range sig.Fields {
+			var cppType string
+			if f.Map {
+				keyType := "std::string"
+				valType := "std::string"
+				if f.MessageType != nil && len(f.MessageType.Fields) >= 2 {
+					keyType = cppTypeToString(f.MessageType.Fields[0])
+					valType = cppTypeToString(f.MessageType.Fields[1])
+				}
+				cppType = fmt.Sprintf("std::map<%s, %s> const&", keyType, valType)
+			} else if f.Repeated {
+				elemType := cppTypeToString(f)
+				cppType = fmt.Sprintf("std::vector<%s> const&", elemType)
+			} else if f.Typez == api.TypezMessage || f.Typez == api.TypezString || f.Typez == api.TypezBytes {
+				cppType = cppTypeToString(f) + " const&"
+			} else {
+				cppType = cppTypeToString(f)
+			}
+			uidPieces = append(uidPieces, cppType)
+		}
+		uid := strings.Join(uidPieces, ", ") + ", "
+		if seenUIDs[uid] {
+			continue
+		}
+		seenUIDs[uid] = true
+
+		sigName := fmt.Sprintf("%s(%s)", m.Name, strings.Join(uidPieces, ", "))
+		qualifiedSigName := fmt.Sprintf("%s.%s", svc.Name, sigName)
+		if omitted[sigName] || omitted[qualifiedSigName] {
+			continue
+		}
+
+		res = append(res, signatureInfo{
+			index: validIndex,
+			sig:   sig,
+		})
+		validIndex++
+	}
+	return res
+}
+
+func methodSignatureUsesDeprecatedField(svc *api.Service, methods []*api.Method, lib *config.Library) bool {
+	for _, m := range methods {
+		sigs := getValidSignatures(svc, m, lib)
+		for _, s := range sigs {
+			for _, f := range s.sig.Fields {
+				if f.Deprecated {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasExplicitRoutingMethod(methods []*api.Method) bool {
+	for _, m := range methods {
+		if len(m.Routing) > 0 {
+			return true
+		}
+	}
+	return false
+}
+

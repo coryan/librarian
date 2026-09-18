@@ -23,17 +23,17 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func getProtoGrpcHeaders(svc *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library, model *api.API) []string {
+func getProtoGrpcHeaders(svc *api.Service, ann *serviceAnnotations, methods []*api.Method, lib *config.Library, model *api.API) []string {
 	var headers []string
 	seen := make(map[string]bool)
 	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
 	if hasGrpc {
-		if h := serviceVars["proto_grpc_header_path"]; h != "" {
+		if h := ann.ProtoGrpcHeaderPath(); h != "" {
 			seen[h] = true
 			headers = append(headers, h)
 		}
 	} else {
-		if h := serviceVars["proto_header_path"]; h != "" {
+		if h := ann.ProtoHeaderPath(); h != "" {
 			seen[h] = true
 			headers = append(headers, h)
 		}
@@ -64,32 +64,32 @@ func getProtoGrpcHeaders(svc *api.Service, serviceVars map[string]string, method
 	return headers
 }
 
-func buildIdempotencyMethodList(svc *api.Service, methods []*api.Method, serviceVars map[string]string, lib *config.Library, model *api.API) []map[string]any {
+func buildIdempotencyMethodList(methods []*api.Method) []map[string]any {
 	var list []map[string]any
 	for _, m := range methods {
 		if isStreaming(m) {
 			continue
 		}
-		mVars := buildMethodVars(svc, m, serviceVars, lib, model)
+		mann := m.Codec.(*methodAnnotations)
 		isSetIam := m.OutputTypeID == ".google.iam.v1.Policy" && m.InputTypeID == ".google.iam.v1.SetIamPolicyRequest"
 		entry := map[string]any{
-			"method_name":  mVars["method_name"],
-			"request_type": mVars["request_type"],
-			"idempotency":  mVars["idempotency"],
+			"method_name":  mann.MethodName(),
+			"request_type": mann.RequestType(),
+			"idempotency":  mann.Idempotency,
 		}
 		if isSetIam {
 			entry["is_set_iam"] = true
-		} else if isPaginated(m) {
+		} else if mann.IsPaginated() {
 			entry["is_paginated"] = true
-			if hasRequestID(m) {
+			if mann.HasRequestID() {
 				entry["has_request_id"] = true
-				entry["request_id_field_name"] = mVars["request_id_field_name"]
+				entry["request_id_field_name"] = mann.RequestIDFieldName()
 			}
 		} else {
 			entry["is_other"] = true
-			if hasRequestID(m) {
+			if mann.HasRequestID() {
 				entry["has_request_id"] = true
-				entry["request_id_field_name"] = mVars["request_id_field_name"]
+				entry["request_id_field_name"] = mann.RequestIDFieldName()
 			}
 		}
 		list = append(list, entry)
@@ -97,9 +97,9 @@ func buildIdempotencyMethodList(svc *api.Service, methods []*api.Method, service
 	return list
 }
 
-func generateIdempotencyPolicyHeader(svc *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	headerPath := serviceVars["idempotency_policy_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateIdempotencyPolicyHeader(svc *api.Service, ann *serviceAnnotations, methods []*api.Method, lib *config.Library, model *api.API) (string, string) {
+	headerPath := ann.IdempotencyHeaderPath()
+	guard := ann.IdempotencyHeaderIncludeGuard()
 
 	localIncludes := []string{
 		"google/cloud/idempotency.h",
@@ -107,18 +107,18 @@ func generateIdempotencyPolicyHeader(svc *api.Service, serviceVars map[string]st
 	}
 	slices.Sort(localIncludes)
 
-	pbHeaders := getProtoGrpcHeaders(svc, serviceVars, methods, lib, model)
+	pbHeaders := getProtoGrpcHeaders(svc, ann, methods, lib, model)
 
 	data := map[string]any{
 		"header_include_guard":   guard,
-		"copyright_year":         serviceVars["copyright_year"],
-		"proto_file_name":        serviceVars["proto_file_name"],
-		"product_namespace":      serviceVars["product_namespace"],
-		"idempotency_class_name": serviceVars["idempotency_class_name"],
+		"copyright_year":         ann.CopyrightYear,
+		"proto_file_name":        ann.ProtoFileName,
+		"product_namespace":      ann.Namespace(),
+		"idempotency_class_name": ann.IdempotencyClassName(),
 		"local_includes":         localIncludes,
 		"proto_includes":         pbHeaders,
 		"system_includes":        []string{"memory"},
-		"methods":                buildIdempotencyMethodList(svc, methods, serviceVars, lib, model),
+		"methods":                buildIdempotencyMethodList(methods),
 	}
 
 	content, err := renderTemplate("templates/connection_idempotency_policy.h.mustache", data)
@@ -129,17 +129,17 @@ func generateIdempotencyPolicyHeader(svc *api.Service, serviceVars map[string]st
 	return filepath.Clean(headerPath), content
 }
 
-func generateIdempotencyPolicyCc(svc *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library, model *api.API) (string, string) {
-	ccPath := serviceVars["idempotency_policy_cc_path"]
+func generateIdempotencyPolicyCc(_ *api.Service, ann *serviceAnnotations, methods []*api.Method, _ *config.Library, _ *api.API) (string, string) {
+	ccPath := ann.IdempotencyCcPath()
 
 	data := map[string]any{
-		"copyright_year":         serviceVars["copyright_year"],
-		"proto_file_name":        serviceVars["proto_file_name"],
-		"product_namespace":      serviceVars["product_namespace"],
-		"idempotency_class_name": serviceVars["idempotency_class_name"],
-		"local_includes":         []string{serviceVars["idempotency_policy_header_path"]},
+		"copyright_year":         ann.CopyrightYear,
+		"proto_file_name":        ann.ProtoFileName,
+		"product_namespace":      ann.Namespace(),
+		"idempotency_class_name": ann.IdempotencyClassName(),
+		"local_includes":         []string{ann.IdempotencyHeaderPath()},
 		"system_includes":        []string{"memory"},
-		"methods":                buildIdempotencyMethodList(svc, methods, serviceVars, lib, model),
+		"methods":                buildIdempotencyMethodList(methods),
 	}
 
 	content, err := renderTemplate("templates/connection_idempotency_policy.cc.mustache", data)

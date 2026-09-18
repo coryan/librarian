@@ -17,25 +17,20 @@ package cpp
 import (
 	"path/filepath"
 	"slices"
-
-	"github.com/googleapis/librarian/internal/config"
 )
 
-func generateRestConnectionHeader(serviceVars map[string]string, lib *config.Library) (string, string) {
-	headerPath := serviceVars["connection_rest_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+func generateRestConnectionHeader(ann *serviceAnnotations) (string, string) {
+	headerPath := ann.ConnectionRestHeaderPath()
+	guard := ann.ConnectionRestHeaderIncludeGuard()
 
 	localIncludes := []string{
-		serviceVars["connection_header_path"],
+		ann.ConnectionHeaderPath(),
 		"google/cloud/options.h",
 		"google/cloud/version.h",
 	}
 	slices.Sort(localIncludes)
 
-	locationStyle := ""
-	if lib != nil && lib.Cpp != nil {
-		locationStyle = lib.Cpp.EndpointLocationStyle
-	}
+	locationStyle := ann.EndpointLocationStyle
 	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
 		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
 		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
@@ -53,12 +48,12 @@ func generateRestConnectionHeader(serviceVars map[string]string, lib *config.Lib
 
 	data := map[string]any{
 		"header_include_guard":             guard,
-		"copyright_year":                   serviceVars["copyright_year"],
-		"proto_file_name":                  serviceVars["proto_file_name"],
-		"product_namespace":                serviceVars["product_namespace"],
-		"connection_class_name":            serviceVars["connection_class_name"],
-		"client_class_name":                serviceVars["client_class_name"],
-		"service_name":                     serviceVars["service_name"],
+		"copyright_year":                   ann.CopyrightYear,
+		"proto_file_name":                  ann.ProtoFileName,
+		"product_namespace":                ann.Namespace(),
+		"connection_class_name":            ann.ConnectionClassName(),
+		"client_class_name":                ann.ClientClassName(),
+		"service_name":                     ann.ServiceName,
 		"is_location_dependent":            isLocationDependent,
 		"is_location_dependent_compat":     locationStyle == "LOCATION_DEPENDENT_COMPAT",
 		"is_location_optionally_dependent": locationStyle == "LOCATION_OPTIONALLY_DEPENDENT",
@@ -75,16 +70,16 @@ func generateRestConnectionHeader(serviceVars map[string]string, lib *config.Lib
 	return filepath.Clean(headerPath), content
 }
 
-func generateRestConnectionCc(serviceVars map[string]string, lib *config.Library) (string, string) {
-	ccPath := serviceVars["connection_rest_cc_path"]
+func generateRestConnectionCc(ann *serviceAnnotations) (string, string) {
+	ccPath := ann.ConnectionRestCcPath()
 
 	localIncludes := []string{
-		serviceVars["connection_rest_header_path"],
-		serviceVars["options_header_path"],
-		serviceVars["option_defaults_header_path"],
-		serviceVars["connection_impl_rest_header_path"],
-		serviceVars["stub_factory_rest_header_path"],
-		serviceVars["tracing_connection_header_path"],
+		ann.ConnectionRestHeaderPath(),
+		ann.OptionsHeaderPath(),
+		ann.OptionDefaultsHeaderPath(),
+		ann.ConnectionImplRestHeaderPath(),
+		ann.StubFactoryRestHeaderPath(),
+		ann.TracingConnectionHeaderPath(),
 		"google/cloud/common_options.h",
 		"google/cloud/credentials.h",
 		"google/cloud/internal/rest_background_threads_impl.h",
@@ -94,10 +89,7 @@ func generateRestConnectionCc(serviceVars map[string]string, lib *config.Library
 		slices.Sort(localIncludes[1:])
 	}
 
-	locationStyle := ""
-	if lib != nil && lib.Cpp != nil {
-		locationStyle = lib.Cpp.EndpointLocationStyle
-	}
+	locationStyle := ann.EndpointLocationStyle
 	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
 		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
 		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
@@ -105,15 +97,15 @@ func generateRestConnectionCc(serviceVars map[string]string, lib *config.Library
 		locationStyle == "LOCATION_DEPENDENT_COMPAT"
 
 	data := map[string]any{
-		"copyright_year":                  serviceVars["copyright_year"],
-		"proto_file_name":                 serviceVars["proto_file_name"],
-		"product_namespace":               serviceVars["product_namespace"],
-		"product_internal_namespace":      serviceVars["product_internal_namespace"],
-		"connection_class_name":           serviceVars["connection_class_name"],
-		"service_name":                    serviceVars["service_name"],
-		"stub_rest_class_name":            serviceVars["stub_rest_class_name"],
-		"connection_impl_rest_class_name": serviceVars["connection_impl_rest_class_name"],
-		"tracing_connection_class_name":   serviceVars["tracing_connection_class_name"],
+		"copyright_year":                  ann.CopyrightYear,
+		"proto_file_name":                 ann.ProtoFileName,
+		"product_namespace":               ann.Namespace(),
+		"product_internal_namespace":      ann.InternalNamespace(),
+		"connection_class_name":           ann.ConnectionClassName(),
+		"service_name":                    ann.ServiceName,
+		"stub_rest_class_name":            ann.StubRestClassName(),
+		"connection_impl_rest_class_name": ann.ConnectionImplRestClassName(),
+		"tracing_connection_class_name":   ann.TracingConnectionClassName(),
 		"is_location_dependent":           isLocationDependent,
 		"has_non_location_overload":       hasNonLocationOverload,
 		"local_includes":                  localIncludes,

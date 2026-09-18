@@ -53,77 +53,79 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 	}
 
 	for _, svc := range model.Services {
-		serviceVars := buildServiceVars(svc, library, model)
-		methods, asyncMethods := getEffectiveMethods(svc, library)
+		ann := svc.Codec.(*serviceAnnotations)
+		methods := ann.Methods
+		asyncMethods := ann.AsyncMethods
 
 		var files []fileEntry
 		add := func(p, c string) {
 			files = append(files, fileEntry{path: p, content: c})
 		}
 
-		add(generateOptionsHeader(svc, serviceVars, methods, library))
-		if p, c, ok := generateRetryTraitsHeader(svc, serviceVars, library); ok {
+		add(generateOptionsHeader(svc, ann, methods, library))
+		if p, c, ok := generateRetryTraitsHeader(svc, ann, library); ok {
 			add(p, c)
 		}
-		add(generateIdempotencyPolicyHeader(svc, serviceVars, methods, library, model))
-		add(generateIdempotencyPolicyCc(svc, serviceVars, methods, library, model))
-		add(generateMockConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateOptionDefaultsHeader(svc, serviceVars, library))
-		add(generateOptionDefaultsCc(svc, serviceVars, methods, library))
+		add(generateIdempotencyPolicyHeader(svc, ann, methods, library, model))
+		add(generateIdempotencyPolicyCc(svc, ann, methods, library, model))
+		add(generateMockConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+		add(generateOptionDefaultsHeader(svc, ann, library))
+		add(generateOptionDefaultsCc(svc, ann, methods, library))
 
 		if hasGrpc {
-			add(generateStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateStubCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateStubFactoryHeader(svc, serviceVars, library))
-			add(generateStubFactoryCc(svc, serviceVars, methods, library))
-			add(generateAuthDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateAuthDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateLoggingDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateLoggingDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateMetadataDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateMetadataDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateTracingStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateTracingStubCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateStubHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateStubCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateStubFactoryHeader(svc, ann, library))
+			add(generateStubFactoryCc(svc, ann, methods, library))
+			add(generateAuthDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateAuthDecoratorCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateLoggingDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateLoggingDecoratorCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateMetadataDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateMetadataDecoratorCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateTracingStubHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateTracingStubCc(svc, ann, methods, asyncMethods, library, model))
 
 			if library.Cpp.GenerateRoundRobinDecorator {
-				add(generateRoundRobinDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-				add(generateRoundRobinDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+				add(generateRoundRobinDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+				add(generateRoundRobinDecoratorCc(svc, ann, methods, asyncMethods, library, model))
 			}
 
-			add(generateConnectionImplHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateConnectionImplCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
 		}
 
 		if hasRest {
-			add(generateRestConnectionHeader(serviceVars, library))
-			add(generateRestConnectionCc(serviceVars, library))
-			add(generateRestStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestStubCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestStubFactoryHeader(serviceVars))
-			add(generateRestStubFactoryCc(serviceVars))
-			add(generateRestLoggingDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestLoggingDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestMetadataDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestMetadataDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestConnectionImplHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRestConnectionImplCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestConnectionHeader(ann))
+			add(generateRestConnectionCc(ann))
+			add(generateRestStubHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestStubCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestStubFactoryHeader(ann))
+			add(generateRestStubFactoryCc(ann))
+			add(generateRestLoggingDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestLoggingDecoratorCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestMetadataDecoratorHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestMetadataDecoratorCc(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestConnectionImplHeader(svc, ann, methods, asyncMethods, library, model))
+			add(generateRestConnectionImplCc(svc, ann, methods, asyncMethods, library, model))
 		}
 
-		add(generateTracingConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateTracingConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateClientHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateClientCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateSourcesCc(serviceVars, hasGrpc, hasRest, library))
+		add(generateTracingConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+		add(generateTracingConnectionCc(svc, ann, methods, asyncMethods, library, model))
+		add(generateConnectionHeader(svc, ann, methods, asyncMethods, library, model))
+		add(generateConnectionCc(svc, ann, methods, asyncMethods, library, model))
+		add(generateClientHeader(svc, ann, methods, asyncMethods, library, model))
+		add(generateClientCc(svc, ann, methods, asyncMethods, library, model))
+		add(generateSourcesCc(ann))
 
 		if library.Cpp.ForwardingProductPath != "" {
-			add(generateForwardingClientHeader(svc, serviceVars, library))
-			add(generateForwardingConnectionHeader(svc, serviceVars, library))
-			add(generateForwardingIdempotencyPolicyHeader(svc, serviceVars, library))
-			add(generateForwardingMockConnectionHeader(svc, serviceVars, library))
-			add(generateForwardingOptionsHeader(svc, serviceVars, methods, library))
+			add(generateForwardingClientHeader(svc, ann, library))
+			add(generateForwardingConnectionHeader(svc, ann, library))
+			add(generateForwardingIdempotencyPolicyHeader(svc, ann, library))
+			add(generateForwardingMockConnectionHeader(svc, ann, library))
+			add(generateForwardingOptionsHeader(svc, ann, methods, library))
 		}
+
 
 		for _, f := range files {
 			rel := strings.TrimPrefix(filepath.ToSlash(f.path), basePrefix)

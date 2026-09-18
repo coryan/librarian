@@ -21,20 +21,21 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateRetryTraitsHeader(_ *api.Service, serviceVars map[string]string, _ *config.Library) (string, string, bool) {
-	if serviceVars["retry_status_code_expression"] == "" {
+func generateRetryTraitsHeader(_ *api.Service, ann *serviceAnnotations, _ *config.Library) (string, string, bool) {
+	expr := ann.RetryStatusCodeExpression()
+	if expr == "" {
 		return "", "", false
 	}
-	headerPath := serviceVars["retry_traits_header_path"]
-	guard := formatHeaderIncludeGuard(headerPath)
+	headerPath := ann.RetryTraitsHeaderPath()
+	guard := ann.RetryTraitsHeaderIncludeGuard()
 
 	data := map[string]any{
 		"header_include_guard":         guard,
-		"copyright_year":               serviceVars["copyright_year"],
-		"proto_file_name":              serviceVars["proto_file_name"],
-		"product_internal_namespace":   serviceVars["product_internal_namespace"],
-		"retry_traits_name":            serviceVars["retry_traits_name"],
-		"retry_status_code_expression": serviceVars["retry_status_code_expression"],
+		"copyright_year":               ann.CopyrightYear,
+		"proto_file_name":              ann.ProtoFileName,
+		"product_internal_namespace":   ann.InternalNamespace(),
+		"retry_traits_name":            ann.RetryTraitsName(),
+		"retry_status_code_expression": expr,
 	}
 
 	content, err := renderTemplate("templates/internal/retry_traits.h.mustache", data)
