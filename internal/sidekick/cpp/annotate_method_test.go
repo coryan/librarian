@@ -250,3 +250,44 @@ func TestAnnotateMethod_IdempotencyOverride(t *testing.T) {
 		t.Errorf("got Idempotency %q, want 'kIdempotent'", ann.Idempotency)
 	}
 }
+
+func TestAnnotateMethod_Rest(t *testing.T) {
+	req := api.NewTestMessage("Req").WithPackage("test.v1")
+	resp := api.NewTestMessage("Resp").WithPackage("test.v1")
+	method := api.NewTestMethod("GetItem").WithInput(req).WithOutput(resp)
+	method.PathInfo = &api.PathInfo{
+		Bindings: []*api.PathBinding{
+			{
+				Verb: "GET",
+				PathTemplate: &api.PathTemplate{
+					Segments: []api.PathSegment{
+						{Literal: "v1"},
+						{Literal: "items"},
+					},
+				},
+			},
+		},
+	}
+	svc := api.NewTestService("TestService").WithPackage("test.v1").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{req, resp}, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	ann := annotateMethod(method, svc, nil, model)
+	if !ann.IsRestMethod {
+		t.Errorf("expected IsRestMethod=true")
+	}
+	if ann.HTTPVerb != "Get" {
+		t.Errorf("got HTTPVerb %q, want 'Get'", ann.HTTPVerb)
+	}
+	if ann.RequestResource != "request" {
+		t.Errorf("got RequestResource %q, want 'request'", ann.RequestResource)
+	}
+	if ann.RestPath == "" {
+		t.Errorf("expected non-empty RestPath")
+	}
+	if ann.RestPathAsync == "" {
+		t.Errorf("expected non-empty RestPathAsync")
+	}
+}

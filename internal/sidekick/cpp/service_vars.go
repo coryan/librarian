@@ -232,6 +232,16 @@ func buildServiceVars(svc *api.Service, lib *config.Library, model *api.API) map
 	vars["stub_factory_header_path"] = productPath + "internal/" + filePathName + "_stub_factory.h"
 	vars["stub_factory_cc_path"] = productPath + "internal/" + filePathName + "_stub_factory.cc"
 
+	// REST class names
+	vars["stub_rest_class_name"] = serviceName + "RestStub"
+	vars["connection_impl_rest_class_name"] = serviceName + "RestConnectionImpl"
+	vars["logging_rest_class_name"] = serviceName + "RestLogging"
+	vars["metadata_rest_class_name"] = serviceName + "RestMetadata"
+	vars["preserve_proto_field_names_in_json"] = "false"
+	if lib != nil && lib.Cpp != nil && lib.Cpp.PreserveProtoFieldNamesInJson {
+		vars["preserve_proto_field_names_in_json"] = "true"
+	}
+
 	// Paths
 	vars["client_header_path"] = productPath + filePathName + "_client.h"
 	vars["client_cc_path"] = productPath + filePathName + "_client.cc"
@@ -262,6 +272,37 @@ func buildServiceVars(svc *api.Service, lib *config.Library, model *api.API) map
 	vars["round_robin_header_path"] = productPath + "internal/" + filePathName + "_round_robin_decorator.h"
 	vars["round_robin_cc_path"] = productPath + "internal/" + filePathName + "_round_robin_decorator.cc"
 	vars["sources_cc_path"] = productPath + "internal/" + filePathName + "_sources.cc"
+
+	// REST paths
+	vars["connection_rest_header_path"] = productPath + filePathName + "_rest_connection.h"
+	vars["connection_rest_cc_path"] = productPath + filePathName + "_rest_connection.cc"
+	vars["connection_impl_rest_header_path"] = productPath + "internal/" + filePathName + "_rest_connection_impl.h"
+	vars["connection_impl_rest_cc_path"] = productPath + "internal/" + filePathName + "_rest_connection_impl.cc"
+	vars["stub_rest_header_path"] = productPath + "internal/" + filePathName + "_rest_stub.h"
+	vars["stub_rest_cc_path"] = productPath + "internal/" + filePathName + "_rest_stub.cc"
+	vars["stub_factory_rest_header_path"] = productPath + "internal/" + filePathName + "_rest_stub_factory.h"
+	vars["stub_factory_rest_cc_path"] = productPath + "internal/" + filePathName + "_rest_stub_factory.cc"
+	vars["logging_rest_header_path"] = productPath + "internal/" + filePathName + "_rest_logging_decorator.h"
+	vars["logging_rest_cc_path"] = productPath + "internal/" + filePathName + "_rest_logging_decorator.cc"
+	vars["metadata_rest_header_path"] = productPath + "internal/" + filePathName + "_rest_metadata_decorator.h"
+	vars["metadata_rest_cc_path"] = productPath + "internal/" + filePathName + "_rest_metadata_decorator.cc"
+
+	// REST include guards
+	vars["connection_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["connection_rest_header_path"])
+	vars["connection_impl_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["connection_impl_rest_header_path"])
+	vars["stub_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["stub_rest_header_path"])
+	vars["stub_factory_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["stub_factory_rest_header_path"])
+	vars["logging_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["logging_rest_header_path"])
+	vars["metadata_rest_header_include_guard"] = formatHeaderIncludeGuard(vars["metadata_rest_header_path"])
+
+	if hasLongrunningMethod(svc.Methods) {
+		vars["longrunning_operation_include_header"] = "google/longrunning/operations.pb.h"
+		vars["longrunning_response_type"] = "google::longrunning::Operation"
+		vars["longrunning_get_operation_request_type"] = "google::longrunning::GetOperationRequest"
+		vars["longrunning_cancel_operation_request_type"] = "google::longrunning::CancelOperationRequest"
+		vars["longrunning_get_operation_path_rest"] = `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name())`
+		vars["longrunning_cancel_operation_path_rest"] = `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name(), ":cancel")`
+	}
 
 	// Forwarding paths
 	if forwardingProductPath != "" {

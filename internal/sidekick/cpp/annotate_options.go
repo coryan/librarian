@@ -46,6 +46,9 @@ type OptionsAnnotations struct {
 
 	// HasEmulatorEnvVar indicates whether EmulatorEndpointEnvVar is configured.
 	HasEmulatorEnvVar bool
+
+	// EndpointLocationStyle specifies the endpoint location resolution style.
+	EndpointLocationStyle string
 }
 
 // annotateOptions computes C++ options metadata and environment variables for a service.
@@ -57,10 +60,12 @@ func annotateOptions(svc *api.Service, lib *config.Library) *OptionsAnnotations 
 	productPath := ""
 	serviceEndpointEnvVar := ""
 	emulatorEndpointEnvVar := ""
+	endpointLocationStyle := ""
 	if lib != nil && lib.Cpp != nil {
 		productPath = lib.Cpp.ProductPath
 		serviceEndpointEnvVar = lib.Cpp.ServiceEndpointEnvVar
 		emulatorEndpointEnvVar = lib.Cpp.EmulatorEndpointEnvVar
+		endpointLocationStyle = lib.Cpp.EndpointLocationStyle
 	}
 
 	defaultEndpoint := svc.DefaultHost
@@ -82,6 +87,7 @@ func annotateOptions(svc *api.Service, lib *config.Library) *OptionsAnnotations 
 		DefaultPort:            defaultPort,
 		HasEndpointEnvVar:      serviceEndpointEnvVar != "",
 		HasEmulatorEnvVar:      emulatorEndpointEnvVar != "",
+		EndpointLocationStyle:  endpointLocationStyle,
 	}
 
 	return ann

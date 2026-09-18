@@ -119,9 +119,15 @@ func generateClientHeader(svc *api.Service, serviceVars map[string]string, metho
 
 	hasIAM, setMethod := hasIamPolicyExtension(methods)
 
+	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
+	connectionHeader := vars["connection_header_path"]
+	if !hasGrpc {
+		connectionHeader = vars["connection_rest_header_path"]
+	}
+
 	var localIncludes []string
 	localIncludes = append(localIncludes,
-		vars["connection_header_path"],
+		connectionHeader,
 		"google/cloud/future.h",
 		"google/cloud/options.h",
 		"google/cloud/polling_policy.h",

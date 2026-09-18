@@ -54,6 +54,14 @@ type MethodAnnotations struct {
 	IsLongrunning    bool
 	IsDeprecated     bool
 
+	// REST metadata
+	IsRestMethod    bool
+	HTTPVerb        string
+	RequestResource string
+	RestPath        string
+	RestPathAsync   string
+	HTTPQueryParams string
+
 	// HasRequestID indicates if the method uses request ID auto-population.
 	HasRequestID bool
 
@@ -156,6 +164,17 @@ func annotateMethod(m *api.Method, svc *api.Service, lib *config.Library, model 
 			case api.TypezString:
 				ann.RangeOutputType = "std::string"
 			}
+		}
+	}
+
+	if isRestMethod(m) {
+		ann.IsRestMethod = true
+		if len(m.PathInfo.Bindings) > 0 {
+			ann.HTTPVerb = httpVerb(m.PathInfo.Bindings[0].Verb)
+			ann.RequestResource = formatRequestResource(m)
+			ann.RestPath = formatRestPath(m, false)
+			ann.RestPathAsync = formatRestPath(m, true)
+			ann.HTTPQueryParams = formatHTTPQueryParameters(m, model)
 		}
 	}
 

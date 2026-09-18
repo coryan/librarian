@@ -361,6 +361,15 @@ func buildMethodVars(svc *api.Service, m *api.Method, serviceVars map[string]str
 		}
 	}
 
+	// REST method vars
+	if m.PathInfo != nil && len(m.PathInfo.Bindings) > 0 {
+		vars["method_http_verb"] = httpVerb(m.PathInfo.Bindings[0].Verb)
+		vars["request_resource"] = formatRequestResource(m)
+		vars["method_rest_path"] = formatRestPath(m, false)
+		vars["method_rest_path_async"] = formatRestPath(m, true)
+		vars["method_http_query_parameters"] = formatHTTPQueryParameters(m, model)
+	}
+
 	return vars
 }
 

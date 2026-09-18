@@ -79,7 +79,21 @@ func generateConnectionHeader(svc *api.Service, serviceVars map[string]string, m
 		protoIncludes = append(protoIncludes, "google/longrunning/operations.grpc.pb.h")
 	}
 	p.ProtobufIncludes(protoIncludes)
-	p.SystemIncludes([]string{"memory"})
+
+	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
+	locationStyle := ""
+	if lib != nil && lib.Cpp != nil {
+		locationStyle = lib.Cpp.EndpointLocationStyle
+	}
+	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
+		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
+		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
+
+	sysIncludes := []string{"memory"}
+	if hasGrpc && isLocationDependent {
+		sysIncludes = append(sysIncludes, "string")
+	}
+	p.SystemIncludes(sysIncludes)
 
 	p.HeaderOpenNamespaces(vars["product_namespace"])
 
@@ -293,7 +307,15 @@ class $connection_class_name$ {
 	}
 
 	p.Print(`};
+`)
 
+	if hasGrpc {
+		locationDoc := ""
+		if isLocationDependent {
+			locationDoc = "\n * @param location Sets the prefix for the default `EndpointOption` value."
+		}
+
+		p.Print(`
 /**
  * A factory function to construct an object of type ` + "`$connection_class_name$`" + `.
  *
@@ -311,13 +333,45 @@ class $connection_class_name$ {
  *
  * @note Unexpected options will be ignored. To log unexpected options instead,
  *     set ` + "`GOOGLE_CLOUD_CPP_ENABLE_CLOG=yes`" + ` in the environment.
- *
+ *` + locationDoc + `
  * @param options (optional) Configure the ` + "`$connection_class_name$`" + ` created by
  * this function.
  */
 std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+`)
+		if isLocationDependent {
+			p.Print(`    std::string const& location, Options options = {});
+`)
+			switch locationStyle {
+			case "LOCATION_DEPENDENT_COMPAT":
+				p.Print(`
+/**
+ * A backwards-compatible version of the previous factory function.  Unless
+ * the service also offers a global endpoint, the default value of the
+ * ` + "`EndpointOption`" + ` may be useless, in which case it must be overridden.
+ *
+ * @deprecated Please use the ` + "`location`" + ` overload instead.
+ */
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
     Options options = {});
 `)
+			case "LOCATION_OPTIONALLY_DEPENDENT":
+				p.Print(`
+/**
+ * A factory function to construct an object of type ` + "`$connection_class_name$`" + `.
+ *
+ * This overload of ` + "`Make$connection_class_name$`" + ` does not require a location
+ * argument, creating a connection to the global service endpoint.
+ */
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+    Options options = {});
+`)
+			}
+		} else {
+			p.Print(`    Options options = {});
+`)
+		}
+	}
 
 	p.HeaderCloseNamespaces(vars["product_namespace"])
 	p.Print("\n#endif  // $header_include_guard$\n")
@@ -339,13 +393,21 @@ func generateConnectionCc(svc *api.Service, serviceVars map[string]string, metho
 
 `)
 
+	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
+
 	var localIncludes []string
 	localIncludes = append(localIncludes,
 		vars["connection_header_path"],
 		vars["options_header_path"],
-		vars["connection_impl_header_path"],
-		vars["option_defaults_header_path"],
-		vars["stub_factory_header_path"],
+	)
+	if hasGrpc {
+		localIncludes = append(localIncludes, vars["connection_impl_header_path"])
+	}
+	localIncludes = append(localIncludes, vars["option_defaults_header_path"])
+	if hasGrpc {
+		localIncludes = append(localIncludes, vars["stub_factory_header_path"])
+	}
+	localIncludes = append(localIncludes,
 		vars["tracing_connection_header_path"],
 		"google/cloud/background_threads.h",
 		"google/cloud/common_options.h",
@@ -498,7 +560,43 @@ $connection_class_name$::Async$method_name$(
 		}
 	}
 
-	p.Print(`
+	if hasGrpc {
+		locationStyle := ""
+		if lib != nil && lib.Cpp != nil {
+			locationStyle = lib.Cpp.EndpointLocationStyle
+		}
+		isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
+			locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
+			locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
+
+		if isLocationDependent {
+			p.Print(`
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+    std::string const& location, Options options) {
+  internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
+      UnifiedCredentialsOptionList,
+      $service_name$PolicyOptionList>(options, __func__);
+  options = $product_internal_namespace$::$service_name$DefaultOptions(
+      location, std::move(options));
+  auto background = internal::MakeBackgroundThreadsFactory(options)();
+  auto auth = internal::CreateAuthenticationStrategy(background->cq(), options);
+  auto stub = $product_internal_namespace$::CreateDefault$stub_class_name$(
+    std::move(auth), options);
+  return $product_internal_namespace$::Make$tracing_connection_class_name$(
+      std::make_shared<$product_internal_namespace$::$connection_class_name$Impl>(
+      std::move(background), std::move(stub), std::move(options)));
+}
+`)
+			if locationStyle == "LOCATION_DEPENDENT_COMPAT" || locationStyle == "LOCATION_OPTIONALLY_DEPENDENT" {
+				p.Print(`
+std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
+    Options options) {
+  return Make$connection_class_name$(std::string{}, std::move(options));
+}
+`)
+			}
+		} else {
+			p.Print(`
 std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
     Options options) {
   internal::CheckExpectedOptions<CommonOptionList, GrpcOptionList,
@@ -515,6 +613,8 @@ std::shared_ptr<$connection_class_name$> Make$connection_class_name$(
       std::move(background), std::move(stub), std::move(options)));
 }
 `)
+		}
+	}
 
 	p.HeaderCloseNamespaces(vars["product_namespace"])
 

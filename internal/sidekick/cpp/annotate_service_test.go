@@ -157,3 +157,43 @@ func TestAnnotateService_MethodFiltering(t *testing.T) {
 		t.Errorf("got async methods %v, want ['AsyncMethod']", ann.AsyncMethods)
 	}
 }
+
+func TestAnnotateService_Rest(t *testing.T) {
+	svc := api.NewTestService("FooBar").WithPackage("test.v1")
+	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	lib := &config.Library{
+		Cpp: &config.CppLibrary{
+			CppDefault: config.CppDefault{
+				ProductPath:                   "test/v1",
+				PreserveProtoFieldNamesInJson: true,
+			},
+		},
+	}
+
+	ann := annotateService(svc, lib, model)
+	if ann.StubRestClassName != "FooBarRestStub" {
+		t.Errorf("got StubRestClassName %q, want 'FooBarRestStub'", ann.StubRestClassName)
+	}
+	if ann.ConnectionImplRestClassName != "FooBarRestConnectionImpl" {
+		t.Errorf("got ConnectionImplRestClassName %q, want 'FooBarRestConnectionImpl'", ann.ConnectionImplRestClassName)
+	}
+	if ann.LoggingRestClassName != "FooBarRestLogging" {
+		t.Errorf("got LoggingRestClassName %q, want 'FooBarRestLogging'", ann.LoggingRestClassName)
+	}
+	if ann.MetadataRestClassName != "FooBarRestMetadata" {
+		t.Errorf("got MetadataRestClassName %q, want 'FooBarRestMetadata'", ann.MetadataRestClassName)
+	}
+	if !ann.PreserveProtoFieldNamesInJson {
+		t.Errorf("expected PreserveProtoFieldNamesInJson=true")
+	}
+	if ann.ConnectionRestHeaderPath != "test/v1/foo_bar_rest_connection.h" {
+		t.Errorf("got ConnectionRestHeaderPath %q, want 'test/v1/foo_bar_rest_connection.h'", ann.ConnectionRestHeaderPath)
+	}
+	if ann.ConnectionRestHeaderIncludeGuard != "GOOGLE_CLOUD_CPP_TEST_V1_FOO_BAR_REST_CONNECTION_H" {
+		t.Errorf("got ConnectionRestHeaderIncludeGuard %q, want 'GOOGLE_CLOUD_CPP_TEST_V1_FOO_BAR_REST_CONNECTION_H'", ann.ConnectionRestHeaderIncludeGuard)
+	}
+}

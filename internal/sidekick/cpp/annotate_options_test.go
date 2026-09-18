@@ -67,3 +67,20 @@ func TestAnnotateOptions_WithEnvVars(t *testing.T) {
 		t.Errorf("got DefaultPort %q, want '8443'", ann.DefaultPort)
 	}
 }
+
+func TestAnnotateOptions_LocationStyle(t *testing.T) {
+	svc := api.NewTestService("LocationSvc").WithPackage("golden.v1")
+	lib := &config.Library{
+		Cpp: &config.CppLibrary{
+			CppDefault: config.CppDefault{
+				ProductPath:           "generator/integration_tests/golden/v1",
+				EndpointLocationStyle: "LOCATION_DEPENDENT",
+			},
+		},
+	}
+
+	ann := annotateOptions(svc, lib)
+	if ann.EndpointLocationStyle != "LOCATION_DEPENDENT" {
+		t.Errorf("got EndpointLocationStyle %q, want 'LOCATION_DEPENDENT'", ann.EndpointLocationStyle)
+	}
+}

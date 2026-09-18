@@ -351,6 +351,13 @@ func TestParityWithGolden(t *testing.T) {
 		expectedFiles int
 	}{
 		{
+			name:          "golden_rest_only",
+			libName:       "golden_rest_only",
+			includeList:   []string{"test2.proto"},
+			goldenSubdir:  "v1",
+			expectedFiles: 25,
+		},
+		{
 			name:          "request_id",
 			libName:       "request_id",
 			includeList:   []string{"test_request_id.proto"},
@@ -363,7 +370,7 @@ func TestParityWithGolden(t *testing.T) {
 			libName:       "deprecated",
 			includeList:   []string{"test_deprecated.proto"},
 			goldenSubdir:  "v1",
-			expectedFiles: 27,
+			expectedFiles: 39,
 		},
 		{
 			name:          "golden_kitchen_sink",
@@ -371,7 +378,7 @@ func TestParityWithGolden(t *testing.T) {
 			includeList:   []string{"test.proto", "backup.proto"},
 			serviceConfig: "generator/integration_tests/test.yaml",
 			goldenSubdir:  "",
-			expectedFiles: 68,
+			expectedFiles: 92,
 		},
 	}
 

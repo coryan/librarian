@@ -22,7 +22,7 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func generateOptionDefaultsHeader(_ *api.Service, serviceVars map[string]string, _ *config.Library) (string, string) {
+func generateOptionDefaultsHeader(_ *api.Service, serviceVars map[string]string, lib *config.Library) (string, string) {
 	headerPath := serviceVars["option_defaults_header_path"]
 	guard := formatHeaderIncludeGuard(headerPath)
 	vars := make(map[string]string)
@@ -46,11 +46,29 @@ func generateOptionDefaultsHeader(_ *api.Service, serviceVars map[string]string,
 		"google/cloud/version.h",
 	})
 
+	locationStyle := ""
+	if lib != nil && lib.Cpp != nil {
+		locationStyle = lib.Cpp.EndpointLocationStyle
+	}
+	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
+		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
+		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
+
+	if isLocationDependent {
+		p.SystemIncludes([]string{"string"})
+	}
+
 	p.HeaderOpenNamespaces(vars["product_internal_namespace"])
 
-	p.Print(`
+	if isLocationDependent {
+		p.Print(`
+Options $service_name$DefaultOptions(std::string const& location, Options options);
+`)
+	} else {
+		p.Print(`
 Options $service_name$DefaultOptions(Options options);
 `)
+	}
 
 	p.HeaderCloseNamespaces(vars["product_internal_namespace"])
 	p.Print("\n#endif  // $header_include_guard$\n")
@@ -59,7 +77,7 @@ Options $service_name$DefaultOptions(Options options);
 	return relPath, p.String()
 }
 
-func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, methods []*api.Method, _ *config.Library) (string, string) {
+func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library) (string, string) {
 	ccPath := serviceVars["option_defaults_cc_path"]
 	vars := make(map[string]string)
 	maps.Copy(vars, serviceVars)
@@ -73,6 +91,14 @@ func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, met
 
 `)
 
+	locationStyle := ""
+	if lib != nil && lib.Cpp != nil {
+		locationStyle = lib.Cpp.EndpointLocationStyle
+	}
+	isLocationDependent := locationStyle == "LOCATION_DEPENDENT" ||
+		locationStyle == "LOCATION_DEPENDENT_COMPAT" ||
+		locationStyle == "LOCATION_OPTIONALLY_DEPENDENT"
+
 	p.CcLocalIncludes([]string{
 		vars["option_defaults_header_path"],
 		vars["connection_header_path"],
@@ -80,20 +106,41 @@ func generateOptionDefaultsCc(_ *api.Service, serviceVars map[string]string, met
 		"google/cloud/internal/populate_common_options.h",
 		"google/cloud/internal/populate_grpc_options.h",
 	})
+	if isLocationDependent {
+		p.CcLocalIncludes([]string{"google/cloud/internal/absl_str_cat_quiet.h"})
+	}
 	p.SystemIncludes([]string{"memory", "utility"})
 
 	p.HeaderOpenNamespaces(vars["product_internal_namespace"])
+
+	var endpointExpr string
+	switch locationStyle {
+	case "LOCATION_DEPENDENT":
+		endpointExpr = `absl::StrCat(location, "-", "$service_endpoint$")`
+	case "LOCATION_DEPENDENT_COMPAT":
+		endpointExpr = `absl::StrCat(location, location.empty() ? "" : "-", "$service_endpoint$")`
+	case "LOCATION_OPTIONALLY_DEPENDENT":
+		endpointExpr = `// optional location tag for generating docs
+      absl::StrCat(location, location.empty() ? "" : "-", "$service_endpoint$")`
+	default:
+		endpointExpr = `"$service_endpoint$"`
+	}
+
+	sig := "Options $service_name$DefaultOptions(Options options) {"
+	if isLocationDependent {
+		sig = "Options $service_name$DefaultOptions(std::string const& location, Options options) {"
+	}
 
 	p.Print(`
 namespace {
 auto constexpr kBackoffScaling = 2.0;
 }  // namespace
 
-Options $service_name$DefaultOptions(Options options) {
+` + sig + `
   options = internal::PopulateCommonOptions(
       std::move(options), "$service_endpoint_env_var$",
       "$emulator_endpoint_env_var$", "$service_authority_env_var$",
-      "$service_endpoint$");
+      ` + endpointExpr + `);
   options = internal::PopulateGrpcOptions(std::move(options));
   if (!options.has<$product_namespace$::$retry_policy_name$Option>()) {
     options.set<$product_namespace$::$retry_policy_name$Option>(

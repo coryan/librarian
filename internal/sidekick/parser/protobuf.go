@@ -289,11 +289,26 @@ func makeAPIForProtobuf(serviceConfig *serviceconfig.Service, req *pluginpb.Code
 		}
 	}
 
+	existingProtoFiles := make(map[string]*descriptorpb.FileDescriptorProto)
+	for _, f := range req.GetProtoFile() {
+		existingProtoFiles[f.GetName()] = f
+	}
+	var mixinFilesToProcess []*descriptorpb.FileDescriptorProto
+	var mixinServiceFiles []*descriptorpb.FileDescriptorProto
+	for _, f := range mixinFileDesc {
+		if existing, ok := existingProtoFiles[f.GetName()]; ok {
+			mixinServiceFiles = append(mixinServiceFiles, existing)
+		} else {
+			mixinFilesToProcess = append(mixinFilesToProcess, f)
+			mixinServiceFiles = append(mixinServiceFiles, f)
+		}
+	}
+
 	// First we need to add all the message and enums types to the
 	// `state.MessageByID` and `state.EnumByID` symbol tables. We may not need
 	// to generate these elements, but we need them to be available to generate
 	// any RPC that uses them.
-	for _, f := range append(req.GetProtoFile(), mixinFileDesc...) {
+	for _, f := range append(req.GetProtoFile(), mixinFilesToProcess...) {
 		recordDefinitionLocations(result, f)
 		fFQN := "." + f.GetPackage()
 		for _, m := range f.MessageType {
@@ -426,7 +441,7 @@ func makeAPIForProtobuf(serviceConfig *serviceconfig.Service, req *pluginpb.Code
 
 	// Add the mixin methods to the existing services.
 	for _, service := range result.Services {
-		for _, f := range mixinFileDesc {
+		for _, f := range mixinServiceFiles {
 			fFQN := "." + f.GetPackage()
 			for _, mixinProto := range f.Service {
 				sFQN := fFQN + "." + mixinProto.GetName()

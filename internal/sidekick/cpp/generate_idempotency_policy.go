@@ -24,20 +24,36 @@ import (
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
-func getProtoGrpcHeaders(svc *api.Service, serviceVars map[string]string, methods []*api.Method, model *api.API) []string {
+func getProtoGrpcHeaders(svc *api.Service, serviceVars map[string]string, methods []*api.Method, lib *config.Library, model *api.API) []string {
 	var headers []string
 	seen := make(map[string]bool)
-	if h := serviceVars["proto_grpc_header_path"]; h != "" {
-		seen[h] = true
-		headers = append(headers, h)
+	hasGrpc := lib == nil || lib.Cpp == nil || lib.Cpp.HasGrpcTransport()
+	if hasGrpc {
+		if h := serviceVars["proto_grpc_header_path"]; h != "" {
+			seen[h] = true
+			headers = append(headers, h)
+		}
+	} else {
+		if h := serviceVars["proto_header_path"]; h != "" {
+			seen[h] = true
+			headers = append(headers, h)
+		}
 	}
 	for _, m := range methods {
 		if m.SourceService != nil && m.SourceService.ID != svc.ID {
 			h := ""
+			suffix := ".pb.h"
+			if hasGrpc {
+				suffix = ".grpc.pb.h"
+			}
 			if loc, ok := model.DefinitionLocation(m.SourceService.ID[1:]); ok {
-				h = strings.TrimSuffix(loc.Filename, ".proto") + ".grpc.pb.h"
+				h = strings.TrimSuffix(loc.Filename, ".proto") + suffix
 			} else if m.SourceService.ID == ".google.cloud.location.Locations" {
-				h = "google/cloud/location/locations.grpc.pb.h"
+				if hasGrpc {
+					h = "google/cloud/location/locations.grpc.pb.h"
+				} else {
+					h = "google/cloud/location/locations.pb.h"
+				}
 			}
 			if h != "" && !seen[h] {
 				seen[h] = true
@@ -73,7 +89,7 @@ func generateIdempotencyPolicyHeader(svc *api.Service, serviceVars map[string]st
 		"google/cloud/version.h",
 	})
 
-	pbHeaders := getProtoGrpcHeaders(svc, serviceVars, methods, model)
+	pbHeaders := getProtoGrpcHeaders(svc, serviceVars, methods, lib, model)
 	p.ProtobufIncludes(pbHeaders)
 	p.SystemIncludes([]string{"memory"})
 

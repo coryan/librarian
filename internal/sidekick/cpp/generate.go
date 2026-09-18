@@ -37,7 +37,9 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 	}
 	codec.annotateModel()
 
-	if library == nil || library.Cpp == nil || !library.Cpp.HasGrpcTransport() {
+	hasGrpc := library != nil && library.Cpp != nil && library.Cpp.HasGrpcTransport()
+	hasRest := library != nil && library.Cpp != nil && library.Cpp.GenerateRestTransport
+	if !hasGrpc && !hasRest {
 		return nil
 	}
 
@@ -70,28 +72,47 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 		add(generateMockConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateOptionDefaultsHeader(svc, serviceVars, library))
 		add(generateOptionDefaultsCc(svc, serviceVars, methods, library))
-		add(generateStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateStubCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateStubFactoryHeader(svc, serviceVars, library))
-		add(generateStubFactoryCc(svc, serviceVars, methods, library))
-		add(generateAuthDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateAuthDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateLoggingDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateLoggingDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateMetadataDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateMetadataDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateTracingStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateTracingStubCc(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateTracingConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateTracingConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
 
-		if library.Cpp.GenerateRoundRobinDecorator {
-			add(generateRoundRobinDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
-			add(generateRoundRobinDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+		if hasGrpc {
+			add(generateStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateStubCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateStubFactoryHeader(svc, serviceVars, library))
+			add(generateStubFactoryCc(svc, serviceVars, methods, library))
+			add(generateAuthDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateAuthDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateLoggingDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateLoggingDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateMetadataDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateMetadataDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateTracingStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateTracingStubCc(svc, serviceVars, methods, asyncMethods, library, model))
+
+			if library.Cpp.GenerateRoundRobinDecorator {
+				add(generateRoundRobinDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+				add(generateRoundRobinDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			}
+
+			add(generateConnectionImplHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateConnectionImplCc(svc, serviceVars, methods, asyncMethods, library, model))
 		}
 
-		add(generateConnectionImplHeader(svc, serviceVars, methods, asyncMethods, library, model))
-		add(generateConnectionImplCc(svc, serviceVars, methods, asyncMethods, library, model))
+		if hasRest {
+			add(generateRestConnectionHeader(serviceVars, library))
+			add(generateRestConnectionCc(serviceVars, library))
+			add(generateRestStubHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestStubCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestStubFactoryHeader(serviceVars))
+			add(generateRestStubFactoryCc(serviceVars))
+			add(generateRestLoggingDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestLoggingDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestMetadataDecoratorHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestMetadataDecoratorCc(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestConnectionImplHeader(svc, serviceVars, methods, asyncMethods, library, model))
+			add(generateRestConnectionImplCc(svc, serviceVars, methods, asyncMethods, library, model))
+		}
+
+		add(generateTracingConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
+		add(generateTracingConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateConnectionHeader(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateClientHeader(svc, serviceVars, methods, asyncMethods, library, model))

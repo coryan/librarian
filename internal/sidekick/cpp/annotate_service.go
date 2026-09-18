@@ -73,6 +73,13 @@ type ServiceAnnotations struct {
 	ConnectionOptionsName            string
 	ConnectionOptionsTraitsName      string
 
+	// REST class names
+	StubRestClassName             string
+	ConnectionImplRestClassName   string
+	LoggingRestClassName          string
+	MetadataRestClassName         string
+	PreserveProtoFieldNamesInJson bool
+
 	// Header and source file paths
 	ClientHeaderPath            string
 	ClientCcPath                string
@@ -106,6 +113,20 @@ type ServiceAnnotations struct {
 	RetryTraitsHeaderPath       string
 	SourcesCcPath               string
 
+	// REST header and source file paths
+	ConnectionRestHeaderPath     string
+	ConnectionRestCcPath         string
+	ConnectionImplRestHeaderPath string
+	ConnectionImplRestCcPath     string
+	StubRestHeaderPath           string
+	StubRestCcPath               string
+	StubFactoryRestHeaderPath    string
+	StubFactoryRestCcPath        string
+	LoggingRestHeaderPath        string
+	LoggingRestCcPath            string
+	MetadataRestHeaderPath       string
+	MetadataRestCcPath           string
+
 	// Header include guards
 	ClientHeaderIncludeGuard            string
 	ConnectionHeaderIncludeGuard        string
@@ -123,6 +144,14 @@ type ServiceAnnotations struct {
 	RoundRobinHeaderIncludeGuard        string
 	OptionDefaultsHeaderIncludeGuard    string
 	RetryTraitsHeaderIncludeGuard       string
+
+	// REST header include guards
+	ConnectionRestHeaderIncludeGuard     string
+	ConnectionImplRestHeaderIncludeGuard string
+	StubRestHeaderIncludeGuard           string
+	StubFactoryRestHeaderIncludeGuard    string
+	LoggingRestHeaderIncludeGuard        string
+	MetadataRestHeaderIncludeGuard       string
 
 	// Decorator requirements
 	HasRoundRobinDecorator bool
@@ -213,6 +242,12 @@ func annotateService(svc *api.Service, lib *config.Library, model *api.API) *Ser
 		ConnectionOptionsName:            serviceName + "ConnectionOptions",
 		ConnectionOptionsTraitsName:      serviceName + "ConnectionOptionsTraits",
 
+		StubRestClassName:             serviceName + "RestStub",
+		ConnectionImplRestClassName:   serviceName + "RestConnectionImpl",
+		LoggingRestClassName:          serviceName + "RestLogging",
+		MetadataRestClassName:         serviceName + "RestMetadata",
+		PreserveProtoFieldNamesInJson: lib != nil && lib.Cpp != nil && lib.Cpp.PreserveProtoFieldNamesInJson,
+
 		ClientHeaderPath:            productPath + filePathName + "_client.h",
 		ClientCcPath:                productPath + filePathName + "_client.cc",
 		ClientSamplesCcPath:         productPath + "samples/" + filePathName + "_client_samples.cc",
@@ -245,6 +280,19 @@ func annotateService(svc *api.Service, lib *config.Library, model *api.API) *Ser
 		RetryTraitsHeaderPath:       productPath + "internal/" + filePathName + "_retry_traits.h",
 		SourcesCcPath:               productPath + "internal/" + filePathName + "_sources.cc",
 
+		ConnectionRestHeaderPath:     productPath + filePathName + "_rest_connection.h",
+		ConnectionRestCcPath:         productPath + filePathName + "_rest_connection.cc",
+		ConnectionImplRestHeaderPath: productPath + "internal/" + filePathName + "_rest_connection_impl.h",
+		ConnectionImplRestCcPath:     productPath + "internal/" + filePathName + "_rest_connection_impl.cc",
+		StubRestHeaderPath:           productPath + "internal/" + filePathName + "_rest_stub.h",
+		StubRestCcPath:               productPath + "internal/" + filePathName + "_rest_stub.cc",
+		StubFactoryRestHeaderPath:    productPath + "internal/" + filePathName + "_rest_stub_factory.h",
+		StubFactoryRestCcPath:        productPath + "internal/" + filePathName + "_rest_stub_factory.cc",
+		LoggingRestHeaderPath:        productPath + "internal/" + filePathName + "_rest_logging_decorator.h",
+		LoggingRestCcPath:            productPath + "internal/" + filePathName + "_rest_logging_decorator.cc",
+		MetadataRestHeaderPath:       productPath + "internal/" + filePathName + "_rest_metadata_decorator.h",
+		MetadataRestCcPath:           productPath + "internal/" + filePathName + "_rest_metadata_decorator.cc",
+
 		HasAuthDecorator:       true,
 		HasLoggingDecorator:    true,
 		HasMetadataDecorator:   true,
@@ -271,6 +319,13 @@ func annotateService(svc *api.Service, lib *config.Library, model *api.API) *Ser
 	ann.RoundRobinHeaderIncludeGuard = formatHeaderIncludeGuard(ann.RoundRobinHeaderPath)
 	ann.OptionDefaultsHeaderIncludeGuard = formatHeaderIncludeGuard(ann.OptionDefaultsHeaderPath)
 	ann.RetryTraitsHeaderIncludeGuard = formatHeaderIncludeGuard(ann.RetryTraitsHeaderPath)
+
+	ann.ConnectionRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.ConnectionRestHeaderPath)
+	ann.ConnectionImplRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.ConnectionImplRestHeaderPath)
+	ann.StubRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.StubRestHeaderPath)
+	ann.StubFactoryRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.StubFactoryRestHeaderPath)
+	ann.LoggingRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.LoggingRestHeaderPath)
+	ann.MetadataRestHeaderIncludeGuard = formatHeaderIncludeGuard(ann.MetadataRestHeaderPath)
 
 	ann.Comments = annotateComments(svc, serviceName, model)
 	ann.Options = annotateOptions(svc, lib)
