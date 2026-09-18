@@ -40,40 +40,27 @@ func TestMapKeyAnnotations(t *testing.T) {
 		{"serde_with::DisplayFromStr", api.TypezBool},
 	} {
 		t.Run(test.wantSerdeAs, func(t *testing.T) {
-			mapMessage := &api.Message{
-				Name:    "$map<unused, unused>",
-				ID:      "$map<unused, unused>",
-				Package: "$",
-				IsMap:   true,
-				Fields: []*api.Field{
-					{
-						Name:    "key",
-						ID:      "$map<unused, unused>.key",
-						Typez:   test.typez,
-						TypezID: "unused",
-					},
-					{
-						Name:    "value",
-						ID:      "$map<unused, unused>.value",
-						Typez:   api.TypezString,
-						TypezID: "unused",
-					},
-				},
-			}
-			field := &api.Field{
-				Name:     "field",
-				JSONName: "field",
-				ID:       ".test.Message.field",
-				Typez:    api.TypezMessage,
-				TypezID:  "$map<unused, unused>",
-			}
-			message := &api.Message{
-				Name:          "TestMessage",
-				Package:       "test",
-				ID:            ".test.TestMessage",
-				Documentation: "A test message.",
-				Fields:        []*api.Field{field},
-			}
+			mapMessage := api.NewTestMessage("$map<unused, unused>").
+				WithPackage("$").
+				WithID("$map<unused, unused>").
+				WithFields(
+					api.NewTestField("key").
+						WithType(test.typez).
+						WithTypezID("unused"),
+					api.NewTestField("value").
+						WithType(api.TypezString).
+						WithTypezID("unused"),
+				)
+			mapMessage.IsMap = true
+
+			field := api.NewTestField("field").
+				WithType(api.TypezMessage).
+				WithTypezID("$map<unused, unused>")
+
+			message := api.NewTestMessage("TestMessage").
+				WithFields(field)
+			message.Documentation = "A test message."
+
 			model := api.NewTestAPI([]*api.Message{message, mapMessage}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
 			api.LabelRecursiveFields(model)
@@ -127,40 +114,27 @@ func TestMapValueAnnotations(t *testing.T) {
 		{libconfig.SpecProtobuf, api.TypezMessage, ".test.Message", "serde_with::Same"},
 	} {
 		t.Run(fmt.Sprintf("%s_%v_%s", test.spec, test.typez, test.typezID), func(t *testing.T) {
-			mapMessage := &api.Message{
-				Name:    "$map<unused, unused>",
-				ID:      "$map<unused, unused>",
-				Package: "$",
-				IsMap:   true,
-				Fields: []*api.Field{
-					{
-						Name:    "key",
-						ID:      "$map<unused, unused>.key",
-						Typez:   api.TypezInt32,
-						TypezID: "unused",
-					},
-					{
-						Name:    "value",
-						ID:      "$map<unused, unused>.value",
-						Typez:   test.typez,
-						TypezID: test.typezID,
-					},
-				},
-			}
-			field := &api.Field{
-				Name:     "field",
-				JSONName: "field",
-				ID:       ".test.Message.field",
-				Typez:    api.TypezMessage,
-				TypezID:  "$map<unused, unused>",
-			}
-			message := &api.Message{
-				Name:          "Message",
-				Package:       "test",
-				ID:            ".test.Message",
-				Documentation: "A test message.",
-				Fields:        []*api.Field{field},
-			}
+			mapMessage := api.NewTestMessage("$map<unused, unused>").
+				WithPackage("$").
+				WithID("$map<unused, unused>").
+				WithFields(
+					api.NewTestField("key").
+						WithType(api.TypezInt32).
+						WithTypezID("unused"),
+					api.NewTestField("value").
+						WithType(test.typez).
+						WithTypezID(test.typezID),
+				)
+			mapMessage.IsMap = true
+
+			field := api.NewTestField("field").
+				WithType(api.TypezMessage).
+				WithTypezID("$map<unused, unused>")
+
+			message := api.NewTestMessage("Message").
+				WithFields(field)
+			message.Documentation = "A test message."
+
 			model := api.NewTestAPI([]*api.Message{message, mapMessage}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
 			api.LabelRecursiveFields(model)
@@ -178,39 +152,26 @@ func TestMapValueAnnotations(t *testing.T) {
 
 // A map without any SerdeAs mapping receives a special annotation.
 func TestMapAnnotationsSameSame(t *testing.T) {
-	mapMessage := &api.Message{
-		Name:    "$map<string, string>",
-		ID:      "$map<string, string>",
-		Package: "$",
-		IsMap:   true,
-		Fields: []*api.Field{
-			{
-				Name:    "key",
-				ID:      "$map<string, string>.key",
-				Typez:   api.TypezString,
-				TypezID: "unused",
-			},
-			{
-				Name:  "value",
-				ID:    "$map<string, string>.value",
-				Typez: api.TypezString,
-			},
-		},
-	}
-	field := &api.Field{
-		Name:     "field",
-		JSONName: "field",
-		ID:       ".test.Message.field",
-		Typez:    api.TypezMessage,
-		TypezID:  "$map<string, string>",
-	}
-	message := &api.Message{
-		Name:          "Message",
-		Package:       "test",
-		ID:            ".test.Message",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{field},
-	}
+	mapMessage := api.NewTestMessage("$map<string, string>").
+		WithPackage("$").
+		WithID("$map<string, string>").
+		WithFields(
+			api.NewTestField("key").
+				WithType(api.TypezString).
+				WithTypezID("unused"),
+			api.NewTestField("value").
+				WithType(api.TypezString),
+		)
+	mapMessage.IsMap = true
+
+	field := api.NewTestField("field").
+		WithType(api.TypezMessage).
+		WithTypezID("$map<string, string>")
+
+	message := api.NewTestMessage("Message").
+		WithFields(field)
+	message.Documentation = "A test message."
+
 	model := api.NewTestAPI([]*api.Message{message, mapMessage}, []*api.Enum{}, []*api.Service{})
 	api.CrossReference(model)
 	api.LabelRecursiveFields(model)

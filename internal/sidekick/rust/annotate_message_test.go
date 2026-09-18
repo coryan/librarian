@@ -72,17 +72,11 @@ func TestMessageAnnotations(t *testing.T) {
 }
 
 func TestSetterSampleAnnotations(t *testing.T) {
-	enum := &api.Enum{
-		Name:    "TestEnum",
-		ID:      ".test.v1.TestEnum",
-		Package: "test.v1",
-	}
+	enum := api.NewTestEnum("TestEnum").WithPackage("test.v1")
 	message := api.NewTestMessage("TestMessage").WithPackage("test.v1").WithFields(
-		api.NewTestField("enum_field").WithType(api.TypezEnum),
-		api.NewTestField("message_field").WithType(api.TypezMessage),
+		api.NewTestField("enum_field").WithType(api.TypezEnum).WithTypezID(".test.v1.TestEnum"),
+		api.NewTestField("message_field").WithType(api.TypezMessage).WithTypezID(".test.v1.TestMessage"),
 	)
-	message.Fields[0].TypezID = ".test.v1.TestEnum"
-	message.Fields[1].TypezID = ".test.v1.TestMessage"
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{enum}, []*api.Service{})
 	api.CrossReference(model)

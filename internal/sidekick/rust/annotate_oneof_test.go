@@ -24,69 +24,28 @@ import (
 )
 
 func TestOneOfAnnotations(t *testing.T) {
-	singular := &api.Field{
-		Name:     "oneof_field",
-		JSONName: "oneofField",
-		ID:       ".test.Message.oneof_field",
-		Typez:    api.TypezString,
-		IsOneOf:  true,
-	}
-	repeated := &api.Field{
-		Name:     "oneof_field_repeated",
-		JSONName: "oneofFieldRepeated",
-		ID:       ".test.Message.oneof_field_repeated",
-		Typez:    api.TypezString,
-		Repeated: true,
-		IsOneOf:  true,
-	}
-	map_field := &api.Field{
-		Name:     "oneof_field_map",
-		JSONName: "oneofFieldMap",
-		ID:       ".test.Message.oneof_field_map",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.$Map",
-		Repeated: false,
-		IsOneOf:  true,
-	}
-	integer_field := &api.Field{
-		Name:     "oneof_field_integer",
-		JSONName: "oneofFieldInteger",
-		ID:       ".test.Message.oneof_field_integer",
-		Typez:    api.TypezInt64,
-		IsOneOf:  true,
-	}
-	boxed_field := &api.Field{
-		Name:     "oneof_field_boxed",
-		JSONName: "oneofFieldBoxed",
-		ID:       ".test.Message.oneof_field_boxed",
-		Typez:    api.TypezMessage,
-		TypezID:  ".google.protobuf.DoubleValue",
-		Optional: true,
-		IsOneOf:  true,
-	}
+	singular := api.NewTestField("oneof_field").WithType(api.TypezString)
+	repeated := api.NewTestField("oneof_field_repeated").WithType(api.TypezString).WithRepeated()
+	map_field := api.NewTestField("oneof_field_map").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.$Map")
+	integer_field := api.NewTestField("oneof_field_integer").WithType(api.TypezInt64)
+	boxed_field := api.NewTestField("oneof_field_boxed").
+		WithType(api.TypezMessage).
+		WithTypezID(".google.protobuf.DoubleValue").
+		WithOptional()
 
-	group := &api.OneOf{
-		Name:          "type",
-		ID:            ".test.Message.type",
-		Documentation: "Say something clever about this oneof.",
-		Fields:        []*api.Field{singular, repeated, map_field, integer_field, boxed_field},
-	}
-	message := &api.Message{
-		Name:    "Message",
-		ID:      ".test.Message",
-		Package: "test",
-		Fields:  []*api.Field{singular, repeated, map_field, integer_field, boxed_field},
-		OneOfs:  []*api.OneOf{group},
-	}
-	key_field := &api.Field{Name: "key", Typez: api.TypezInt32}
-	value_field := &api.Field{Name: "value", Typez: api.TypezFloat}
-	map_message := &api.Message{
-		Name:    "$Map",
-		ID:      ".test.$Map",
-		IsMap:   true,
-		Package: "test",
-		Fields:  []*api.Field{key_field, value_field},
-	}
+	group := api.NewTestOneOf("type").WithFields(singular, repeated, map_field, integer_field, boxed_field)
+	group.Documentation = "Say something clever about this oneof."
+	message := api.NewTestMessage("Message").
+		WithOneOfs(group)
+	key_field := api.NewTestField("key").WithType(api.TypezInt32)
+	value_field := api.NewTestField("value").WithType(api.TypezFloat)
+	map_message := api.NewTestMessage("$Map").
+		WithPackage("test").
+		WithID(".test.$Map").
+		WithFields(key_field, value_field)
+	map_message.IsMap = true
 	model := api.NewTestAPI([]*api.Message{message, map_message}, []*api.Enum{}, []*api.Service{})
 	api.CrossReference(model)
 	codec := createRustCodec()

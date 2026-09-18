@@ -40,51 +40,26 @@ func newTestCodec(t *testing.T, specificationFormat, packageName string, options
 }
 
 func TestFieldAnnotations(t *testing.T) {
-	key_field := &api.Field{Name: "key", Typez: api.TypezInt32}
-	value_field := &api.Field{Name: "value", Typez: api.TypezInt64}
-	map_message := &api.Message{
-		Name:    "$Map",
-		ID:      ".test.v1.$Map",
-		IsMap:   true,
-		Package: "test.v1",
-		Fields:  []*api.Field{key_field, value_field},
-	}
-	singular_field := &api.Field{
-		Name:     "singular_field",
-		JSONName: "singularField",
-		ID:       ".test.v1.Message.singular_field",
-		Typez:    api.TypezString,
-	}
-	repeated_field := &api.Field{
-		Name:     "repeated_field",
-		JSONName: "repeatedField",
-		ID:       ".test.v1.Message.repeated_field",
-		Typez:    api.TypezString,
-		Repeated: true,
-	}
-	map_field := &api.Field{
-		Name:     "map_field",
-		JSONName: "mapField",
-		ID:       ".test.v1.Message.map_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.$Map",
-		Repeated: false,
-	}
-	boxed_field := &api.Field{
-		Name:     "boxed_field",
-		JSONName: "boxedField",
-		ID:       ".test.v1.Message.boxed_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.TestMessage",
-		Optional: true,
-	}
-	message := &api.Message{
-		Name:          "TestMessage",
-		Package:       "test.v1",
-		ID:            ".test.v1.TestMessage",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{singular_field, repeated_field, map_field, boxed_field},
-	}
+	key_field := api.NewTestField("key").WithType(api.TypezInt32)
+	value_field := api.NewTestField("value").WithType(api.TypezInt64)
+	map_message := api.NewTestMessage("$Map").
+		WithPackage("test.v1").
+		WithFields(key_field, value_field)
+	map_message.IsMap = true
+
+	singular_field := api.NewTestField("singular_field").WithType(api.TypezString)
+	repeated_field := api.NewTestField("repeated_field").WithType(api.TypezString).WithRepeated()
+	map_field := api.NewTestField("map_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.$Map")
+	boxed_field := api.NewTestField("boxed_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.TestMessage").
+		WithOptional()
+	message := api.NewTestMessage("TestMessage").
+		WithPackage("test.v1").
+		WithFields(singular_field, repeated_field, map_field, boxed_field)
+	message.Documentation = "A test message."
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	model.AddMessage(map_message)
@@ -204,63 +179,35 @@ func TestFieldAnnotations(t *testing.T) {
 }
 
 func TestRecursiveFieldAnnotations(t *testing.T) {
-	key_field := &api.Field{Name: "key", Typez: api.TypezInt32}
-	value_field := &api.Field{
-		Name:    "value",
-		Typez:   api.TypezMessage,
-		TypezID: ".test.v1.TestMessage",
-	}
-	map_message := &api.Message{
-		Name:    "$Map",
-		ID:      ".test.v1.$Map",
-		IsMap:   true,
-		Package: "test.v1",
-		Fields:  []*api.Field{key_field, value_field},
-	}
-	map_field := &api.Field{
-		Name:     "map_field",
-		JSONName: "mapField",
-		ID:       ".test.v1.Message.map_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.$Map",
-		Repeated: false,
-	}
-	oneof_field := &api.Field{
-		Name:     "oneof_field",
-		JSONName: "oneofField",
-		ID:       ".test.v1.Message.oneof_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.TestMessage",
-		IsOneOf:  true,
-	}
-	group := &api.OneOf{
-		Name:   "oneof_type",
-		ID:     ".test.v1.Message.oneof_type",
-		Fields: []*api.Field{oneof_field},
-	}
-	repeated_field := &api.Field{
-		Name:     "repeated_field",
-		JSONName: "repeatedField",
-		ID:       ".test.v1.Message.repeated_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.TestMessage",
-		Repeated: true,
-	}
-	message_field := &api.Field{
-		Name:     "message_field",
-		JSONName: "messageField",
-		ID:       ".test.v1.Message.message_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.TestMessage",
-	}
-	message := &api.Message{
-		Name:          "TestMessage",
-		Package:       "test.v1",
-		ID:            ".test.v1.TestMessage",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{map_field, oneof_field, repeated_field, message_field},
-		OneOfs:        []*api.OneOf{group},
-	}
+	key_field := api.NewTestField("key").WithType(api.TypezInt32)
+	value_field := api.NewTestField("value").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.TestMessage")
+	map_message := api.NewTestMessage("$Map").
+		WithPackage("test.v1").
+		WithFields(key_field, value_field)
+	map_message.IsMap = true
+
+	map_field := api.NewTestField("map_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.$Map")
+	oneof_field := api.NewTestField("oneof_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.TestMessage")
+	group := api.NewTestOneOf("oneof_type").WithFields(oneof_field)
+	repeated_field := api.NewTestField("repeated_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.TestMessage").
+		WithRepeated()
+	message_field := api.NewTestField("message_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.TestMessage")
+	message := api.NewTestMessage("TestMessage").
+		WithPackage("test.v1").
+		WithFields(map_field).
+		WithOneOfs(group).
+		WithFields(repeated_field, message_field)
+	message.Documentation = "A test message."
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	model.AddMessage(map_message)
@@ -396,69 +343,37 @@ func TestRecursiveFieldAnnotations(t *testing.T) {
 
 func TestSameTypeNameFieldAnnotations(t *testing.T) {
 	// A message with the same unqualified name as the message containing the fields.
-	inner_message := &api.Message{
-		Name:    "TestMessage",
-		Package: "test.v1.inner",
-		ID:      ".test.v1.inner.TestMessage",
-	}
+	inner_message := api.NewTestMessage("TestMessage").WithPackage("test.v1.inner")
 
-	key_field := &api.Field{Name: "key", Typez: api.TypezInt32}
-	value_field := &api.Field{
-		Name:    "value",
-		Typez:   api.TypezMessage,
-		TypezID: ".test.v1.inner.TestMessage",
-	}
-	map_message := &api.Message{
-		Name:    "$Map",
-		ID:      ".test.v1.$Map",
-		IsMap:   true,
-		Package: "test.v1",
-		Fields:  []*api.Field{key_field, value_field},
-	}
-	map_field := &api.Field{
-		Name:     "map_field",
-		JSONName: "mapField",
-		ID:       ".test.v1.Message.map_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.$Map",
-		Repeated: false,
-	}
-	oneof_field := &api.Field{
-		Name:     "oneof_field",
-		JSONName: "oneofField",
-		ID:       ".test.v1.Message.oneof_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.inner.TestMessage",
-		IsOneOf:  true,
-	}
-	group := &api.OneOf{
-		Name:   "oneof_type",
-		ID:     ".test.v1.Message.oneof_type",
-		Fields: []*api.Field{oneof_field},
-	}
-	repeated_field := &api.Field{
-		Name:     "repeated_field",
-		JSONName: "repeatedField",
-		ID:       ".test.v1.Message.repeated_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.inner.TestMessage",
-		Repeated: true,
-	}
-	message_field := &api.Field{
-		Name:     "message_field",
-		JSONName: "messageField",
-		ID:       ".test.v1.Message.message_field",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.inner.TestMessage",
-	}
-	message := &api.Message{
-		Name:          "TestMessage",
-		Package:       "test.v1",
-		ID:            ".test.v1.TestMessage",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{map_field, oneof_field, repeated_field, message_field},
-		OneOfs:        []*api.OneOf{group},
-	}
+	key_field := api.NewTestField("key").WithType(api.TypezInt32)
+	value_field := api.NewTestField("value").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.inner.TestMessage")
+	map_message := api.NewTestMessage("$Map").
+		WithPackage("test.v1").
+		WithFields(key_field, value_field)
+	map_message.IsMap = true
+
+	map_field := api.NewTestField("map_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.$Map")
+	oneof_field := api.NewTestField("oneof_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.inner.TestMessage")
+	group := api.NewTestOneOf("oneof_type").WithFields(oneof_field)
+	repeated_field := api.NewTestField("repeated_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.inner.TestMessage").
+		WithRepeated()
+	message_field := api.NewTestField("message_field").
+		WithType(api.TypezMessage).
+		WithTypezID(".test.v1.inner.TestMessage")
+	message := api.NewTestMessage("TestMessage").
+		WithPackage("test.v1").
+		WithFields(map_field).
+		WithOneOfs(group).
+		WithFields(repeated_field, message_field)
+	message.Documentation = "A test message."
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	model.AddMessage(map_message)
@@ -608,19 +523,11 @@ func TestPrimitiveFieldAnnotations(t *testing.T) {
 		{"f64", "wkt::internal::F64", api.TypezDouble},
 	} {
 		t.Run(fmt.Sprintf("%s_%v", test.wantType, test.typez), func(t *testing.T) {
-			singular_field := &api.Field{
-				Name:     "singular_field",
-				JSONName: "singularField",
-				ID:       ".test.Message.singular_field",
-				Typez:    test.typez,
-			}
-			message := &api.Message{
-				Name:          "TestMessage",
-				Package:       "test",
-				ID:            ".test.TestMessage",
-				Documentation: "A test message.",
-				Fields:        []*api.Field{singular_field},
-			}
+			singular_field := api.NewTestField("singular_field").
+				WithType(test.typez)
+			message := api.NewTestMessage("TestMessage").
+				WithFields(singular_field)
+			message.Documentation = "A test message."
 			model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
 			api.LabelRecursiveFields(model)
@@ -657,20 +564,12 @@ func TestBytesAnnotations(t *testing.T) {
 		{libconfig.SpecDiscovery, "::bytes::Bytes", "serde_with::base64::Base64<serde_with::base64::UrlSafe>"},
 	} {
 		t.Run(test.sourceSpecification, func(t *testing.T) {
-			singular_field := &api.Field{
-				Name:     "singular_field",
-				JSONName: "singularField",
-				ID:       ".test.Message.singular_field",
-				Typez:    api.TypezBytes,
-				TypezID:  "bytes",
-			}
-			message := &api.Message{
-				Name:          "TestMessage",
-				Package:       "test",
-				ID:            ".test.TestMessage",
-				Documentation: "A test message.",
-				Fields:        []*api.Field{singular_field},
-			}
+			singular_field := api.NewTestField("singular_field").
+				WithType(api.TypezBytes).
+				WithTypezID("bytes")
+			message := api.NewTestMessage("TestMessage").
+				WithFields(singular_field)
+			message.Documentation = "A test message."
 			model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
 			api.LabelRecursiveFields(model)
@@ -711,21 +610,13 @@ func TestWrapperFieldAnnotations(t *testing.T) {
 		{"wkt::BoolValue", "", ".google.protobuf.BoolValue"},
 	} {
 		t.Run(test.typezID, func(t *testing.T) {
-			singular_field := &api.Field{
-				Name:     "singular_field",
-				JSONName: "singularField",
-				ID:       ".test.Message.singular_field",
-				Typez:    api.TypezMessage,
-				TypezID:  test.typezID,
-				Optional: true,
-			}
-			message := &api.Message{
-				Name:          "TestMessage",
-				Package:       "test",
-				ID:            ".test.TestMessage",
-				Documentation: "A test message.",
-				Fields:        []*api.Field{singular_field},
-			}
+			singular_field := api.NewTestField("singular_field").
+				WithType(api.TypezMessage).
+				WithTypezID(test.typezID).
+				WithOptional()
+			message := api.NewTestMessage("TestMessage").
+				WithFields(singular_field)
+			message.Documentation = "A test message."
 			model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
 			api.LabelRecursiveFields(model)
@@ -755,76 +646,39 @@ func TestWrapperFieldAnnotations(t *testing.T) {
 }
 
 func TestEnumFieldAnnotations(t *testing.T) {
-	enumz := &api.Enum{
-		Name:    "TestEnum",
-		Package: "test.v1",
-		ID:      ".test.v1.TestEnum",
-	}
-	singular_field := &api.Field{
-		Name:     "singular_field",
-		JSONName: "singularField",
-		ID:       ".test.v1.Message.singular_field",
-		Typez:    api.TypezEnum,
-		TypezID:  ".test.v1.TestEnum",
-	}
-	repeated_field := &api.Field{
-		Name:     "repeated_field",
-		JSONName: "repeatedField",
-		ID:       ".test.v1.Message.repeated_field",
-		Typez:    api.TypezEnum,
-		TypezID:  ".test.v1.TestEnum",
-		Repeated: true,
-	}
-	optional_field := &api.Field{
-		Name:     "optional_field",
-		JSONName: "optionalField",
-		ID:       ".test.v1.Message.optional_field",
-		Typez:    api.TypezEnum,
-		TypezID:  ".test.v1.TestEnum",
-		Optional: true,
-	}
-	null_value_field := &api.Field{
-		Name:     "null_value_field",
-		JSONName: "nullValueField",
-		ID:       ".test.v1.Message.null_value_field",
-		Typez:    api.TypezEnum,
-		TypezID:  ".google.protobuf.NullValue",
-	}
-	map_field := &api.Field{
-		Name:     "map_field",
-		JSONName: "mapField",
-		ID:       ".test.v1.Message.map_field",
-		Typez:    api.TypezMessage,
-		TypezID:  "$map<string, .test.v1.TestEnum>",
-	}
+	enumz := api.NewTestEnum("TestEnum").WithPackage("test.v1")
+	singular_field := api.NewTestField("singular_field").
+		WithType(api.TypezEnum).
+		WithTypezID(".test.v1.TestEnum")
+	repeated_field := api.NewTestField("repeated_field").
+		WithType(api.TypezEnum).
+		WithTypezID(".test.v1.TestEnum").
+		WithRepeated()
+	optional_field := api.NewTestField("optional_field").
+		WithType(api.TypezEnum).
+		WithTypezID(".test.v1.TestEnum").
+		WithOptional()
+	null_value_field := api.NewTestField("null_value_field").
+		WithType(api.TypezEnum).
+		WithTypezID(".google.protobuf.NullValue")
+	map_field := api.NewTestField("map_field").
+		WithType(api.TypezMessage).
+		WithTypezID("$map<string, .test.v1.TestEnum>")
 	// TODO(#1381) - this is closer to what map message should be called.
-	key_field := &api.Field{
-		Name:     "key",
-		JSONName: "key",
-		ID:       "$map<string, .test.v1.TestEnum>.key",
-		Typez:    api.TypezString,
-	}
-	value_field := &api.Field{
-		Name:     "value",
-		JSONName: "value",
-		ID:       "$map<string, .test.v1.TestEnum>.value",
-		Typez:    api.TypezEnum,
-		TypezID:  ".test.v1.TestEnum",
-	}
-	map_message := &api.Message{
-		Name:    "$map<string, .test.v1.TestEnum>",
-		ID:      "$map<string, .test.v1.TestEnum>",
-		Package: "test.v1",
-		IsMap:   true,
-		Fields:  []*api.Field{key_field, value_field},
-	}
-	message := &api.Message{
-		Name:          "TestMessage",
-		Package:       "test.v1",
-		ID:            ".test.v1.TestMessage",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{singular_field, repeated_field, optional_field, null_value_field, map_field},
-	}
+	key_field := api.NewTestField("key").
+		WithType(api.TypezString)
+	value_field := api.NewTestField("value").
+		WithType(api.TypezEnum).
+		WithTypezID(".test.v1.TestEnum")
+	map_message := api.NewTestMessage("$map<string, .test.v1.TestEnum>").
+		WithPackage("test.v1").
+		WithID("$map<string, .test.v1.TestEnum>").
+		WithFields(key_field, value_field)
+	map_message.IsMap = true
+	message := api.NewTestMessage("TestMessage").
+		WithPackage("test.v1").
+		WithFields(singular_field, repeated_field, optional_field, null_value_field, map_field)
+	message.Documentation = "A test message."
 
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{enumz}, []*api.Service{})
 	model.AddMessage(map_message)
@@ -977,20 +831,14 @@ func TestFormattedResourceAnnotations(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			field := &api.Field{
-				Name:  "name",
-				ID:    ".test.v1.Message.name",
-				Typez: api.TypezString,
-				ResourceNamePattern: &api.ResourceNamePattern{
-					Segments: test.segments,
-				},
+			field := api.NewTestField("name").
+				WithType(api.TypezString)
+			field.ResourceNamePattern = &api.ResourceNamePattern{
+				Segments: test.segments,
 			}
-			message := &api.Message{
-				Name:    "TestMessage",
-				Package: "test.v1",
-				ID:      ".test.v1.TestMessage",
-				Fields:  []*api.Field{field},
-			}
+			message := api.NewTestMessage("TestMessage").
+				WithPackage("test.v1").
+				WithFields(field)
 
 			model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 			api.CrossReference(model)
@@ -1010,45 +858,22 @@ func TestFormattedResourceAnnotations(t *testing.T) {
 }
 
 func TestJsonNameAnnotations(t *testing.T) {
-	parent := &api.Field{
-		Name:     "parent",
-		JSONName: "parent",
-		ID:       ".test.Request.parent",
-		Typez:    api.TypezString,
-	}
-	publicKey := &api.Field{
-		Name:     "public_key",
-		JSONName: "public_key",
-		ID:       ".test.Request.public_key",
-		Typez:    api.TypezString,
-	}
-	readTime := &api.Field{
-		Name:     "read_time",
-		JSONName: "readTime",
-		ID:       ".test.Request.read_time",
-		Typez:    api.TypezInt32,
-	}
-	optional := &api.Field{
-		Name:     "optional",
-		JSONName: "optional",
-		ID:       ".test.Request.optional",
-		Typez:    api.TypezInt32,
-		Optional: true,
-	}
-	repeated := &api.Field{
-		Name:     "repeated",
-		JSONName: "repeated",
-		ID:       ".test.Request.repeated",
-		Typez:    api.TypezInt32,
-		Repeated: true,
-	}
-	message := &api.Message{
-		Name:          "Request",
-		Package:       "test",
-		ID:            ".test.Request",
-		Documentation: "A test message.",
-		Fields:        []*api.Field{parent, publicKey, readTime, optional, repeated},
-	}
+	parent := api.NewTestField("parent").
+		WithType(api.TypezString)
+	publicKey := api.NewTestField("public_key").
+		WithType(api.TypezString)
+	publicKey.JSONName = "public_key"
+	readTime := api.NewTestField("read_time").
+		WithType(api.TypezInt32)
+	optional := api.NewTestField("optional").
+		WithType(api.TypezInt32).
+		WithOptional()
+	repeated := api.NewTestField("repeated").
+		WithType(api.TypezInt32).
+		WithRepeated()
+	message := api.NewTestMessage("Request").
+		WithFields(parent, publicKey, readTime, optional, repeated)
+	message.Documentation = "A test message."
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	api.CrossReference(model)
 	codec := newTestCodec(t, libconfig.SpecProtobuf, "", map[string]string{
@@ -1144,43 +969,25 @@ func TestJsonNameAnnotations(t *testing.T) {
 
 func TestFieldNameConflictWithNestedMessage(t *testing.T) {
 	// Top-level message: google.cloud.compute.v1.CapacityHistoryRequest
-	topLevelMsg := &api.Message{
-		Name:    "CapacityHistoryRequest",
-		Package: "test.v1",
-		ID:      ".test.v1.CapacityHistoryRequest",
-	}
+	topLevelMsg := api.NewTestMessage("CapacityHistoryRequest").
+		WithPackage("test.v1")
 
 	// Message: google.cloud.compute.v1.Advice
-	adviceMsg := &api.Message{
-		Name:    "Advice",
-		Package: "test.v1",
-		ID:      ".test.v1.Advice",
-	}
+	adviceMsg := api.NewTestMessage("Advice").
+		WithPackage("test.v1")
 
 	// Nested message: google.cloud.compute.v1.Advice.CapacityHistoryRequest
-	nestedMsg := &api.Message{
-		Name:    "CapacityHistoryRequest",
-		Package: "test.v1",
-		ID:      ".test.v1.Advice.CapacityHistoryRequest",
-		Parent:  adviceMsg,
-	}
+	nestedMsg := api.NewTestMessage("CapacityHistoryRequest").
+		WithPackage("test.v1").
+		WithID(".test.v1.Advice.CapacityHistoryRequest")
+	nestedMsg.Parent = adviceMsg
 
 	// The "body" field of nestedMsg whose type is topLevelMsg
-	bodyField := &api.Field{
-		Name:     "body",
-		JSONName: "body",
-		ID:       ".test.v1.Advice.CapacityHistoryRequest.body",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.CapacityHistoryRequest",
-	}
-	overrideField := &api.Field{
-		Name:     "override_body",
-		JSONName: "overrideBody",
-		ID:       ".test.v1.Advice.CapacityHistoryRequest.override_body",
-		Typez:    api.TypezMessage,
-		TypezID:  ".test.v1.CapacityHistoryRequest",
-	}
-	nestedMsg.Fields = []*api.Field{bodyField, overrideField}
+	bodyField := api.NewTestField("body").
+		WithMessageType(topLevelMsg)
+	overrideField := api.NewTestField("override_body").
+		WithMessageType(topLevelMsg)
+	nestedMsg.WithFields(bodyField, overrideField)
 
 	model := api.NewTestAPI([]*api.Message{topLevelMsg, adviceMsg, nestedMsg}, []*api.Enum{}, []*api.Service{})
 	api.CrossReference(model)
