@@ -26,10 +26,7 @@ import (
 func TestMessageNames(t *testing.T) {
 	r := sample.Replication()
 	a := sample.Automatic()
-	f := &api.Message{
-		Name: "Function",
-		ID:   ".google.cloud.functions.v2.Function",
-	}
+	f := api.NewTestMessage("Function").WithPackage("google.cloud.functions.v2")
 	model := api.NewTestAPI(
 		[]*api.Message{r, a, f, sample.CustomerManagedEncryption()},
 		[]*api.Enum{},
@@ -56,31 +53,18 @@ func TestMessageNames(t *testing.T) {
 }
 
 func TestEnumNames(t *testing.T) {
-	parent := &api.Message{
-		Name:    "SecretVersion",
-		ID:      sample.SecretVersion().ID,
-		Package: "test",
-		Fields: []*api.Field{
-			{
-				Name:     "automatic",
-				Typez:    api.TypezMessage,
-				TypezID:  sample.Automatic().ID,
-				Optional: true,
-				Repeated: false,
-			},
-		},
-	}
-	nested := &api.Enum{
-		Name:    "State",
-		ID:      ".test.SecretVersion.State",
-		Parent:  parent,
-		Package: "test",
-	}
-	non_nested := &api.Enum{
-		Name:    "Code",
-		ID:      ".test.Code",
-		Package: "test",
-	}
+	parent := api.NewTestMessage("SecretVersion").
+		WithID(sample.SecretVersion().ID).
+		WithFields(
+			api.NewTestField("automatic").
+				WithType(api.TypezMessage).
+				WithTypezID(sample.Automatic().ID).
+				WithOptional(),
+		)
+	nested := api.NewTestEnum("State").
+		WithParent(parent).
+		WithID(".test.SecretVersion.State")
+	non_nested := api.NewTestEnum("Code")
 
 	model := api.NewTestAPI(
 		[]*api.Message{parent, sample.Automatic(), sample.CustomerManagedEncryption()},
@@ -106,16 +90,10 @@ func TestEnumNames(t *testing.T) {
 func TestResolveMessageName(t *testing.T) {
 	message := sample.CreateRequest()
 	model := api.NewTestAPI([]*api.Message{
-		message, {
-			ID:   ".google.protobuf.Duration",
-			Name: "Duration",
-		}, {
-			ID:   ".google.protobuf.Empty",
-			Name: "Empty",
-		}, {
-			ID:   ".google.protobuf.Timestamp",
-			Name: "Timestamp",
-		},
+		message,
+		api.NewTestMessage("Duration").WithPackage("google.protobuf"),
+		api.NewTestMessage("Empty").WithPackage("google.protobuf"),
+		api.NewTestMessage("Timestamp").WithPackage("google.protobuf"),
 	}, []*api.Enum{}, []*api.Service{})
 
 	annotate := newAnnotateModel(model)
@@ -139,16 +117,9 @@ func TestResolveMessageName(t *testing.T) {
 
 func TestResolveMessageName_ImportsMessages(t *testing.T) {
 	model := api.NewTestAPI([]*api.Message{
-		{
-			ID:      ".google.protobuf.Any",
-			Package: "google.protobuf",
-		}, {
-			ID:      ".google.rpc.Status",
-			Package: "google.rpc",
-		}, {
-			ID:      ".google.type.Expr",
-			Package: "google.type",
-		},
+		api.NewTestMessage("Any").WithPackage("google.protobuf"),
+		api.NewTestMessage("Status").WithPackage("google.rpc"),
+		api.NewTestMessage("Expr").WithPackage("google.type"),
 	}, []*api.Enum{}, []*api.Service{})
 
 	// We use an explicit package name here; NewTestAPI will otherwise default to
@@ -182,10 +153,7 @@ func TestResolveMessageName_ImportsMessages(t *testing.T) {
 
 func TestFieldType_EnumImports(t *testing.T) {
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{
-		{
-			ID:      ".google.type.DayOfWeek",
-			Package: "google.type",
-		},
+		api.NewTestEnum("DayOfWeek").WithPackage("google.type"),
 	}, []*api.Service{})
 
 	// We use an explicit package name here; NewTestAPI will otherwise default to
@@ -199,11 +167,9 @@ func TestFieldType_EnumImports(t *testing.T) {
 		"google.type": "package:google_cloud_type/type.dart",
 	}
 
-	field := &api.Field{
-		Name:    "testField",
-		Typez:   api.TypezEnum,
-		TypezID: ".google.type.DayOfWeek",
-	}
+	field := api.NewTestField("testField").
+		WithType(api.TypezEnum).
+		WithTypezID(".google.type.DayOfWeek")
 	annotate.imports = map[string]bool{}
 	annotate.fieldType(field)
 	want := "package:google_cloud_type/type.dart"
@@ -214,23 +180,10 @@ func TestFieldType_EnumImports(t *testing.T) {
 
 func TestResolveMessageNameImportPrefixes(t *testing.T) {
 	model := api.NewTestAPI([]*api.Message{
-		{
-			ID:      ".google.protobuf.Timestamp",
-			Name:    "Timestamp",
-			Package: "google.protobuf",
-		}, {
-			ID:      ".google.protobuf.Duration",
-			Name:    "Duration",
-			Package: "google.protobuf",
-		}, {
-			ID:      ".google.rpc.Status",
-			Name:    "Status",
-			Package: "google.rpc",
-		}, {
-			ID:      ".google.type.DayOfWeek",
-			Name:    "DayOfWeek",
-			Package: "google.type",
-		},
+		api.NewTestMessage("Timestamp").WithPackage("google.protobuf"),
+		api.NewTestMessage("Duration").WithPackage("google.protobuf"),
+		api.NewTestMessage("Status").WithPackage("google.rpc"),
+		api.NewTestMessage("DayOfWeek").WithPackage("google.type"),
 	}, []*api.Enum{}, []*api.Service{})
 
 	annotate := newAnnotateModel(model)
@@ -277,18 +230,12 @@ func TestFieldType(t *testing.T) {
 		{api.TypezString, "String"},
 		{api.TypezBytes, "Uint8List"},
 	} {
-		field := &api.Field{
-			Name:     "parent",
-			JSONName: "parent",
-			Typez:    test.typez,
-		}
-		message := &api.Message{
-			Name:          "UpdateSecretRequest",
-			ID:            "..UpdateRequest",
-			Documentation: "Request message for SecretManagerService.UpdateSecret",
-			Package:       sample.Package,
-			Fields:        []*api.Field{field},
-		}
+		field := api.NewTestField("parent").WithType(test.typez)
+		message := api.NewTestMessage("UpdateSecretRequest").
+			WithPackage(sample.Package).
+			WithID("..UpdateRequest").
+			WithFields(field)
+		message.Documentation = "Request message for SecretManagerService.UpdateSecret"
 		model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 		annotate := newAnnotateModel(model)
 		annotate.annotateModel(map[string]string{})
@@ -303,25 +250,16 @@ func TestFieldType(t *testing.T) {
 	sampleMessage := sample.CreateRequest()
 	sampleEnum := sample.EnumState()
 
-	field1 := &api.Field{
-		Name:     "parent",
-		JSONName: "parent",
-		Typez:    api.TypezMessage,
-		TypezID:  sampleMessage.ID,
-	}
-	field2 := &api.Field{
-		Name:     "parent",
-		JSONName: "parent",
-		Typez:    api.TypezEnum,
-		TypezID:  sampleEnum.ID,
-	}
-	message := &api.Message{
-		Name:          "UpdateSecretRequest",
-		ID:            "..UpdateRequest",
-		Documentation: "Request message for SecretManagerService.UpdateSecret",
-		Package:       sample.Package,
-		Fields:        []*api.Field{field1, field2},
-	}
+	field1 := api.NewTestField("parent").
+		WithMessageType(sampleMessage)
+	field2 := api.NewTestField("parent").
+		WithType(api.TypezEnum).
+		WithTypezID(sampleEnum.ID)
+	message := api.NewTestMessage("UpdateSecretRequest").
+		WithPackage(sample.Package).
+		WithID("..UpdateRequest").
+		WithFields(field1, field2)
+	message.Documentation = "Request message for SecretManagerService.UpdateSecret"
 	model := api.NewTestAPI(
 		[]*api.Message{message, sampleMessage},
 		[]*api.Enum{sampleEnum},
@@ -344,27 +282,15 @@ func TestFieldType(t *testing.T) {
 }
 
 func TestFieldType_Maps(t *testing.T) {
-	map1 := &api.Message{
-		Name:  "$map<string, string>",
-		ID:    "$map<string, string>",
-		IsMap: true,
-		Fields: []*api.Field{
-			{
-				Name:  "key",
-				Typez: api.TypezString,
-			},
-			{
-				Name:  "value",
-				Typez: api.TypezInt32,
-			},
-		},
-	}
-	field := &api.Field{
-		Name:     "map",
-		JSONName: "map",
-		Typez:    api.TypezMessage,
-		TypezID:  map1.ID,
-	}
+	map1 := api.NewTestMessage("$map<string, string>").
+		WithID("$map<string, string>").
+		WithFields(
+			api.NewTestField("key").WithType(api.TypezString),
+			api.NewTestField("value").WithType(api.TypezInt32),
+		)
+	map1.IsMap = true
+	field := api.NewTestField("map").
+		WithMessageType(map1)
 	model := api.NewTestAPI([]*api.Message{}, []*api.Enum{}, []*api.Service{})
 	model.AddMessage(map1)
 	annotate := newAnnotateModel(model)
@@ -378,17 +304,11 @@ func TestFieldType_Maps(t *testing.T) {
 }
 
 func TestFieldType_Bytes(t *testing.T) {
-	field := &api.Field{
-		Name:     "test",
-		JSONName: "test",
-		Typez:    api.TypezBytes,
-	}
-	message := &api.Message{
-		Name:   "$test",
-		ID:     "$test",
-		IsMap:  true,
-		Fields: []*api.Field{field},
-	}
+	field := api.NewTestField("test").WithType(api.TypezBytes)
+	message := api.NewTestMessage("$test").
+		WithID("$test").
+		WithFields(field)
+	message.IsMap = true
 	model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 	annotate := newAnnotateModel(model)
 	annotate.annotateModel(map[string]string{})
@@ -422,19 +342,14 @@ func TestFieldType_Repeated(t *testing.T) {
 		{api.TypezDouble, "List<double>"},
 		{api.TypezString, "List<String>"},
 	} {
-		field := &api.Field{
-			Name:     "parent",
-			JSONName: "parent",
-			Typez:    test.typez,
-			Repeated: true,
-		}
-		message := &api.Message{
-			Name:          "UpdateSecretRequest",
-			ID:            "..UpdateRequest",
-			Documentation: "Request message for SecretManagerService.UpdateSecret",
-			Package:       sample.Package,
-			Fields:        []*api.Field{field},
-		}
+		field := api.NewTestField("parent").
+			WithType(test.typez).
+			WithRepeated()
+		message := api.NewTestMessage("UpdateSecretRequest").
+			WithPackage(sample.Package).
+			WithID("..UpdateRequest").
+			WithFields(field)
+		message.Documentation = "Request message for SecretManagerService.UpdateSecret"
 		model := api.NewTestAPI([]*api.Message{message}, []*api.Enum{}, []*api.Service{})
 		annotate := newAnnotateModel(model)
 		annotate.annotateModel(map[string]string{})
@@ -449,27 +364,18 @@ func TestFieldType_Repeated(t *testing.T) {
 	sampleMessage := sample.CreateRequest()
 	sampleEnum := sample.EnumState()
 
-	field1 := &api.Field{
-		Name:     "parent",
-		JSONName: "parent",
-		Typez:    api.TypezMessage,
-		TypezID:  sampleMessage.ID,
-		Repeated: true,
-	}
-	field2 := &api.Field{
-		Name:     "parent",
-		JSONName: "parent",
-		Typez:    api.TypezEnum,
-		TypezID:  sampleEnum.ID,
-		Repeated: true,
-	}
-	message := &api.Message{
-		Name:          "UpdateSecretRequest",
-		ID:            "..UpdateRequest",
-		Documentation: "Request message for SecretManagerService.UpdateSecret",
-		Package:       sample.Package,
-		Fields:        []*api.Field{field1, field2},
-	}
+	field1 := api.NewTestField("parent").
+		WithMessageType(sampleMessage).
+		WithRepeated()
+	field2 := api.NewTestField("parent").
+		WithType(api.TypezEnum).
+		WithTypezID(sampleEnum.ID).
+		WithRepeated()
+	message := api.NewTestMessage("UpdateSecretRequest").
+		WithPackage(sample.Package).
+		WithID("..UpdateRequest").
+		WithFields(field1, field2)
+	message.Documentation = "Request message for SecretManagerService.UpdateSecret"
 	model := api.NewTestAPI(
 		[]*api.Message{message, sampleMessage},
 		[]*api.Enum{sampleEnum},
