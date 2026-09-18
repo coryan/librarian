@@ -425,6 +425,8 @@ func resolvePreview(lib *config.Library, language string) *config.Library {
 		res.SpecificationFormat = p.SpecificationFormat
 	}
 	switch language {
+	case config.LanguageCpp:
+		res.Cpp = mergeCpp(res.Cpp, p.Cpp)
 	case config.LanguageDotnet:
 		res.Dotnet = mergeDotnet(res.Dotnet, p.Dotnet)
 	case config.LanguageDart:
@@ -445,6 +447,23 @@ func resolvePreview(lib *config.Library, language string) *config.Library {
 		res.Swift = mergeSwift(res.Swift, p.Swift)
 	}
 	res.Preview = nil
+	return &res
+}
+
+func mergeCpp(dst, src *config.CppLibrary) *config.CppLibrary {
+	if src == nil {
+		return dst
+	}
+	if dst == nil {
+		return src
+	}
+	res := *dst
+	if src.ProductPath != "" {
+		res.ProductPath = src.ProductPath
+	}
+	if src.ForwardingProductPath != "" {
+		res.ForwardingProductPath = src.ForwardingProductPath
+	}
 	return &res
 }
 

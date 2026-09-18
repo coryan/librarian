@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/googleapis/librarian/internal/config"
+	"github.com/googleapis/librarian/internal/librarian/cpp"
 	"github.com/googleapis/librarian/internal/librarian/dart"
 	"github.com/googleapis/librarian/internal/librarian/golang"
 	"github.com/googleapis/librarian/internal/librarian/java"
@@ -338,6 +339,8 @@ func addNewLibrary(cfg *config.Config, api *config.API, explicitLibraryName, goo
 		lib = rust.Add(lib)
 	case config.LanguageSwift:
 		lib = swift.Add(lib, cfg)
+	case config.LanguageCpp:
+		lib = cpp.Add(lib, cfg)
 	case config.LanguagePhp:
 		var err error
 		lib, err = php.Add(lib, googleapisDir)
