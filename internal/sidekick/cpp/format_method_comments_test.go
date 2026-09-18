@@ -170,3 +170,40 @@ func TestFormatMethodComments_GetOperation(t *testing.T) {
 		t.Errorf("expected GetOperation param comment for name, got: %s", gotParam)
 	}
 }
+
+func TestFormatMethodComments_IamMethods(t *testing.T) {
+	inSet := api.NewTestMessage("SetIamPolicyRequest").WithPackage("google.iam.v1")
+	outPolicy := api.NewTestMessage("Policy").WithPackage("google.iam.v1")
+	mSet := api.NewTestMethod("SetIamPolicy").
+		WithDocumentation("Sets the access control policy on the specified resource. Replaces any existing policy.").
+		WithInput(inSet).
+		WithOutput(outPolicy)
+
+	gotSet := formatMethodCommentsProtobufRequest(mSet, false)
+	if !strings.Contains(gotSet, "Sets the access control policy on the specified resource. Replaces any\n  /// existing policy.") {
+		t.Errorf("expected standard SetIamPolicy doc comment, got: %s", gotSet)
+	}
+
+	inGet := api.NewTestMessage("GetIamPolicyRequest").WithPackage("google.iam.v1")
+	mGet := api.NewTestMethod("GetIamPolicy").
+		WithDocumentation("Gets the access control policy for a resource. Returns an empty policy if the resource exists and does not have a policy set.").
+		WithInput(inGet).
+		WithOutput(outPolicy)
+
+	gotGet := formatMethodCommentsProtobufRequest(mGet, false)
+	if !strings.Contains(gotGet, "Gets the access control policy for a resource.\n  /// Returns an empty policy if the resource exists and does not have a policy\n  /// set.") {
+		t.Errorf("expected standard GetIamPolicy doc comment, got: %s", gotGet)
+	}
+
+	inTest := api.NewTestMessage("TestIamPermissionsRequest").WithPackage("google.iam.v1")
+	outTest := api.NewTestMessage("TestIamPermissionsResponse").WithPackage("google.iam.v1")
+	mTest := api.NewTestMethod("TestIamPermissions").
+		WithDocumentation("Returns permissions that a caller has on the specified resource. If the resource does not exist, this will return an empty set of permissions, not a `NOT_FOUND` error.").
+		WithInput(inTest).
+		WithOutput(outTest)
+
+	gotTest := formatMethodCommentsProtobufRequest(mTest, false)
+	if !strings.Contains(gotTest, "Returns permissions that a caller has on the specified resource.\n  /// If the resource does not exist, this will return an empty set of") {
+		t.Errorf("expected standard TestIamPermissions doc comment, got: %s", gotTest)
+	}
+}

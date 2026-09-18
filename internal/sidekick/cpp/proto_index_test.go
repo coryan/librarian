@@ -71,6 +71,7 @@ message FooResponse {
 
 	wantSymbols := map[string]int{
 		"google.example.v1.ExampleService":                  6,
+		"google.example.v1.ExampleService.DoFoo":            7,
 		"google.example.v1.FooRequest":                      16,
 		"google.example.v1.FooRequest.name":                 17,
 		"google.example.v1.FooRequest.Status":               19,

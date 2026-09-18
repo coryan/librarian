@@ -309,3 +309,141 @@ func TestAssuredWorkloads_PilotParity(t *testing.T) {
 		})
 	}
 }
+
+func TestKms_PilotParity(t *testing.T) {
+	cppRepo := locateGoogleCloudCpp(t)
+	if cppRepo == "" {
+		t.Skip("skipping integration test: google-cloud-cpp repo not found")
+	}
+
+	srcs, err := librarian.LoadSources(t.Context(), &config.Sources{
+		Googleapis: &config.Source{
+			Commit: googleapisCommit,
+			SHA256: googleapisSHA256,
+		},
+	})
+	if err != nil {
+		t.Fatalf("LoadSources failed: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+
+	// Copy root .clang-format so emitted files match google-cloud-cpp formatting conventions.
+	clangFormatSrc := filepath.Join(cppRepo, ".clang-format")
+	if data, err := os.ReadFile(clangFormatSrc); err == nil {
+		if err := os.WriteFile(filepath.Join(tmpDir, ".clang-format"), data, 0o644); err != nil {
+			t.Fatalf("failed to copy .clang-format: %v", err)
+		}
+	}
+
+	outDir := filepath.Join(tmpDir, "google", "cloud", "kms", "v1")
+	lib := &config.Library{
+		Name:   "google-cloud-kms-v1",
+		Output: outDir,
+		APIs: []*config.API{
+			{Path: "google/cloud/kms/v1/service.proto"},
+		},
+		Cpp: &config.CppLibrary{
+			ProductPath:           "google/cloud/kms/v1",
+			ForwardingProductPath: "google/cloud/kms",
+			InitialCopyrightYear:  "2022",
+			RetryableStatusCodes:  []string{"kUnavailable"},
+		},
+	}
+	cfg := &config.Config{
+		Language: config.LanguageCpp,
+	}
+
+	if err := cpp.Generate(t.Context(), cfg, lib, srcs); err != nil {
+		t.Fatalf("cpp.Generate failed: %v", err)
+	}
+
+	if err := cpp.Format(t.Context(), cfg, lib); err != nil {
+		t.Fatalf("cpp.Format failed: %v", err)
+	}
+
+	// Verify all 28 versioned .h and .cc files for KeyManagementService
+	expectedVersioned := []string{
+		"key_management_client.cc",
+		"key_management_client.h",
+		"key_management_connection.cc",
+		"key_management_connection.h",
+		"key_management_connection_idempotency_policy.cc",
+		"key_management_connection_idempotency_policy.h",
+		"key_management_options.h",
+		filepath.Join("mocks", "mock_key_management_connection.h"),
+		filepath.Join("internal", "key_management_auth_decorator.cc"),
+		filepath.Join("internal", "key_management_auth_decorator.h"),
+		filepath.Join("internal", "key_management_connection_impl.cc"),
+		filepath.Join("internal", "key_management_connection_impl.h"),
+		filepath.Join("internal", "key_management_logging_decorator.cc"),
+		filepath.Join("internal", "key_management_logging_decorator.h"),
+		filepath.Join("internal", "key_management_metadata_decorator.cc"),
+		filepath.Join("internal", "key_management_metadata_decorator.h"),
+		filepath.Join("internal", "key_management_option_defaults.cc"),
+		filepath.Join("internal", "key_management_option_defaults.h"),
+		filepath.Join("internal", "key_management_retry_traits.h"),
+		filepath.Join("internal", "key_management_sources.cc"),
+		filepath.Join("internal", "key_management_stub.cc"),
+		filepath.Join("internal", "key_management_stub.h"),
+		filepath.Join("internal", "key_management_stub_factory.cc"),
+		filepath.Join("internal", "key_management_stub_factory.h"),
+		filepath.Join("internal", "key_management_tracing_connection.cc"),
+		filepath.Join("internal", "key_management_tracing_connection.h"),
+		filepath.Join("internal", "key_management_tracing_stub.cc"),
+		filepath.Join("internal", "key_management_tracing_stub.h"),
+	}
+
+	if len(expectedVersioned) != 28 {
+		t.Fatalf("expected 28 versioned files, got %d", len(expectedVersioned))
+	}
+
+	refV1Dir := filepath.Join(cppRepo, "google", "cloud", "kms", "v1")
+	for _, relPath := range expectedVersioned {
+		t.Run("v1/"+relPath, func(t *testing.T) {
+			gotBytes, err := os.ReadFile(filepath.Join(outDir, relPath))
+			if err != nil {
+				t.Fatalf("failed to read generated file: %v", err)
+			}
+			refPath := filepath.Join(refV1Dir, relPath)
+			wantBytes, err := os.ReadFile(refPath)
+			if err != nil {
+				t.Fatalf("failed to read reference file %s: %v", refPath, err)
+			}
+
+			if diff := cmp.Diff(string(wantBytes), string(gotBytes)); diff != "" {
+				t.Errorf("byte-for-byte mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+
+	// Verify forwarding headers
+	fwdDir := filepath.Join(tmpDir, "google", "cloud", "kms")
+	refFwdDir := filepath.Join(cppRepo, "google", "cloud", "kms")
+
+	expectedForwarding := []string{
+		"key_management_client.h",
+		"key_management_connection.h",
+		"key_management_connection_idempotency_policy.h",
+		"key_management_options.h",
+		filepath.Join("mocks", "mock_key_management_connection.h"),
+	}
+
+	for _, relPath := range expectedForwarding {
+		t.Run("forwarding/"+relPath, func(t *testing.T) {
+			gotBytes, err := os.ReadFile(filepath.Join(fwdDir, relPath))
+			if err != nil {
+				t.Fatalf("failed to read generated forwarding file %s: %v", relPath, err)
+			}
+			refPath := filepath.Join(refFwdDir, relPath)
+			wantBytes, err := os.ReadFile(refPath)
+			if err != nil {
+				t.Fatalf("failed to read reference forwarding file %s: %v", refPath, err)
+			}
+
+			if diff := cmp.Diff(string(wantBytes), string(gotBytes)); diff != "" {
+				t.Errorf("byte-for-byte mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

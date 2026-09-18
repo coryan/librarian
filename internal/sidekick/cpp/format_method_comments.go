@@ -101,16 +101,32 @@ const (
 
 func formatMethodComments(m *api.Method, variableParamComments string, isDiscovery bool) string {
 	doc := m.Documentation
-	if strings.HasPrefix(doc, "Provides the [") {
+	if !isDiscovery {
 		switch m.Name {
 		case "GetLocation":
-			doc = "Gets information about a location."
+			if strings.HasPrefix(doc, "Provides the [") {
+				doc = "Gets information about a location."
+			}
 		case "GetIamPolicy":
-			doc = "Gets the access control policy for a resource.\nReturns an empty policy if the resource exists and does not have a policy\nset."
+			if strings.HasPrefix(doc, "Provides the [") || strings.HasPrefix(doc, "Gets the access control policy for a resource.") {
+				doc = "Gets the access control policy for a resource.\nReturns an empty policy if the resource exists and does not have a policy\nset."
+			}
+		case "SetIamPolicy":
+			if strings.HasPrefix(doc, "Provides the [") || strings.HasPrefix(doc, "Sets the access control policy on the specified resource.") {
+				doc = "Sets the access control policy on the specified resource. Replaces any\nexisting policy.\n\nCan return `NOT_FOUND`, `INVALID_ARGUMENT`, and `PERMISSION_DENIED` errors."
+			}
+		case "TestIamPermissions":
+			if strings.HasPrefix(doc, "Provides the [") || strings.HasPrefix(doc, "Returns permissions that a caller has on the specified resource.") {
+				doc = "Returns permissions that a caller has on the specified resource.\nIf the resource does not exist, this will return an empty set of\npermissions, not a `NOT_FOUND` error.\n\nNote: This operation is designed to be used for building permission-aware\nUIs and command-line tools, not for authorization checking. This operation\nmay \"fail open\" without warning."
+			}
 		case "ListOperations":
-			doc = "Lists operations that match the specified filter in the request. If the\nserver doesn't support this method, it returns `UNIMPLEMENTED`."
+			if strings.HasPrefix(doc, "Provides the [") {
+				doc = "Lists operations that match the specified filter in the request. If the\nserver doesn't support this method, it returns `UNIMPLEMENTED`."
+			}
 		case "GetOperation":
-			doc = "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice."
+			if strings.HasPrefix(doc, "Provides the [") {
+				doc = "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice."
+			}
 		}
 	}
 	doc = strings.ReplaceAll(doc, "Gets a view on a log bucket..", "Gets a view on a log bucket.")

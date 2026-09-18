@@ -46,6 +46,7 @@ type protoScopeItem struct {
 	name       string
 	braceDepth int
 	isEnum     bool
+	isService  bool
 }
 
 var (
@@ -53,6 +54,7 @@ var (
 	reMessage   = regexp.MustCompile(`\bmessage\s+([A-Za-z0-9_]+)`)
 	reEnum      = regexp.MustCompile(`\benum\s+([A-Za-z0-9_]+)`)
 	reService   = regexp.MustCompile(`\bservice\s+([A-Za-z0-9_]+)`)
+	reRpc       = regexp.MustCompile(`^\s*rpc\s+([A-Za-z0-9_]+)`)
 	reEnumValue = regexp.MustCompile(`^\s*([A-Za-z0-9_]+)\s*=\s*[0-9-]+\s*;`)
 	reField     = regexp.MustCompile(`^\s*(?:repeated\s+|optional\s+)?([A-Za-z0-9_.]+)\s+([a-z0-9_]+)\s*=\s*[0-9]+`)
 )
@@ -98,7 +100,7 @@ func (idx *protoIndex) scanFile(absPath string, relPath string) error {
 			idx.locations[fqn] = protoDefinitionLocation{Filename: relPath, Line: lineNum}
 		} else if m := reService.FindStringSubmatch(trimmed); m != nil {
 			name := m[1]
-			scope = append(scope, protoScopeItem{name: name, braceDepth: currentBraceDepth + 1, isEnum: false})
+			scope = append(scope, protoScopeItem{name: name, braceDepth: currentBraceDepth + 1, isEnum: false, isService: true})
 			fqn := qualifyProtoSymbol(pkg, scope)
 			idx.locations[fqn] = protoDefinitionLocation{Filename: relPath, Line: lineNum}
 		} else if len(scope) > 0 && scope[len(scope)-1].isEnum {
@@ -110,6 +112,12 @@ func (idx *protoIndex) scanFile(absPath string, relPath string) error {
 					altFqn := qualifyProtoSymbol(pkg, scope[:len(scope)-1]) + "." + valName
 					idx.locations[altFqn] = protoDefinitionLocation{Filename: relPath, Line: lineNum}
 				}
+			}
+		} else if len(scope) > 0 && scope[len(scope)-1].isService {
+			if m := reRpc.FindStringSubmatch(trimmed); m != nil {
+				rpcName := m[1]
+				fqn := qualifyProtoSymbol(pkg, scope) + "." + rpcName
+				idx.locations[fqn] = protoDefinitionLocation{Filename: relPath, Line: lineNum}
 			}
 		} else if len(scope) > 0 && !scope[len(scope)-1].isEnum {
 			if m := reField.FindStringSubmatch(trimmed); m != nil {
