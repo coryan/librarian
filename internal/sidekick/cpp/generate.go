@@ -117,6 +117,7 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 		add(generateConnectionCc(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateClientHeader(svc, serviceVars, methods, asyncMethods, library, model))
 		add(generateClientCc(svc, serviceVars, methods, asyncMethods, library, model))
+		add(generateSourcesCc(serviceVars, hasGrpc, hasRest, library))
 
 		if library.Cpp.ForwardingProductPath != "" {
 			add(generateForwardingClientHeader(svc, serviceVars, library))

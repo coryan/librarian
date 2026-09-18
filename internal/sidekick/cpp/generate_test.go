@@ -355,7 +355,7 @@ func TestParityWithGolden(t *testing.T) {
 			libName:       "golden_rest_only",
 			includeList:   []string{"test2.proto"},
 			goldenSubdir:  "v1",
-			expectedFiles: 25,
+			expectedFiles: 26,
 		},
 		{
 			name:          "request_id",
@@ -363,14 +363,14 @@ func TestParityWithGolden(t *testing.T) {
 			includeList:   []string{"test_request_id.proto"},
 			serviceConfig: "generator/integration_tests/test_request_id.yaml",
 			goldenSubdir:  "v1",
-			expectedFiles: 27,
+			expectedFiles: 28,
 		},
 		{
 			name:          "deprecated",
 			libName:       "deprecated",
 			includeList:   []string{"test_deprecated.proto"},
 			goldenSubdir:  "v1",
-			expectedFiles: 39,
+			expectedFiles: 40,
 		},
 		{
 			name:          "golden_kitchen_sink",
@@ -378,7 +378,7 @@ func TestParityWithGolden(t *testing.T) {
 			includeList:   []string{"test.proto", "backup.proto"},
 			serviceConfig: "generator/integration_tests/test.yaml",
 			goldenSubdir:  "",
-			expectedFiles: 92,
+			expectedFiles: 94,
 		},
 	}
 
@@ -472,5 +472,34 @@ func TestParityWithGolden(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGenerateSourcesCc(t *testing.T) {
+	svc := api.NewTestService("TestService").WithPackage("test.v1")
+	model := api.NewTestAPI(nil, nil, []*api.Service{svc})
+	if err := api.CrossReference(model); err != nil {
+		t.Fatal(err)
+	}
+
+	lib := &config.Library{
+		Name: "test",
+		Cpp: &config.CppLibrary{
+			CppDefault: config.CppDefault{
+				ProductPath: "test/v1",
+			},
+		},
+	}
+	serviceVars := buildServiceVars(svc, lib, model)
+
+	outPath, content := generateSourcesCc(serviceVars, true, true, lib)
+	if outPath != "test/v1/internal/test_sources.cc" {
+		t.Errorf("got outPath %q, want test/v1/internal/test_sources.cc", outPath)
+	}
+	if !strings.Contains(content, "#include \"test/v1/test_client.cc\"") {
+		t.Errorf("expected client.cc include in sources.cc, got:\n%s", content)
+	}
+	if !strings.Contains(content, "#include \"test/v1/internal/test_rest_stub.cc\"") {
+		t.Errorf("expected rest_stub.cc include in sources.cc, got:\n%s", content)
 	}
 }
