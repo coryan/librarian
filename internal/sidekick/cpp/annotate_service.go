@@ -50,6 +50,14 @@ type serviceAnnotations struct {
 	ServiceEndpointEnvVar   string
 	EmulatorEndpointEnvVar  string
 	AdditionalPbHeaderPaths []string
+	ProtoIndex              *protoIndex
+}
+
+func (ann *serviceAnnotations) findProtoLocation(symbol string) (protoDefinitionLocation, bool) {
+	if ann != nil && ann.ProtoIndex != nil {
+		return ann.ProtoIndex.find(symbol)
+	}
+	return findProtoLocation(symbol)
 }
 
 func (ann *serviceAnnotations) SourcesCopyrightYear() string {
@@ -295,7 +303,7 @@ func (ann *serviceAnnotations) FormatClassComments() string {
 	refs := make(map[string]protoDefinitionLocation)
 	for _, match := range matches {
 		if len(match) > 1 {
-			if loc, ok := findProtoLocation(match[1]); ok {
+			if loc, ok := ann.findProtoLocation(match[1]); ok {
 				refs[match[1]] = loc
 			}
 		}
@@ -953,9 +961,9 @@ func (ann *serviceAnnotations) DefaultStubConstructor() string {
 			b.WriteString("      : grpc_stub_(std::move(grpc_stub)) {}")
 		} else {
 			fmt.Fprintf(&b, "  explicit Default%s(\n", ann.StubClassName())
-			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub,\n", stubFqn)
+			fmt.Fprintf(&b, "      std::unique_ptr<%s::StubInterface> grpc_stub", stubFqn)
 			if ann.HasOperationsMixin() {
-				b.WriteString("      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub\n")
+				b.WriteString(",\n      std::unique_ptr<google::longrunning::Operations::StubInterface> operations_stub\n")
 			}
 			if ann.HasIamMixin() {
 				b.WriteString(",\n      std::unique_ptr<google::iam::v1::IAMPolicy::StubInterface> iampolicy_stub\n")
@@ -963,18 +971,16 @@ func (ann *serviceAnnotations) DefaultStubConstructor() string {
 			if ann.HasLocationsMixin() {
 				b.WriteString(",\n      std::unique_ptr<google::cloud::location::Locations::StubInterface> locations_stub\n")
 			}
-			b.WriteString(")\n      : grpc_stub_(std::move(grpc_stub)),\n")
-			var inits []string
+			b.WriteString(")\n      : grpc_stub_(std::move(grpc_stub))")
 			if ann.HasOperationsMixin() {
-				inits = append(inits, "        operations_stub_(std::move(operations_stub))")
+				b.WriteString(",\n        operations_stub_(std::move(operations_stub))")
 			}
 			if ann.HasIamMixin() {
-				inits = append(inits, "        iampolicy_stub_(std::move(iampolicy_stub))")
+				b.WriteString(",\n        iampolicy_stub_(std::move(iampolicy_stub))")
 			}
 			if ann.HasLocationsMixin() {
-				inits = append(inits, "        locations_stub_(std::move(locations_stub))")
+				b.WriteString(",\n        locations_stub_(std::move(locations_stub))")
 			}
-			b.WriteString(strings.Join(inits, ",\n"))
 			b.WriteString(" {}")
 		}
 	}
@@ -1130,7 +1136,7 @@ func (ann *serviceAnnotations) generatedFiles(forwardingRelDir string) []languag
 	return files
 }
 
-func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
+func (c *codec) annotateService(service *api.Service, protoIdx ...*protoIndex) *serviceAnnotations {
 	codes := c.retryableStatusCodesForService(service.Name)
 	var endpointLocationStyle string
 	if c.Cpp != nil {
@@ -1181,6 +1187,9 @@ func (c *codec) annotateService(service *api.Service) *serviceAnnotations {
 		ServiceEndpointEnvVar:   serviceEndpointEnvVar,
 		EmulatorEndpointEnvVar:  emulatorEndpointEnvVar,
 		AdditionalPbHeaderPaths: additionalPbHeaders,
+	}
+	if len(protoIdx) > 0 {
+		ann.ProtoIndex = protoIdx[0]
 	}
 
 	var methods []*methodAnnotations
@@ -1253,11 +1262,12 @@ func (c *codec) isGenAsyncRpc(serviceName, methodName string) bool {
 }
 
 func (c *codec) annotateModel() error {
+	protoIdx := c.buildProtoIndex()
 	for _, s := range c.Model.Services {
 		if c.isOmittedService(s) {
 			continue
 		}
-		c.annotateService(s)
+		c.annotateService(s, protoIdx)
 	}
 	return nil
 }

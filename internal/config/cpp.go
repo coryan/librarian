@@ -22,6 +22,9 @@ type CppDefault struct {
 
 // CppLibrary contains C++ library-specific configuration for a library.
 type CppLibrary struct {
+	// SourceRoot is the optional root directory of the proto sources.
+	SourceRoot string `yaml:"source_root,omitempty"`
+
 	// ProductPath is the relative path of the generated versioned library.
 	// Defaults to library.Output if omitted.
 	ProductPath string `yaml:"product_path,omitempty"`

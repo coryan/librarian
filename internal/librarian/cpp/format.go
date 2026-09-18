@@ -17,8 +17,10 @@ package cpp
 import (
 	"context"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/googleapis/librarian/internal/command"
 	"github.com/googleapis/librarian/internal/config"
@@ -30,16 +32,43 @@ func Format(ctx context.Context, cfg *config.Config, library *config.Library) er
 		return nil
 	}
 	var files []string
-	_ = filepath.WalkDir(library.Output, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d == nil || d.IsDir() {
+	walk := func(root string) {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d == nil || d.IsDir() {
+				return nil
+			}
+			ext := filepath.Ext(path)
+			if ext == ".h" || ext == ".cc" {
+				files = append(files, path)
+			}
 			return nil
+		})
+	}
+	walk(library.Output)
+	if library.Cpp != nil && library.Cpp.ForwardingProductPath != "" {
+		prodPath := library.Cpp.ProductPath
+		if prodPath == "" {
+			prodPath = library.Output
 		}
-		ext := filepath.Ext(path)
-		if ext == ".h" || ext == ".cc" {
-			files = append(files, path)
+		if rel, err := filepath.Rel(prodPath, library.Cpp.ForwardingProductPath); err == nil && rel != "" {
+			fwdDir := filepath.Clean(filepath.Join(library.Output, rel))
+			if _, err := os.Stat(fwdDir); err == nil {
+				_ = filepath.WalkDir(fwdDir, func(path string, d fs.DirEntry, err error) error {
+					if err != nil || d == nil || d.IsDir() {
+						return nil
+					}
+					if strings.HasPrefix(path, library.Output) {
+						return nil
+					}
+					ext := filepath.Ext(path)
+					if ext == ".h" || ext == ".cc" {
+						files = append(files, path)
+					}
+					return nil
+				})
+			}
 		}
-		return nil
-	})
+	}
 	if len(files) == 0 {
 		return nil
 	}

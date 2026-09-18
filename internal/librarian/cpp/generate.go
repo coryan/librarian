@@ -45,6 +45,10 @@ func Generate(ctx context.Context, cfg *config.Config, library *config.Library, 
 		model = api.NewTestAPI(nil, nil, nil)
 	}
 
+	if src != nil && src.Googleapis != "" && library.Cpp != nil && library.Cpp.SourceRoot == "" {
+		library.Cpp.SourceRoot = src.Googleapis
+	}
+
 	return sidekickcpp.Generate(ctx, model, library.Output, library)
 }
 
@@ -71,9 +75,16 @@ func Add(lib *config.Library, cfg *config.Config) *config.Library {
 func libraryToModelConfig(library *config.Library, apiCfg *config.API, src *sources.Sources, pc *config.Protoc) *parser.ModelConfig {
 	sourceConfig := sources.NewSourceConfig(src, library.Roots)
 	root := src.Googleapis
-	svcConfig, err := serviceconfig.Find(root, apiCfg.Path, config.LanguageCpp)
+	apiPath := apiCfg.Path
+	if filepath.Ext(apiPath) != "" {
+		apiPath = filepath.Dir(apiPath)
+	}
+	svcConfig, err := serviceconfig.Find(root, apiPath, config.LanguageCpp)
 	if err != nil {
 		svcConfig = &serviceconfig.API{}
+	}
+	if library.Cpp != nil && library.Cpp.OverrideServiceConfigYAMLName != "" {
+		svcConfig.ServiceConfig = library.Cpp.OverrideServiceConfigYAMLName
 	}
 	specFormat := config.SpecProtobuf
 	if library.SpecificationFormat != "" {
@@ -84,7 +95,7 @@ func libraryToModelConfig(library *config.Library, apiCfg *config.API, src *sour
 		Language:            config.LanguageCpp,
 		SpecificationFormat: specFormat,
 		ServiceConfig:       svcConfig.ServiceConfig,
-		SpecificationSource: apiCfg.Path,
+		SpecificationSource: apiPath,
 		Source:              sourceConfig,
 		Protoc:              pc,
 	}

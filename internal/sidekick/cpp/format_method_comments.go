@@ -257,13 +257,19 @@ func buildTrailer(m *api.Method, doc string, variableParamComments string, isDis
 
 func resolveReferences(m *api.Method, doc string, variableParamComments string) map[string]protoDefinitionLocation {
 	refs := make(map[string]protoDefinitionLocation)
+	findLoc := findProtoLocation
+	if m != nil && m.Codec != nil {
+		if mann, ok := m.Codec.(*methodAnnotations); ok && mann.Service != nil && mann.Service.ProtoIndex != nil {
+			findLoc = mann.Service.ProtoIndex.find
+		}
+	}
 
 	// 1. References in comments matching ][<fqn>]
 	re := regexp.MustCompile(`\]\[([a-z_]+\.[a-zA-Z0-9_\.]+)\]`)
 	matches := re.FindAllStringSubmatch(doc, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
-			if loc, ok := findProtoLocation(match[1]); ok {
+			if loc, ok := findLoc(match[1]); ok {
 				refs[match[1]] = loc
 			}
 		}
@@ -271,7 +277,7 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 	paramMatches := re.FindAllStringSubmatch(variableParamComments, -1)
 	for _, match := range paramMatches {
 		if len(match) > 1 {
-			if loc, ok := findProtoLocation(match[1]); ok {
+			if loc, ok := findLoc(match[1]); ok {
 				refs[match[1]] = loc
 			}
 		}
@@ -280,7 +286,7 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 	// 2. Input type
 	inType := strings.TrimPrefix(m.InputTypeID, ".")
 	if inType != "" {
-		if loc, ok := findProtoLocation(inType); ok {
+		if loc, ok := findLoc(inType); ok {
 			refs[inType] = loc
 		}
 	}
@@ -292,7 +298,7 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 			deduced = m.OperationInfo.MetadataTypeID
 		}
 		deduced = strings.TrimPrefix(deduced, ".")
-		if loc, ok := findProtoLocation(deduced); ok {
+		if loc, ok := findLoc(deduced); ok {
 			refs[deduced] = loc
 		}
 	} else if isMethodPaginated(m) {
@@ -300,14 +306,14 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 			pi := m.OutputType.Pagination.PageableItem
 			if pi.Typez == api.TypezMessage {
 				itemType := strings.TrimPrefix(pi.TypezID, ".")
-				if loc, ok := findProtoLocation(itemType); ok {
+				if loc, ok := findLoc(itemType); ok {
 					refs[itemType] = loc
 				}
 			}
 		}
 	} else if !isVoidMethod(m) {
 		outType := strings.TrimPrefix(m.OutputTypeID, ".")
-		if loc, ok := findProtoLocation(outType); ok {
+		if loc, ok := findLoc(outType); ok {
 			refs[outType] = loc
 		}
 	}
