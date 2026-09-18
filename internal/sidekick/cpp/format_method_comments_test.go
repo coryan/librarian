@@ -148,3 +148,25 @@ func TestFormatMethodCommentsProtobufRequest_Pagination(t *testing.T) {
 		t.Errorf("missing StreamRange return comment: %s", got)
 	}
 }
+
+func TestFormatMethodComments_GetOperation(t *testing.T) {
+	in := api.NewTestMessage("GetOperationRequest").WithPackage("google.longrunning")
+	out := api.NewTestMessage("Operation").WithPackage("google.longrunning")
+	nameField := api.NewTestField("name").WithType(api.TypezString)
+	in.WithFields(nameField)
+
+	m := api.NewTestMethod("GetOperation").
+		WithDocumentation("Provides the [google.longrunning.Operations] service.").
+		WithInput(in).
+		WithOutput(out)
+
+	got := formatMethodCommentsProtobufRequest(m, false)
+	if !strings.Contains(got, "Gets the latest state of a long-running operation.") {
+		t.Errorf("expected standard GetOperation doc comment, got: %s", got)
+	}
+
+	gotParam := formatParameterComment(m, nameField, "name")
+	if !strings.Contains(gotParam, "@param name  The name of the operation resource.") {
+		t.Errorf("expected GetOperation param comment for name, got: %s", gotParam)
+	}
+}

@@ -24,9 +24,9 @@
 {{#Codec.HasGrpcLRO}}
 #include "google/cloud/internal/async_long_running_operation.h"
 {{/Codec.HasGrpcLRO}}
-{{#Codec.HasAsyncMethod}}
+{{#Codec.HasAsyncRetryLoop}}
 #include "google/cloud/internal/async_retry_loop.h"
-{{/Codec.HasAsyncMethod}}
+{{/Codec.HasAsyncRetryLoop}}
 {{#Codec.HasPaginatedMethod}}
 #include "google/cloud/internal/pagination_range.h"
 {{/Codec.HasPaginatedMethod}}

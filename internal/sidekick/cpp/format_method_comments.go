@@ -109,6 +109,8 @@ func formatMethodComments(m *api.Method, variableParamComments string, isDiscove
 			doc = "Gets the access control policy for a resource.\nReturns an empty policy if the resource exists and does not have a policy\nset."
 		case "ListOperations":
 			doc = "Lists operations that match the specified filter in the request. If the\nserver doesn't support this method, it returns `UNIMPLEMENTED`."
+		case "GetOperation":
+			doc = "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice."
 		}
 	}
 	doc = strings.ReplaceAll(doc, "Gets a view on a log bucket..", "Gets a view on a log bucket.")
@@ -368,6 +370,10 @@ func formatParameterComment(m *api.Method, f *api.Field, name string) string {
 				}
 				if name == "filter" {
 					return "  /// @param filter  The standard list filter.\n"
+				}
+			case "GetOperation":
+				if name == "name" {
+					return "  /// @param name  The name of the operation resource.\n"
 				}
 			case "SetIamPolicy":
 				if name == "resource" {

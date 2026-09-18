@@ -165,6 +165,10 @@ func (ann *serviceAnnotations) HasAsyncMethod() bool {
 	return len(ann.AsyncStubMethods) > 0 || ann.HasLRO()
 }
 
+func (ann *serviceAnnotations) HasAsyncRetryLoop() bool {
+	return len(ann.AsyncStubMethods) > 0
+}
+
 func (ann *serviceAnnotations) HasRestAsyncRetryLoop() bool {
 	return len(ann.AsyncStubMethods) > 0
 }
@@ -1232,8 +1236,28 @@ func (c *codec) annotateService(service *api.Service, protoIdx ...*protoIndex) *
 	return ann
 }
 
+func isSyntheticLroPoller(m *api.Method) bool {
+	if !m.IsLroPoller {
+		return false
+	}
+	if m.PathInfo != nil {
+		for _, b := range m.PathInfo.Bindings {
+			if b.PathTemplate != nil {
+				for _, seg := range b.PathTemplate.Segments {
+					if seg.Variable != nil && slices.Equal(seg.Variable.FieldPath, []string{"name"}) {
+						if slices.Equal(seg.Variable.Segments, []string{"operations", "**"}) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 func (c *codec) isOmittedMethod(serviceName string, m *api.Method) bool {
-	if m.IsLroPoller {
+	if isSyntheticLroPoller(m) {
 		return true
 	}
 	if m.SourceServiceID != "" && m.Service != nil && m.SourceServiceID != m.Service.ID {

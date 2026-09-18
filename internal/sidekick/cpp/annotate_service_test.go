@@ -311,3 +311,53 @@ func TestServiceAnnotations_ProtoHeaderPath(t *testing.T) {
 		t.Errorf("PbIncludeByTransport(REST): want 'google/cloud/secretmanager/v1/service.pb.h', got %q", got)
 	}
 }
+
+func TestServiceAnnotations_AsyncRetryLoop(t *testing.T) {
+	ann := &serviceAnnotations{}
+	if ann.HasAsyncRetryLoop() {
+		t.Errorf("expected HasAsyncRetryLoop to be false when AsyncStubMethods is empty")
+	}
+	ann.AsyncStubMethods = []*methodAnnotations{{Name: "AsyncFoo"}}
+	if !ann.HasAsyncRetryLoop() {
+		t.Errorf("expected HasAsyncRetryLoop to be true when AsyncStubMethods is non-empty")
+	}
+}
+
+func TestIsSyntheticLroPoller(t *testing.T) {
+	mNotPoller := api.NewTestMethod("GetOperation")
+	if isSyntheticLroPoller(mNotPoller) {
+		t.Errorf("expected isSyntheticLroPoller to be false when IsLroPoller is false")
+	}
+
+	mSynthetic := api.NewTestMethod("GetOperation")
+	mSynthetic.IsLroPoller = true
+	mSynthetic.WithPathTemplate(&api.PathTemplate{
+		Segments: []api.PathSegment{
+			{
+				Variable: &api.PathVariable{
+					FieldPath: []string{"name"},
+					Segments:  []string{"operations", "**"},
+				},
+			},
+		},
+	})
+	if !isSyntheticLroPoller(mSynthetic) {
+		t.Errorf("expected isSyntheticLroPoller to be true for operations/** poller")
+	}
+
+	mNonSynthetic := api.NewTestMethod("GetOperation")
+	mNonSynthetic.IsLroPoller = true
+	mNonSynthetic.WithPathTemplate(&api.PathTemplate{
+		Segments: []api.PathSegment{
+			{
+				Variable: &api.PathVariable{
+					FieldPath: []string{"name"},
+					Segments:  []string{"organizations", "*", "locations", "*", "operations", "*"},
+				},
+			},
+		},
+	})
+	if isSyntheticLroPoller(mNonSynthetic) {
+		t.Errorf("expected isSyntheticLroPoller to be false for custom scoped operations poller")
+	}
+}
