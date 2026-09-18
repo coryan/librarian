@@ -15,6 +15,9 @@
 package cpp
 
 import (
+	"path/filepath"
+	"slices"
+
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
@@ -41,10 +44,73 @@ func newCodec(model *api.API, outdir string, library *config.Library) *codec {
 	} else {
 		cppCfg = &config.CppLibrary{}
 	}
+	if cppCfg.ProductPath == "" {
+		if library != nil && library.Output != "" {
+			cppCfg.ProductPath = library.Output
+		} else {
+			cppCfg.ProductPath = outdir
+		}
+	}
 	return &codec{
 		Model:   model,
 		Library: library,
 		Cpp:     cppCfg,
 		Output:  outdir,
 	}
+}
+
+func (c *codec) hasGrpc() bool {
+	if c.Cpp == nil || c.Cpp.GenerateGrpcTransport == nil {
+		return true
+	}
+	return *c.Cpp.GenerateGrpcTransport
+}
+
+func (c *codec) hasRest() bool {
+	if c.Cpp == nil {
+		return false
+	}
+	return c.Cpp.GenerateRestTransport
+}
+
+func (c *codec) hasRoundRobin() bool {
+	if c.Cpp == nil {
+		return false
+	}
+	return c.Cpp.GenerateRoundRobinDecorator
+}
+
+func (c *codec) hasRetryTraits() bool {
+	if c.Cpp == nil {
+		return false
+	}
+	return len(c.Cpp.RetryableStatusCodes) > 0
+}
+
+func (c *codec) isOmittedService(service *api.Service) bool {
+	if c.Cpp == nil {
+		return false
+	}
+	return slices.Contains(c.Cpp.OmittedServices, service.Name)
+}
+
+func (c *codec) forwardingRelDir() string {
+	if c.Cpp == nil || c.Cpp.ForwardingProductPath == "" {
+		return ""
+	}
+	productPath := c.Cpp.ProductPath
+	if productPath == "" && c.Library != nil {
+		productPath = c.Library.Output
+	}
+	if productPath == "" {
+		productPath = c.Output
+	}
+	if filepath.IsAbs(productPath) != filepath.IsAbs(c.Cpp.ForwardingProductPath) && c.Library != nil && c.Library.Output != "" {
+		productPath = c.Library.Output
+	}
+	rel, err := filepath.Rel(productPath, c.Cpp.ForwardingProductPath)
+	if err != nil {
+		return ""
+	}
+	return rel
 }

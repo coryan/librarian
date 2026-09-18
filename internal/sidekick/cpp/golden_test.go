@@ -15,12 +15,15 @@
 package cpp
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
@@ -293,4 +296,113 @@ func loadTestModel(t *testing.T, protosDir, googleapisDir, serviceConfigFile str
 		},
 	}
 	return parser.CreateModel(cfg)
+}
+
+func TestGoldenServices_GenerateEmitsAllFiles(t *testing.T) {
+	if _, err := exec.LookPath("protoc"); err != nil {
+		t.Skip("skipping test because protoc is not installed")
+	}
+
+	protosDir, err := filepath.Abs(filepath.Join("testdata", "protos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	googleapisDir, err := filepath.Abs(filepath.Join("..", "..", "testdata", "googleapis"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configPath := filepath.Join("testdata", "golden_librarian.yaml")
+	cfg, err := yaml.Read[config.Config](configPath)
+	if err != nil {
+		t.Fatalf("failed to read golden_librarian.yaml: %v", err)
+	}
+
+	goldenRoot := t.TempDir()
+	outdir := filepath.Join(goldenRoot, "v1")
+	ctx := context.Background()
+
+	// 1. GoldenKitchenSink and GoldenThingAdmin (Library 0: golden)
+	sinkModel, err := loadTestModel(t, protosDir, googleapisDir, "test.yaml", "test.proto", "backup.proto", "common.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test.proto: %v", err)
+	}
+	if err := Generate(ctx, sinkModel, outdir, cfg.Libraries[0]); err != nil {
+		t.Fatalf("Generate(lib0) failed: %v", err)
+	}
+
+	// 2. GoldenRestOnly (Library 1: golden-test2)
+	restModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test2.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test2.proto: %v", err)
+	}
+	if err := Generate(ctx, restModel, outdir, cfg.Libraries[1]); err != nil {
+		t.Fatalf("Generate(lib1) failed: %v", err)
+	}
+
+	// 3. RequestIdService (Library 2: test-request-id)
+	reqModel, err := loadTestModel(t, protosDir, googleapisDir, "test_request_id.yaml", "test_request_id.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_request_id.proto: %v", err)
+	}
+	if err := Generate(ctx, reqModel, outdir, cfg.Libraries[2]); err != nil {
+		t.Fatalf("Generate(lib2) failed: %v", err)
+	}
+
+	// 4. DeprecatedService (Library 3: test-deprecated)
+	depModel, err := loadTestModel(t, protosDir, googleapisDir, "", "test_deprecated.proto")
+	if err != nil {
+		t.Fatalf("failed to parse test_deprecated.proto: %v", err)
+	}
+	if err := Generate(ctx, depModel, outdir, cfg.Libraries[3]); err != nil {
+		t.Fatalf("Generate(lib3) failed: %v", err)
+	}
+
+	// Collect generated relative paths
+	var gotFiles []string
+	err = filepath.WalkDir(goldenRoot, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			rel, err := filepath.Rel(goldenRoot, p)
+			if err != nil {
+				return err
+			}
+			gotFiles = append(gotFiles, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking goldenRoot: %v", err)
+	}
+	slices.Sort(gotFiles)
+
+	// Collect expected relative paths from testdata/golden
+	goldenDir := filepath.Join("testdata", "golden")
+	var wantFiles []string
+	err = filepath.WalkDir(goldenDir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			rel, err := filepath.Rel(goldenDir, p)
+			if err != nil {
+				return err
+			}
+			wantFiles = append(wantFiles, rel)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking goldenDir: %v", err)
+	}
+	slices.Sort(wantFiles)
+
+	if diff := cmp.Diff(wantFiles, gotFiles); diff != "" {
+		t.Errorf("emitted files mismatch (-want +got):\n%s", diff)
+	}
+	if len(gotFiles) != 188 {
+		t.Errorf("expected 188 files, got %d", len(gotFiles))
+	}
 }
