@@ -1054,17 +1054,13 @@ func mergeCpp(dst, src *config.CppLibrary) *config.CppLibrary {
 		if res.ServiceNameMapping == nil {
 			res.ServiceNameMapping = make(map[string]string)
 		}
-		for k, v := range src.ServiceNameMapping {
-			res.ServiceNameMapping[k] = v
-		}
+		maps.Copy(res.ServiceNameMapping, src.ServiceNameMapping)
 	}
 	if len(src.ServiceNameToComment) > 0 {
 		if res.ServiceNameToComment == nil {
 			res.ServiceNameToComment = make(map[string]string)
 		}
-		for k, v := range src.ServiceNameToComment {
-			res.ServiceNameToComment[k] = v
-		}
+		maps.Copy(res.ServiceNameToComment, src.ServiceNameToComment)
 	}
 	if len(src.AdditionalProtoFiles) > 0 {
 		res.AdditionalProtoFiles = src.AdditionalProtoFiles

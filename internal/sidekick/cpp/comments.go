@@ -104,6 +104,8 @@ func findByName(model *api.API, name string) (api.SourceLocation, bool) {
 		}
 	}
 	switch name {
+	case "google.cloud.location.ListLocationsRequest":
+		return api.SourceLocation{Filename: "google/cloud/location/locations.proto", Line: 58}, true
 	case "google.cloud.location.GetLocationRequest":
 		return api.SourceLocation{Filename: "google/cloud/location/locations.proto", Line: 82}, true
 	case "google.cloud.location.Location":

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/googleapis/librarian/internal/config"
+	"github.com/googleapis/librarian/internal/librarian/cpp"
 	"github.com/googleapis/librarian/internal/librarian/dart"
 	"github.com/googleapis/librarian/internal/librarian/golang"
 	"github.com/googleapis/librarian/internal/librarian/java"
@@ -334,6 +335,8 @@ func addNewLibrary(cfg *config.Config, api *config.API, explicitLibraryName, goo
 		if err != nil {
 			return "", nil, err
 		}
+	case config.LanguageCpp:
+		lib = cpp.Add(lib)
 	case config.LanguageRust:
 		lib = rust.Add(lib)
 	case config.LanguageSwift:

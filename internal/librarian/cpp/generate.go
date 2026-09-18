@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/googleapis/librarian/internal/config"
+	"github.com/googleapis/librarian/internal/serviceconfig"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	sidekickcpp "github.com/googleapis/librarian/internal/sidekick/cpp"
 	"github.com/googleapis/librarian/internal/sidekick/parser"
@@ -123,6 +124,11 @@ func libraryToModelConfig(library *config.Library, apiCfg *config.API, srcs *sou
 	if library.Cpp != nil {
 		svcConfigFile = library.Cpp.GetServiceConfig()
 		skippedIDs = library.Cpp.OmittedServices
+	}
+	if svcConfigFile == "" && srcs != nil && srcs.Googleapis != "" {
+		if svc, err := serviceconfig.Find(srcs.Googleapis, specSource, config.LanguageCpp); err == nil && svc != nil && svc.ServiceConfig != "" {
+			svcConfigFile = svc.ServiceConfig
+		}
 	}
 
 	return &parser.ModelConfig{

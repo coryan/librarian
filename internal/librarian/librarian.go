@@ -59,6 +59,7 @@ func Run(ctx context.Context, args ...string) error {
 			tagCommand(),
 			versionCommand(),
 			debugCommand(),
+			migrateCommand(),
 		},
 	}
 	return cmd.Run(ctx, args)

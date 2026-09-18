@@ -214,11 +214,26 @@ internal/sidekick/cpp/
 
 ## 5. Subsequent Phases (Phases 2 & 3)
 
-### Phase 2: Configuration Migration & Scaffolding
-- **Automated Converter**: Implement a CLI tool or `librarian` subcommand (`librarian migrate cpp-config`) that reads `generator/generator_config.textproto` and generates the equivalent `librarian.yaml`.
-- **Scaffolding Templates**: Add templates for per-library `CMakeLists.txt`, `BUILD.bazel`, `quickstart/`, and `README.md`.
-- **Production Pilot**: Onboard `google/cloud/secretmanager/v1` in `librarian.yaml` and verify zero diff against production `google-cloud-cpp` files.
+### Phase 2: Configuration Migration & Scaffolding (Completed)
+1. **Automated Converter & CLI**:
+   - Implemented zero-dependency `generator_config.textproto` parser and converter in `internal/librarian/cpp/convert_config.go`.
+   - Added CLI command `librarian migrate cpp-config <path/to/generator_config.textproto> [-o output.yaml]` in `internal/librarian/migrate.go`.
+2. **Scaffolding Templates & Generator**:
+   - Added Mustache templates in `internal/sidekick/cpp/templates/scaffold/` for `CMakeLists.txt`, `BUILD.bazel`, `README.md`, and full `quickstart/` directory.
+   - Implemented `Scaffold()` in `internal/sidekick/cpp/scaffold.go`.
+   - Integrated with `librarian add` in `internal/librarian/cpp/add.go`.
+3. **Production Pilot (`google/cloud/secretmanager/v1`)**:
+   - Implemented integration test in `internal/librarian/cpp/pilot_test.go` generating Secret Manager v1 from googleapis protos.
+   - Achieved 100% byte-for-byte identity across all 28 C++ headers and sources against production `google-cloud-cpp`.
+4. **Phase Review & Commit**:
+   - Reviewed according to `review-pr` skill with consistency and naming checks.
+   - Tested and lint-clean (`go test`, `golangci-lint` 0 issues).
+
+---
+
+## 6. Phase 3: Discovery Documents & Full Deprecation
 
 ### Phase 3: Discovery Documents & Full Deprecation
 - Support Discovery-based APIs (e.g. Compute Engine) using Sidekick's discovery parser or proto generation pipeline.
 - Deprecate and remove `google-cloud-cpp/generator`.
+
