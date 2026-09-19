@@ -19,6 +19,12 @@ import (
 	"maps"
 )
 
+// SourceLocation captures the file and line number where an API element is defined.
+type SourceLocation struct {
+	Filename string
+	Line     int
+}
+
 // API represents an API surface.
 type API struct {
 	// Name of the API (e.g. secretmanager).
@@ -51,6 +57,9 @@ type API struct {
 	QuickstartService *Service
 	// Language specific annotations.
 	Codec any
+
+	// definitionLocations maps an element's fully-qualified ID or symbol name to its source location.
+	definitionLocations map[string]SourceLocation
 
 	// serviceByID returns a service that is associated with the API.
 	serviceByID map[string]*Service
@@ -230,4 +239,37 @@ func (a *API) AddResource(r *Resource) {
 		a.resourceByType = make(map[string]*Resource)
 	}
 	a.resourceByType[r.Type] = r
+}
+
+// DefinitionLocation returns the source location for the element with the given name, if found.
+func (a *API) DefinitionLocation(name string) (SourceLocation, bool) {
+	if a == nil {
+		return SourceLocation{}, false
+	}
+	loc, ok := a.definitionLocations[name]
+	return loc, ok
+}
+
+// AddDefinitionLocation associates a source location with the given element name.
+func (a *API) AddDefinitionLocation(name string, loc SourceLocation) {
+	if a.definitionLocations == nil {
+		a.definitionLocations = make(map[string]SourceLocation)
+	}
+	a.definitionLocations[name] = loc
+}
+
+// AllDefinitionLocations returns an iterator over all definition locations.
+func (a *API) AllDefinitionLocations() iter.Seq2[string, SourceLocation] {
+	if a == nil {
+		return func(yield func(string, SourceLocation) bool) {}
+	}
+	return maps.All(a.definitionLocations)
+}
+
+// DefinitionLocationCount returns the number of recorded definition locations.
+func (a *API) DefinitionLocationCount() int {
+	if a == nil {
+		return 0
+	}
+	return len(a.definitionLocations)
 }
