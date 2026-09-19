@@ -1,0 +1,53 @@
+ {
+  "comment": "This file maps proto services/RPCs to the corresponding library clients/methods",
+  "language": "python",
+  "libraryPackage": "{{#Codec}}{{LibraryPackage}}{{/Codec}}",
+  "protoPackage": "{{#Codec}}{{ProtoPackage}}{{/Codec}}",
+  "schema": "1.0",
+  "services": {
+{{#Codec}}
+{{#Services}}
+    "{{ProtoName}}": {
+      "clients": {
+        "grpc": {
+          "libraryClient": "{{ClientName}}",
+          "rpcs": {
+{{#OwnMethods}}
+            "{{ProtoName}}": {
+              "methods": [
+                "{{Name}}"
+              ]
+            }{{#HasNextOwn}},{{/HasNextOwn}}
+{{/OwnMethods}}
+          }
+        },
+        "grpc-async": {
+          "libraryClient": "{{AsyncClientName}}",
+          "rpcs": {
+{{#OwnMethods}}
+            "{{ProtoName}}": {
+              "methods": [
+                "{{Name}}"
+              ]
+            }{{#HasNextOwn}},{{/HasNextOwn}}
+{{/OwnMethods}}
+          }
+        },
+        "rest": {
+          "libraryClient": "{{ClientName}}",
+          "rpcs": {
+{{#OwnMethods}}
+            "{{ProtoName}}": {
+              "methods": [
+                "{{Name}}"
+              ]
+            }{{#HasNextOwn}},{{/HasNextOwn}}
+{{/OwnMethods}}
+          }
+        }
+      }
+    }{{#HasNext}},{{/HasNext}}
+{{/Services}}
+{{/Codec}}
+  }
+}
