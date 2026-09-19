@@ -186,6 +186,15 @@ func fillPython(lib *config.Library, d *config.Default) *config.Library {
 	if lib.Python == nil {
 		lib.Python = &config.PythonPackage{}
 	}
+	if d == nil || d.Python == nil {
+		return lib
+	}
+	if lib.Python.Generator == "" {
+		lib.Python.Generator = d.Python.Generator
+	}
+	if len(lib.Python.AllowedNamespaces) == 0 {
+		lib.Python.AllowedNamespaces = d.Python.AllowedNamespaces
+	}
 	lib.Python.CommonGAPICPaths = append(d.Python.CommonGAPICPaths, lib.Python.CommonGAPICPaths...)
 	if lib.Python.LibraryType == "" {
 		lib.Python.LibraryType = d.Python.LibraryType
@@ -719,6 +728,9 @@ func mergePython(dst, src *config.PythonPackage) *config.PythonPackage {
 		return src
 	}
 	res := *dst
+	if src.Generator != "" {
+		res.Generator = src.Generator
+	}
 	if src.CommonGAPICPaths != nil {
 		res.CommonGAPICPaths = src.CommonGAPICPaths
 	}

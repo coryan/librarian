@@ -496,6 +496,54 @@ func TestFillDefaults_Python(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "generator defaults",
+			lib:  &config.Library{},
+			defaults: &config.PythonDefault{
+				Generator: config.PythonGeneratorSidekick,
+			},
+			want: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator: config.PythonGeneratorSidekick,
+					},
+				},
+			},
+		},
+		{
+			name: "generator overridden",
+			lib: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator: config.PythonGeneratorLegacy,
+					},
+				},
+			},
+			defaults: &config.PythonDefault{
+				Generator: config.PythonGeneratorSidekick,
+			},
+			want: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator: config.PythonGeneratorLegacy,
+					},
+				},
+			},
+		},
+		{
+			name: "allowed namespaces defaults",
+			lib:  &config.Library{},
+			defaults: &config.PythonDefault{
+				AllowedNamespaces: []string{"google.cloud", "google.maps"},
+			},
+			want: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						AllowedNamespaces: []string{"google.cloud", "google.maps"},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			defaults := &config.Default{
@@ -1062,6 +1110,55 @@ func TestResolvePreview(t *testing.T) {
 				Name: "base-name",
 				Swift: &config.SwiftPackage{
 					IncludeList: []string{"b"},
+				},
+				Preview: nil,
+			},
+		},
+		{
+			name:     "overrides all supported fields Python",
+			language: config.LanguagePython,
+			lib: &config.Library{
+				Name: "base-name",
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator:         config.PythonGeneratorLegacy,
+						AllowedNamespaces: []string{"google.cloud"},
+						CommonGAPICPaths:  []string{"a"},
+						LibraryType:       "GAPIC_AUTO",
+					},
+					DefaultVersion:              "v1",
+					MetadataNameOverride:        "old_meta",
+					ClientDocumentationOverride: "old_doc",
+					IssueTrackerOverride:        "old_issue",
+				},
+				Preview: &config.Library{
+					Python: &config.PythonPackage{
+						PythonDefault: config.PythonDefault{
+							Generator:         config.PythonGeneratorSidekick,
+							AllowedNamespaces: []string{"google.cloud", "google.maps"},
+							CommonGAPICPaths:  []string{"b"},
+							LibraryType:       "CORE",
+						},
+						DefaultVersion:              "v2",
+						MetadataNameOverride:        "new_meta",
+						ClientDocumentationOverride: "new_doc",
+						IssueTrackerOverride:        "new_issue",
+					},
+				},
+			},
+			want: &config.Library{
+				Name: "base-name",
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator:         config.PythonGeneratorSidekick,
+						AllowedNamespaces: []string{"google.cloud", "google.maps"},
+						CommonGAPICPaths:  []string{"b"},
+						LibraryType:       "CORE",
+					},
+					DefaultVersion:              "v2",
+					MetadataNameOverride:        "new_meta",
+					ClientDocumentationOverride: "new_doc",
+					IssueTrackerOverride:        "new_issue",
 				},
 				Preview: nil,
 			},
