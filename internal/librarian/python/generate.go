@@ -30,6 +30,8 @@ import (
 	"github.com/googleapis/librarian/internal/filesystem"
 	"github.com/googleapis/librarian/internal/repometadata"
 	"github.com/googleapis/librarian/internal/serviceconfig"
+	"github.com/googleapis/librarian/internal/sidekick/parser"
+	sidekickpython "github.com/googleapis/librarian/internal/sidekick/python"
 	"github.com/googleapis/librarian/internal/sources"
 	"github.com/googleapis/librarian/internal/tool/protoc"
 )
@@ -59,6 +61,9 @@ var (
 
 // Generate generates a Python client library.
 func Generate(ctx context.Context, cfg *config.Config, library *config.Library, srcs *sources.Sources) error {
+	if isSidekick(library) {
+		return generateSidekick(ctx, cfg, library, srcs)
+	}
 	googleapisDir := srcs.Googleapis
 	// Convert library.Output to absolute path since protoc runs from a
 	// different directory.
@@ -566,4 +571,68 @@ func createChangelog(libName, output string) error {
 		return err
 	}
 	return nil
+}
+
+func isSidekick(library *config.Library) bool {
+	return library.Python != nil && library.Python.Generator == config.PythonGeneratorSidekick
+}
+
+func generateSidekick(ctx context.Context, cfg *config.Config, library *config.Library, srcs *sources.Sources) error {
+	outdir, err := filepath.Abs(library.Output)
+	if err != nil {
+		return fmt.Errorf("failed to resolve output directory path: %w", err)
+	}
+	if err := os.MkdirAll(outdir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	var pc *config.Protoc
+	if cfg != nil && cfg.Tools != nil {
+		pc = cfg.Tools.Protoc
+	}
+
+	for _, apiCfg := range library.APIs {
+		modelCfg, err := libraryToModelConfig(library, apiCfg, srcs, pc)
+		if err != nil {
+			return err
+		}
+		model, err := parser.CreateModel(modelCfg)
+		if err != nil {
+			return err
+		}
+		if err := sidekickpython.Generate(ctx, model, outdir, library); err != nil {
+			return err
+		}
+	}
+
+	if err := Format(ctx, library); err != nil {
+		return err
+	}
+	return nil
+}
+
+func libraryToModelConfig(library *config.Library, apiCfg *config.API, src *sources.Sources, pc *config.Protoc) (*parser.ModelConfig, error) {
+	sourceConfig := sources.NewSourceConfig(src, library.Roots)
+	root := src.Googleapis
+	if apiCfg.Path == "schema/google/showcase/v1beta1" {
+		root = src.Showcase
+	}
+	svcConfig, err := serviceconfig.Find(root, apiCfg.Path, config.LanguagePython)
+	if err != nil {
+		return nil, err
+	}
+	specFormat := config.SpecProtobuf
+	if library.SpecificationFormat != "" {
+		specFormat = library.SpecificationFormat
+	}
+
+	modelCfg := &parser.ModelConfig{
+		Language:            config.LanguagePython,
+		SpecificationFormat: specFormat,
+		ServiceConfig:       svcConfig.ServiceConfig,
+		SpecificationSource: apiCfg.Path,
+		Source:              sourceConfig,
+		Protoc:              pc,
+	}
+	return modelCfg, nil
 }

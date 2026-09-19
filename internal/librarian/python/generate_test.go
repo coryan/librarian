@@ -15,6 +15,7 @@
 package python
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1634,4 +1635,103 @@ func setupStubProtoc(t *testing.T, version string, exitCode int) {
 	}
 	stubProtoc := filepath.Join(protocDir, "protoc")
 	testhelper.WriteExecutable(t, stubProtoc, fmt.Sprintf("#!/bin/sh\nexit %d\n", exitCode))
+}
+
+func TestIsSidekick(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		library  *config.Library
+		expected bool
+	}{
+		{
+			name:     "nil python config",
+			library:  &config.Library{},
+			expected: false,
+		},
+		{
+			name: "empty generator",
+			library: &config.Library{
+				Python: &config.PythonPackage{},
+			},
+			expected: false,
+		},
+		{
+			name: "legacy generator",
+			library: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator: config.PythonGeneratorLegacy,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "sidekick generator",
+			library: &config.Library{
+				Python: &config.PythonPackage{
+					PythonDefault: config.PythonDefault{
+						Generator: config.PythonGeneratorSidekick,
+					},
+				},
+			},
+			expected: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isSidekick(tc.library)
+			if got != tc.expected {
+				t.Errorf("isSidekick() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGenerateSidekick(t *testing.T) {
+	binDir := t.TempDir()
+	stubRuff := filepath.Join(binDir, "ruff")
+	testhelper.WriteExecutable(t, stubRuff, "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
+	outDir := t.TempDir()
+	lib := &config.Library{
+		Name:   "test-library",
+		Output: outDir,
+		Python: &config.PythonPackage{
+			PythonDefault: config.PythonDefault{
+				Generator: config.PythonGeneratorSidekick,
+			},
+		},
+	}
+	cfg := &config.Config{}
+	srcs := &sources.Sources{}
+
+	err := Generate(context.Background(), cfg, lib, srcs)
+	if err != nil {
+		t.Fatalf("Generate() with sidekick returned unexpected error: %v", err)
+	}
+}
+
+func TestGenerateSidekick_InvalidOutput(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(tmpFile, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lib := &config.Library{
+		Name:   "test-library",
+		Output: filepath.Join(tmpFile, "sub"),
+		Python: &config.PythonPackage{
+			PythonDefault: config.PythonDefault{
+				Generator: config.PythonGeneratorSidekick,
+			},
+		},
+	}
+	cfg := &config.Config{}
+	srcs := &sources.Sources{}
+
+	err := Generate(context.Background(), cfg, lib, srcs)
+	if err == nil {
+		t.Fatal("expected error for invalid output directory, got nil")
+	}
 }
