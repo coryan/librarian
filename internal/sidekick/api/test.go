@@ -335,6 +335,13 @@ func (m *Method) WithOperationInfo(info *OperationInfo) *Method {
 	return m
 }
 
+// WithOperationService sets the method's operation service.
+func (m *Method) WithOperationService(service string) *Method {
+	m.IsLRO = true
+	m.OperationService = service
+	return m
+}
+
 // NewTestOperationInfo creates an OperationInfo with response and metadata types.
 func NewTestOperationInfo(responseTypeID, metadataTypeID string) *OperationInfo {
 	return &OperationInfo{

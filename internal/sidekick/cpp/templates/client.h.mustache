@@ -135,7 +135,7 @@ class {{Codec.ClientClassName}} {
   {{Name}}(NoAwaitTag, {{RequestType}} const& request, Options opts = {});
 
 {{{FormatAwaitComments}}}{{{DeprecationMacro}}}  {{{LroFutureReturnType}}}
-  {{Name}}(google::longrunning::Operation const& operation, Options opts = {});
+  {{Name}}({{{LroOperationType}}} const& operation, Options opts = {});
 {{/IsLRO}}
 {{^IsLRO}}
 {{#IsPaginated}}

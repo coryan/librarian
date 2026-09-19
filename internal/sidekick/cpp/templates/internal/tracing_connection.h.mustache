@@ -65,13 +65,13 @@ class {{Codec.TracingConnectionClassName}}
   {{{LroFutureReturnType}}}
   {{Name}}({{RequestType}} const& request) override;
 
-  StatusOr<google::longrunning::Operation>
+  {{{LroStartReturnType}}}
   {{Name}}(NoAwaitTag,
       {{RequestType}} const& request) override;
 
   {{{LroFutureReturnType}}}
   {{Name}}(
-      google::longrunning::Operation const& operation) override;
+      {{{LroOperationType}}} const& operation) override;
 {{/IsLRO}}
 {{^IsLRO}}
 

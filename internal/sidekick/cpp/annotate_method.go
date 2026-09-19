@@ -125,16 +125,16 @@ func (ann *methodAnnotations) RangeOutputType() string {
 	}
 	if ann.Method.OutputType != nil && ann.Method.OutputType.Pagination != nil && ann.Method.OutputType.Pagination.PageableItem != nil {
 		pi := ann.Method.OutputType.Pagination.PageableItem
+		if pi.Map && pi.MessageType != nil && len(pi.MessageType.Fields) >= 2 {
+			k := cppFieldScalarType(pi.MessageType.Fields[0])
+			v := cppFieldScalarType(pi.MessageType.Fields[1])
+			return fmt.Sprintf("std::pair<%s, %s>", k, v)
+		}
 		if pi.Typez == api.TypezMessage {
 			return protoNameToCppName(pi.TypezID)
 		}
 		if pi.Typez == api.TypezString {
 			return "std::string"
-		}
-		if pi.Map && pi.MessageType != nil && len(pi.MessageType.Fields) >= 2 {
-			k := cppFieldScalarType(pi.MessageType.Fields[0])
-			v := cppFieldScalarType(pi.MessageType.Fields[1])
-			return fmt.Sprintf("std::pair<%s, %s>", k, v)
 		}
 	}
 	return "std::string"
@@ -197,6 +197,9 @@ func (ann *methodAnnotations) IsLongrunningMetadataTypeUsedAsResponse() bool {
 }
 
 func (ann *methodAnnotations) ExtractLongRunningResultFunction() string {
+	if ann.IsHttpLRO() {
+		return "[](StatusOr<" + ann.LroOperationType() + "> op, std::string const&) { return op; },"
+	}
 	if ann.IsLongrunningMetadataTypeUsedAsResponse() {
 		return "&google::cloud::internal::ExtractLongRunningResultMetadata<" + ann.DeducedResponseType() + ">,"
 	}
@@ -261,11 +264,11 @@ func (ann *methodAnnotations) FormatComments() string {
 }
 
 func (ann *methodAnnotations) FormatStartComments() string {
-	return formatStartMethodComments(ann.Name, ann.IsDeprecated())
+	return formatStartMethodComments(ann.Name, ann.IsDeprecated(), ann.LroOperationType())
 }
 
 func (ann *methodAnnotations) FormatAwaitComments() string {
-	return formatAwaitMethodComments(ann.Name, ann.IsDeprecated())
+	return formatAwaitMethodComments(ann.Name, ann.IsDeprecated(), ann.LroOperationType())
 }
 
 func (ann *methodAnnotations) IamUpdaterResponse() string {
@@ -274,6 +277,50 @@ func (ann *methodAnnotations) IamUpdaterResponse() string {
 
 func (ann *methodAnnotations) IamUpdaterComments() string {
 	return formatIamUpdaterComments(ann.ResponseType)
+}
+
+func (ann *methodAnnotations) LroOperationType() string {
+	return ann.ResponseType
+}
+
+func (ann *methodAnnotations) IsHttpLRO() bool {
+	return ann.Method != nil && ann.Method.OperationService != ""
+}
+
+func (ann *methodAnnotations) LroSetOperationFields() string {
+	if ann.Method == nil {
+		return ""
+	}
+	switch ann.Method.OperationService {
+	case "GlobalOperations":
+		return "r.set_project(request.project());\n        r.set_operation(op);"
+	case "GlobalOrganizationOperations":
+		return "r.set_operation(op);"
+	case "RegionOperations":
+		return "r.set_project(request.project());\n        r.set_region(request.region());\n        r.set_operation(op);"
+	case "ZoneOperations":
+		return "r.set_project(request.project());\n        r.set_zone(request.zone());\n        r.set_operation(op);"
+	default:
+		return ""
+	}
+}
+
+func (ann *methodAnnotations) LroAwaitSetOperationFields() string {
+	if ann.Method == nil {
+		return ""
+	}
+	switch ann.Method.OperationService {
+	case "GlobalOperations":
+		return "r.set_project(info.project);\n        r.set_operation(info.operation);"
+	case "GlobalOrganizationOperations":
+		return "r.set_operation(info.operation);"
+	case "RegionOperations":
+		return "r.set_project(info.project);\n        r.set_region(info.region);\n        r.set_operation(info.operation);"
+	case "ZoneOperations":
+		return "r.set_project(info.project);\n        r.set_zone(info.zone);\n        r.set_operation(info.operation);"
+	default:
+		return ""
+	}
 }
 
 func (ann *methodAnnotations) LroFutureReturnType() string {
@@ -287,7 +334,7 @@ func (ann *methodAnnotations) LroStartReturnType() string {
 	if ann.IsLroVoid() {
 		return "Status"
 	}
-	return "StatusOr<google::longrunning::Operation>"
+	return "StatusOr<" + ann.LroOperationType() + ">"
 }
 
 func (ann *methodAnnotations) ReturnTypeName() string {
@@ -302,6 +349,10 @@ func (ann *methodAnnotations) ReturnTypeName() string {
 
 func (ann *methodAnnotations) AsyncReturnTypeName() string {
 	return "future<" + ann.PlainReturnType() + ">"
+}
+
+func (s *signatureAnnotations) LroOperationType() string {
+	return s.Method.LroOperationType()
 }
 
 func (s *signatureAnnotations) LroFutureReturnType() string {
@@ -473,7 +524,7 @@ func (c *codec) annotateMethod(service *api.Service, m *api.Method, sAnn *servic
 		Service:      sAnn,
 		Method:       m,
 		IsPaginated:  isMethodPaginated(m),
-		IsLRO:        m.OperationInfo != nil,
+		IsLRO:        m.IsLRO,
 		Idempotency:  idempotency,
 	}
 
@@ -735,7 +786,10 @@ func (ann *methodAnnotations) RestQueryParamsCode() string {
 	var params []qParam
 
 	for _, f := range ann.Method.InputType.Fields {
-		if f.Repeated || f.Deprecated || f.Name == "return_partial_success" {
+		if f.Repeated || f.Deprecated {
+			continue
+		}
+		if f.Name == "return_partial_success" && (ann.Name == "ListOperations" || ann.Method.InputTypeID == ".google.longrunning.ListOperationsRequest") {
 			continue
 		}
 		if pathFieldNames[f.Name] || f.Name == bodyField {

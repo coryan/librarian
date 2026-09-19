@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -50,6 +51,7 @@ type protoScopeItem struct {
 }
 
 var (
+	reImport    = regexp.MustCompile(`^\s*import\s+(?:public\s+|weak\s+)?"([^"]+)";`)
 	rePackage   = regexp.MustCompile(`^\s*package\s+([a-zA-Z0-9_.]+)\s*;`)
 	reMessage   = regexp.MustCompile(`\bmessage\s+([A-Za-z0-9_]+)`)
 	reEnum      = regexp.MustCompile(`\benum\s+([A-Za-z0-9_]+)`)
@@ -60,9 +62,14 @@ var (
 )
 
 func (idx *protoIndex) scanFile(absPath string, relPath string) error {
+	_, err := idx.scanFileWithImports(absPath, relPath)
+	return err
+}
+
+func (idx *protoIndex) scanFileWithImports(absPath string, relPath string) ([]string, error) {
 	f, err := os.Open(absPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
 
@@ -70,6 +77,7 @@ func (idx *protoIndex) scanFile(absPath string, relPath string) error {
 	scanner := bufio.NewScanner(f)
 	var pkg string
 	var scope []protoScopeItem
+	var imports []string
 	currentBraceDepth := 0
 	inBlockComment := false
 	lineNum := 0
@@ -80,6 +88,10 @@ func (idx *protoIndex) scanFile(absPath string, relPath string) error {
 		trimmed := stripProtoComments(line, &inBlockComment)
 		if trimmed == "" {
 			continue
+		}
+
+		if m := reImport.FindStringSubmatch(trimmed); m != nil {
+			imports = append(imports, m[1])
 		}
 
 		if pkg == "" {
@@ -140,7 +152,7 @@ func (idx *protoIndex) scanFile(absPath string, relPath string) error {
 		}
 	}
 
-	return scanner.Err()
+	return imports, scanner.Err()
 }
 
 func qualifyProtoSymbol(pkg string, scope []protoScopeItem) string {
@@ -172,6 +184,7 @@ func stripProtoComments(line string, inBlockComment *bool) string {
 
 		ch := line[i]
 		if inString {
+			sb.WriteByte(ch)
 			if escaped {
 				escaped = false
 				i++
@@ -184,7 +197,6 @@ func stripProtoComments(line string, inBlockComment *bool) string {
 			}
 			if ch == '"' {
 				inString = false
-				sb.WriteByte('"')
 			}
 			i++
 			continue
@@ -215,62 +227,119 @@ func stripProtoComments(line string, inBlockComment *bool) string {
 
 func (c *codec) buildProtoIndex() *protoIndex {
 	idx := newProtoIndex()
-	if c.Cpp == nil || c.Cpp.SourceRoot == "" {
+
+	var roots []string
+	if c.Library != nil {
+		for _, r := range c.Library.Roots {
+			if r == "googleapis" {
+				if c.Cpp != nil && c.Cpp.SourceRoot != "" {
+					roots = append(roots, c.Cpp.SourceRoot)
+				}
+			} else if stat, err := os.Stat(r); err == nil && stat.IsDir() {
+				roots = append(roots, r)
+			}
+		}
+	}
+	if c.Cpp != nil && c.Cpp.SourceRoot != "" && !slices.Contains(roots, c.Cpp.SourceRoot) {
+		roots = append(roots, c.Cpp.SourceRoot)
+	}
+	if len(roots) == 0 {
 		return idx
 	}
 
-	root := c.Cpp.SourceRoot
-
-	// 1. Scan the library's API proto directory
-	var apiDir string
-	if c.Library != nil && len(c.Library.APIs) > 0 {
-		apiPath := c.Library.APIs[0].Path
-		if filepath.Ext(apiPath) != "" {
-			apiPath = filepath.Dir(apiPath)
+	visited := make(map[string]bool)
+	var scanWithImports func(relPath string)
+	scanWithImports = func(relPath string) {
+		relPath = filepath.ToSlash(relPath)
+		if visited[relPath] {
+			return
 		}
-		apiDir = filepath.Join(root, apiPath)
-	} else if c.Cpp.ProductPath != "" {
-		apiDir = filepath.Join(root, c.Cpp.ProductPath)
+		visited[relPath] = true
+
+		var absPath string
+		for _, root := range roots {
+			cand := filepath.Join(root, filepath.FromSlash(relPath))
+			if stat, err := os.Stat(cand); err == nil && !stat.IsDir() {
+				absPath = cand
+				break
+			}
+		}
+		if absPath == "" {
+			return
+		}
+
+		imports, err := idx.scanFileWithImports(absPath, relPath)
+		if err != nil {
+			return
+		}
+		for _, imp := range imports {
+			scanWithImports(imp)
+		}
 	}
 
-	if apiDir != "" {
-		if stat, err := os.Stat(apiDir); err == nil && stat.IsDir() {
-			_ = filepath.WalkDir(apiDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil || d == nil || d.IsDir() {
-					return nil
+	// 1. Scan the library's API proto directory / files
+	if c.Library != nil && len(c.Library.APIs) > 0 {
+		for _, api := range c.Library.APIs {
+			apiPath := api.Path
+			if filepath.Ext(apiPath) == ".proto" {
+				scanWithImports(apiPath)
+			}
+			dir := filepath.Dir(apiPath)
+			for _, root := range roots {
+				absDir := filepath.Join(root, filepath.FromSlash(dir))
+				if stat, err := os.Stat(absDir); err == nil && stat.IsDir() {
+					_ = filepath.WalkDir(absDir, func(path string, d fs.DirEntry, err error) error {
+						if err != nil || d == nil || d.IsDir() {
+							return nil
+						}
+						if filepath.Ext(path) == ".proto" {
+							rel, err := filepath.Rel(root, path)
+							if err == nil {
+								scanWithImports(rel)
+							}
+						}
+						return nil
+					})
 				}
-				if filepath.Ext(path) == ".proto" {
-					rel, err := filepath.Rel(root, path)
-					if err == nil {
-						_ = idx.scanFile(path, rel)
+			}
+		}
+	} else if c.Cpp != nil && c.Cpp.ProductPath != "" {
+		for _, root := range roots {
+			absDir := filepath.Join(root, filepath.FromSlash(c.Cpp.ProductPath))
+			if stat, err := os.Stat(absDir); err == nil && stat.IsDir() {
+				_ = filepath.WalkDir(absDir, func(path string, d fs.DirEntry, err error) error {
+					if err != nil || d == nil || d.IsDir() {
+						return nil
 					}
-				}
-				return nil
-			})
+					if filepath.Ext(path) == ".proto" {
+						rel, err := filepath.Rel(root, path)
+						if err == nil {
+							scanWithImports(rel)
+						}
+					}
+					return nil
+				})
+			}
 		}
 	}
 
 	// 2. Scan additional proto files if configured
 	if c.Cpp != nil {
 		for _, addProto := range c.Cpp.AdditionalProtoFiles {
-			abs := filepath.Join(root, addProto)
-			_ = idx.scanFile(abs, filepath.ToSlash(addProto))
+			scanWithImports(addProto)
 		}
 	}
 
 	// 3. Scan common well-known Google Cloud protos if present
 	commonProtos := []string{
-		filepath.Join("google", "cloud", "location", "locations.proto"),
-		filepath.Join("google", "iam", "v1", "iam_policy.proto"),
-		filepath.Join("google", "iam", "v1", "policy.proto"),
-		filepath.Join("google", "longrunning", "operations.proto"),
-		filepath.Join("google", "protobuf", "empty.proto"),
+		"google/cloud/location/locations.proto",
+		"google/iam/v1/iam_policy.proto",
+		"google/iam/v1/policy.proto",
+		"google/longrunning/operations.proto",
+		"google/protobuf/empty.proto",
 	}
 	for _, cp := range commonProtos {
-		abs := filepath.Join(root, cp)
-		if _, err := os.Stat(abs); err == nil {
-			_ = idx.scanFile(abs, filepath.ToSlash(cp))
-		}
+		scanWithImports(cp)
 	}
 
 	return idx

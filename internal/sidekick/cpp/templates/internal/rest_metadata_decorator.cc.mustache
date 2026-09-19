@@ -44,7 +44,7 @@ GOOGLE_CLOUD_CPP_INLINE_NAMESPACE_BEGIN
 {{#Codec.RestMethods}}
 {{#IsLRO}}
 
-future<StatusOr<google::longrunning::Operation>>
+future<StatusOr<{{{LroOperationType}}}>>
 {{Codec.RestMetadataDecoratorClassName}}::Async{{Name}}(
       CompletionQueue& cq,
       std::unique_ptr<rest_internal::RestContext> rest_context,
@@ -55,7 +55,7 @@ future<StatusOr<google::longrunning::Operation>>
       cq, std::move(rest_context), std::move(options), request);
 }
 
-StatusOr<google::longrunning::Operation>
+StatusOr<{{{LroOperationType}}}>
 {{Codec.RestMetadataDecoratorClassName}}::{{Name}}(
     rest_internal::RestContext& rest_context,
     Options const& options, {{RequestType}} const& request) {
@@ -87,14 +87,14 @@ future<{{{PlainReturnType}}}>
       cq, std::move(rest_context), std::move(options), request);
 }
 {{/Codec.RestAsyncMethods}}
-{{#Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
 
-future<StatusOr<google::longrunning::Operation>>
+future<StatusOr<{{{Codec.LroResponseType}}}>>
 {{Codec.RestMetadataDecoratorClassName}}::AsyncGetOperation(
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::GetOperationRequest const& request) {
+    {{{Codec.LroGetOperationRequestType}}} const& request) {
   SetMetadata(*rest_context, *options);
   return child_->AsyncGetOperation(
       cq, std::move(rest_context), std::move(options), request);
@@ -105,12 +105,12 @@ future<Status>
     google::cloud::CompletionQueue& cq,
     std::unique_ptr<rest_internal::RestContext> rest_context,
     google::cloud::internal::ImmutableOptions options,
-    google::longrunning::CancelOperationRequest const& request) {
+    {{{Codec.LroCancelOperationRequestType}}} const& request) {
   SetMetadata(*rest_context, *options);
   return child_->AsyncCancelOperation(
       cq, std::move(rest_context), std::move(options), request);
 }
-{{/Codec.HasGrpcLRO}}
+{{/Codec.HasLRO}}
 
 void {{Codec.RestMetadataDecoratorClassName}}::SetMetadata(
       rest_internal::RestContext& rest_context,

@@ -43,13 +43,13 @@ class {{Codec.RestMetadataDecoratorClassName}} : public {{Codec.RestStubClassNam
 {{#Codec.RestMethods}}
 {{#IsLRO}}
 
-  google::cloud::future<StatusOr<google::longrunning::Operation>> Async{{Name}}(
+  google::cloud::future<StatusOr<{{{LroOperationType}}}>> Async{{Name}}(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
       {{RequestType}} const& request) override;
 
-  StatusOr<google::longrunning::Operation> {{Name}}(
+  StatusOr<{{{LroOperationType}}}> {{Name}}(
       google::cloud::rest_internal::RestContext& rest_context,
       Options const& options, {{RequestType}} const& request) override;
 {{/IsLRO}}
@@ -68,20 +68,20 @@ class {{Codec.RestMetadataDecoratorClassName}} : public {{Codec.RestStubClassNam
       google::cloud::internal::ImmutableOptions options,
       {{RequestType}} const& request) override;
 {{/Codec.RestAsyncMethods}}
-{{#Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
 
-  google::cloud::future<StatusOr<google::longrunning::Operation>> AsyncGetOperation(
+  google::cloud::future<StatusOr<{{{Codec.LroResponseType}}}>> AsyncGetOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::GetOperationRequest const& request) override;
+      {{{Codec.LroGetOperationRequestType}}} const& request) override;
 
   google::cloud::future<Status> AsyncCancelOperation(
       google::cloud::CompletionQueue& cq,
       std::unique_ptr<google::cloud::rest_internal::RestContext> rest_context,
       google::cloud::internal::ImmutableOptions options,
-      google::longrunning::CancelOperationRequest const& request) override;
-{{/Codec.HasGrpcLRO}}
+      {{{Codec.LroCancelOperationRequestType}}} const& request) override;
+{{/Codec.HasLRO}}
 
  private:
   void SetMetadata(rest_internal::RestContext& rest_context,

@@ -57,13 +57,13 @@ std::unique_ptr<::google::cloud::AsyncStreamingReadWriteRpc<
 {{Codec.ConnectionClassName}}::{{Name}}(
     NoAwaitTag,
     {{RequestType}} const&) {
-  return StatusOr<google::longrunning::Operation>(
+  return {{{LroStartReturnType}}}(
     Status(StatusCode::kUnimplemented, "not implemented"));
 }
 
 {{{LroFutureReturnType}}}
 {{Codec.ConnectionClassName}}::{{Name}}(
-    google::longrunning::Operation const&) {
+    {{{LroOperationType}}} const&) {
   return google::cloud::make_ready_future<
     StatusOr<{{DeducedResponseType}}>>(
     Status(StatusCode::kUnimplemented, "not implemented"));

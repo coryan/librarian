@@ -23,7 +23,7 @@ import (
 )
 
 func TestFormatStartMethodComments(t *testing.T) {
-	got := formatStartMethodComments("CreateFoo", false)
+	got := formatStartMethodComments("CreateFoo", false, "")
 	want := "  // clang-format off\n" +
 		"  ///\n" +
 		"  /// @copybrief CreateFoo\n" +
@@ -40,14 +40,19 @@ func TestFormatStartMethodComments(t *testing.T) {
 		t.Errorf("formatStartMethodComments mismatch (-want +got):\n%s", diff)
 	}
 
-	gotDep := formatStartMethodComments("CreateFoo", true)
+	gotDep := formatStartMethodComments("CreateFoo", true, "")
 	if !strings.Contains(gotDep, "@deprecated This RPC is deprecated.") {
 		t.Errorf("expected deprecation in comment, got: %s", gotDep)
+	}
+
+	gotCustom := formatStartMethodComments("CreateFoo", false, "google::cloud::cpp::compute::v1::Operation")
+	if !strings.Contains(gotCustom, "[`google::cloud::cpp::compute::v1::Operation`]") {
+		t.Errorf("expected custom opType in comment, got: %s", gotCustom)
 	}
 }
 
 func TestFormatAwaitMethodComments(t *testing.T) {
-	got := formatAwaitMethodComments("CreateFoo", false)
+	got := formatAwaitMethodComments("CreateFoo", false, "")
 	want := "  // clang-format off\n" +
 		"  ///\n" +
 		"  /// @copybrief CreateFoo\n" +
@@ -60,6 +65,11 @@ func TestFormatAwaitMethodComments(t *testing.T) {
 
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("formatAwaitMethodComments mismatch (-want +got):\n%s", diff)
+	}
+
+	gotCustom := formatAwaitMethodComments("CreateFoo", false, "google::cloud::cpp::compute::v1::Operation")
+	if !strings.Contains(gotCustom, "`google::cloud::cpp::compute::v1::Operation`") {
+		t.Errorf("expected custom opType in comment, got: %s", gotCustom)
 	}
 }
 

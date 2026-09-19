@@ -23,15 +23,21 @@
 {{#Codec.HasGrpcLRO}}
 #include "google/cloud/internal/async_rest_long_running_operation.h"
 {{/Codec.HasGrpcLRO}}
+{{#Codec.HasHttpLRO}}
+#include "google/cloud/internal/async_rest_long_running_operation_custom.h"
+{{/Codec.HasHttpLRO}}
 {{#Codec.HasRestAsyncRetryLoop}}
 #include "google/cloud/internal/async_rest_retry_loop.h"
 {{/Codec.HasRestAsyncRetryLoop}}
-{{#Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
 #include "google/cloud/internal/extract_long_running_result.h"
-{{/Codec.HasGrpcLRO}}
+{{/Codec.HasLRO}}
 {{#Codec.HasPaginatedMethod}}
 #include "google/cloud/internal/pagination_range.h"
 {{/Codec.HasPaginatedMethod}}
+{{#Codec.HasHttpLRO}}
+#include "google/cloud/internal/rest_lro_helpers.h"
+{{/Codec.HasHttpLRO}}
 #include "google/cloud/internal/rest_retry_loop.h"
 #include "google/cloud/rest_options.h"
 #include <memory>
@@ -88,7 +94,7 @@ StreamRange<{{{RangeOutputType}}}>
 {{{LroFutureReturnType}}}
 {{Codec.RestConnectionImplClassName}}::{{Name}}({{RequestType}} const& request) {
   auto current = google::cloud::internal::SaveCurrentOptions();
-  return rest_internal::AsyncRestLongRunningOperation<{{{DeducedResponseType}}}>(
+  return rest_internal::AsyncRestLongRunningOperation<{{#IsHttpLRO}}{{{DeducedResponseType}}}, {{{LroOperationType}}}, {{{Codec.LroGetOperationRequestType}}}, {{{Codec.LroCancelOperationRequestType}}}{{/IsHttpLRO}}{{^IsHttpLRO}}{{{DeducedResponseType}}}{{/IsHttpLRO}}>(
     background_->cq(), current, request,
     [stub = stub_](CompletionQueue& cq,
                    std::unique_ptr<rest_internal::RestContext> context,
@@ -99,21 +105,32 @@ StreamRange<{{{RangeOutputType}}}>
     [stub = stub_](CompletionQueue& cq,
                    std::unique_ptr<rest_internal::RestContext> context,
                    google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::GetOperationRequest const& request) {
+                   {{{Codec.LroGetOperationRequestType}}} const& request) {
       return stub->AsyncGetOperation(
           cq, std::move(context), std::move(options), request);
     },
     [stub = stub_](CompletionQueue& cq,
                    std::unique_ptr<rest_internal::RestContext> context,
                    google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::CancelOperationRequest const& request) {
+                   {{{Codec.LroCancelOperationRequestType}}} const& request) {
       return stub->AsyncCancelOperation(
           cq, std::move(context), std::move(options), request);
     },
     {{{ExtractLongRunningResultFunction}}}
     retry_policy(*current), backoff_policy(*current),
     idempotency_policy(*current)->{{Name}}(request),
-    polling_policy(*current), __func__){{#IsLroVoid}}
+    polling_policy(*current), __func__{{#IsHttpLRO}},
+    []({{{LroOperationType}}} const& op) {
+      return op.status() == "DONE";
+    },
+    [request](std::string const& op,
+              {{{Codec.LroGetOperationRequestType}}}& r) {
+      {{{LroSetOperationFields}}}
+    },
+    [request](std::string const& op,
+              {{{Codec.LroCancelOperationRequestType}}}& r) {
+      {{{LroSetOperationFields}}}
+    }{{/IsHttpLRO}}){{#IsLroVoid}}
     .then([](future<StatusOr<google::protobuf::Empty>> f) {
       return f.get().status();
     });
@@ -122,7 +139,7 @@ StreamRange<{{{RangeOutputType}}}>
 {{/IsLroVoid}}
 }
 
-StatusOr<google::longrunning::Operation>
+{{{LroStartReturnType}}}
 {{Codec.RestConnectionImplClassName}}::{{Name}}(NoAwaitTag, {{RequestType}} const& request) {
   auto current = google::cloud::internal::SaveCurrentOptions();
   return google::cloud::rest_internal::RestRetryLoop(
@@ -137,31 +154,50 @@ StatusOr<google::longrunning::Operation>
 
 {{{LroFutureReturnType}}}
 {{Codec.RestConnectionImplClassName}}::{{Name}}(
-    google::longrunning::Operation const& operation) {
+    {{{LroOperationType}}} const& operation) {
   auto current = google::cloud::internal::SaveCurrentOptions();
+{{^IsHttpLRO}}
   if (!operation.metadata().Is<typename {{{OperationMetadataType}}}>()) {
     return make_ready_{{{LroFutureReturnType}}}(
         internal::InvalidArgumentError("operation does not correspond to {{Name}}",
                                        GCP_ERROR_INFO().WithMetadata("operation", operation.metadata().DebugString())));
   }
-  return rest_internal::AsyncRestAwaitLongRunningOperation<{{{DeducedResponseType}}}>(
+{{/IsHttpLRO}}
+  return rest_internal::AsyncRestAwaitLongRunningOperation<{{#IsHttpLRO}}{{{DeducedResponseType}}}, {{{LroOperationType}}}, {{{Codec.LroGetOperationRequestType}}}, {{{Codec.LroCancelOperationRequestType}}}{{/IsHttpLRO}}{{^IsHttpLRO}}{{{DeducedResponseType}}}{{/IsHttpLRO}}>(
     background_->cq(), current, operation,
     [stub = stub_](CompletionQueue& cq,
                    std::unique_ptr<rest_internal::RestContext> context,
                    google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::GetOperationRequest const& request) {
+                   {{{Codec.LroGetOperationRequestType}}} const& request) {
       return stub->AsyncGetOperation(
           cq, std::move(context), std::move(options), request);
     },
     [stub = stub_](CompletionQueue& cq,
                    std::unique_ptr<rest_internal::RestContext> context,
                    google::cloud::internal::ImmutableOptions options,
-                   google::longrunning::CancelOperationRequest const& request) {
+                   {{{Codec.LroCancelOperationRequestType}}} const& request) {
       return stub->AsyncCancelOperation(
           cq, std::move(context), std::move(options), request);
     },
     {{{ExtractLongRunningResultFunction}}}
-    polling_policy(*current), __func__){{#IsLroVoid}}
+    polling_policy(*current), __func__{{#IsHttpLRO}},
+    []({{{LroOperationType}}} const& op) {
+      return op.status() == "DONE";
+    },
+    [operation](std::string const&,
+                {{{Codec.LroGetOperationRequestType}}}& r) {
+      auto info = google::cloud::rest_internal::ParseComputeOperationInfo(
+          operation.self_link());
+
+      {{{LroAwaitSetOperationFields}}}
+    },
+    [operation](std::string const&,
+                {{{Codec.LroCancelOperationRequestType}}}& r) {
+      auto info = google::cloud::rest_internal::ParseComputeOperationInfo(
+          operation.self_link());
+
+      {{{LroAwaitSetOperationFields}}}
+    }{{/IsHttpLRO}}){{#IsLroVoid}}
     .then([](future<StatusOr<google::protobuf::Empty>> f) {
       return f.get().status();
     });

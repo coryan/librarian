@@ -32,9 +32,9 @@
 #include "google/cloud/stream_range.h"
 {{/Codec.HasPaginatedMethod}}
 #include "google/cloud/version.h"
-{{#Codec.HasGrpcLRO}}
-#include <google/longrunning/operations.pb.h>
-{{/Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
+#include <{{{Codec.LroOperationIncludeHeader}}}>
+{{/Codec.HasLRO}}
 #include <memory>
 
 namespace google {
@@ -65,13 +65,13 @@ class {{Codec.RestConnectionImplClassName}}
   {{{LroFutureReturnType}}}
   {{Name}}({{RequestType}} const& request) override;
 
-  StatusOr<google::longrunning::Operation>
+  {{{LroStartReturnType}}}
   {{Name}}(NoAwaitTag,
       {{RequestType}} const& request) override;
 
   {{{LroFutureReturnType}}}
   {{Name}}(
-      google::longrunning::Operation const& operation) override;
+      {{{LroOperationType}}} const& operation) override;
 {{/IsLRO}}
 {{^IsLRO}}
 
@@ -100,12 +100,12 @@ class {{Codec.RestConnectionImplClassName}}
   idempotency_policy(Options const& options) {
     return options.get<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>()->clone();
   }
-{{#Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
 
   static std::unique_ptr<PollingPolicy> polling_policy(Options const& options) {
     return options.get<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>()->clone();
   }
-{{/Codec.HasGrpcLRO}}
+{{/Codec.HasLRO}}
 
   std::unique_ptr<google::cloud::BackgroundThreads> background_;
   std::shared_ptr<{{Codec.InternalNamespace}}::{{Codec.RestStubClassName}}> stub_;

@@ -598,6 +598,13 @@ func processMethod(model *api.API, m *descriptorpb.MethodDescriptorProto, mFQN, 
 	if err != nil {
 		return nil, err
 	}
+	opService := parseOperationService(m)
+	opInfo := parseOperationInfo(packagez, m)
+	if opInfo == nil && opService != "" {
+		opInfo = &api.OperationInfo{
+			ResponseTypeID: outputTypeID,
+		}
+	}
 	method := &api.Method{
 		ID:                  mFQN,
 		PathInfo:            pathInfo,
@@ -607,7 +614,8 @@ func processMethod(model *api.API, m *descriptorpb.MethodDescriptorProto, mFQN, 
 		OutputTypeID:        outputTypeID,
 		ClientSideStreaming: m.GetClientStreaming(),
 		ServerSideStreaming: m.GetServerStreaming(),
-		OperationInfo:       parseOperationInfo(packagez, m),
+		OperationInfo:       opInfo,
+		OperationService:    opService,
 		Routing:             routing,
 		ReturnsEmpty:        outputTypeID == ".google.protobuf.Empty",
 		SourceServiceID:     serviceID,

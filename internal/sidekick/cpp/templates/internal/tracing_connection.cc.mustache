@@ -77,7 +77,7 @@ StreamRange<{{{RangeOutputType}}}>
   return internal::EndSpan(std::move(span), child_->{{Name}}(request));
 }
 
-StatusOr<google::longrunning::Operation>
+{{{LroStartReturnType}}}
 {{Codec.TracingConnectionClassName}}::{{Name}}(
     NoAwaitTag, {{RequestType}} const& request) {
   auto span = internal::MakeSpan(
@@ -89,7 +89,7 @@ StatusOr<google::longrunning::Operation>
 
 {{{LroFutureReturnType}}}
 {{Codec.TracingConnectionClassName}}::{{Name}}(
-    google::longrunning::Operation const& operation) {
+    {{{LroOperationType}}} const& operation) {
   auto span = internal::MakeSpan(
       "{{Codec.PackageNamespace}}::{{Codec.ConnectionClassName}}::{{Name}}");
   internal::OTelScope scope(span);

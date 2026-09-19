@@ -182,7 +182,7 @@ class {{Codec.ConnectionClassName}} {
   {{Name}}(NoAwaitTag, {{RequestType}} const& request);
 
   virtual {{{LroFutureReturnType}}}
-  {{Name}}( google::longrunning::Operation const& operation);
+  {{Name}}( {{{LroOperationType}}} const& operation);
 {{/IsLRO}}
 {{^IsLRO}}
 {{#IsPaginated}}

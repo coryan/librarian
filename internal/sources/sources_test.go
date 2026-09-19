@@ -43,10 +43,15 @@ func TestRoot(t *testing.T) {
 		{"protobuf-src", "protobuf-src", "protobuf-path"},
 		{"conformance", "conformance", "conformance-path"},
 		{"unknown", "unknown", ""},
+		{"local-dir", t.TempDir(), ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			want := test.want
+			if test.name == "local-dir" {
+				want = test.root
+			}
 			got := cfg.Root(test.root)
-			if diff := cmp.Diff(test.want, got); diff != "" {
+			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})

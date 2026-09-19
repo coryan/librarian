@@ -200,7 +200,9 @@ func formatReturnComment(m *api.Method) string {
 		var rangeOutput string
 		if m.OutputType != nil && m.OutputType.Pagination != nil && m.OutputType.Pagination.PageableItem != nil {
 			pi := m.OutputType.Pagination.PageableItem
-			if pi.Typez == api.TypezMessage {
+			if pi.Map && pi.MessageType != nil && len(pi.MessageType.Fields) >= 2 {
+				rangeOutput = strings.TrimPrefix(pi.MessageType.Fields[1].TypezID, ".")
+			} else if pi.Typez == api.TypezMessage {
 				rangeOutput = strings.TrimPrefix(pi.TypezID, ".")
 			}
 		}
@@ -244,7 +246,9 @@ func formatReturnComment(m *api.Method) string {
 
 func buildTrailer(m *api.Method, doc string, variableParamComments string, isDiscovery bool) string {
 	var lroLink string
-	if m.OperationInfo != nil {
+	if m.OperationService != "" {
+		lroLink = trailerComputeLRO
+	} else if m.OperationInfo != nil {
 		lroLink = trailerGRPCLRO
 	}
 
@@ -310,7 +314,10 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 	}
 
 	// 3. Return type
-	if m.OperationInfo != nil {
+	if m.OperationService != "" {
+		// Compute/HTTP LRO has no google.longrunning.operation_info,
+		// upstream ResolveMethodReturn returns absl::nullopt.
+	} else if m.OperationInfo != nil {
 		deduced := m.OperationInfo.ResponseTypeID
 		if deduced == "" || deduced == "google.protobuf.Empty" || deduced == ".google.protobuf.Empty" {
 			deduced = m.OperationInfo.MetadataTypeID
@@ -322,8 +329,13 @@ func resolveReferences(m *api.Method, doc string, variableParamComments string) 
 	} else if isMethodPaginated(m) {
 		if m.OutputType != nil && m.OutputType.Pagination != nil && m.OutputType.Pagination.PageableItem != nil {
 			pi := m.OutputType.Pagination.PageableItem
-			if pi.Typez == api.TypezMessage {
-				itemType := strings.TrimPrefix(pi.TypezID, ".")
+			var itemType string
+			if pi.Map && pi.MessageType != nil && len(pi.MessageType.Fields) >= 2 {
+				itemType = strings.TrimPrefix(pi.MessageType.Fields[1].TypezID, ".")
+			} else if pi.Typez == api.TypezMessage {
+				itemType = strings.TrimPrefix(pi.TypezID, ".")
+			}
+			if itemType != "" {
 				if loc, ok := findLoc(itemType); ok {
 					refs[itemType] = loc
 				}
@@ -450,29 +462,35 @@ func formatParameterComment(m *api.Method, f *api.Field, name string) string {
 	return fmt.Sprintf("  /// @param %s %s\n", cppFieldName(name), comment)
 }
 
-func formatStartMethodComments(methodName string, isDeprecated bool) string {
+func formatStartMethodComments(methodName string, isDeprecated bool, opType string) string {
 	var dep string
 	if isDeprecated {
 		dep = deprecationComment
 	}
+	if opType == "" {
+		opType = "google::longrunning::Operation"
+	}
 	return methodCommentsPrefix + dep + " @copybrief " + methodName + "\n" +
 		"  ///\n" +
 		"  /// Specifying the [`NoAwaitTag`] immediately returns the\n" +
-		"  /// [`google::longrunning::Operation`] that corresponds to the Long Running\n" +
+		"  /// [`" + opType + "`] that corresponds to the Long Running\n" +
 		"  /// Operation that has been started. No polling for operation status occurs.\n" +
 		"  ///\n" +
 		"  /// [`NoAwaitTag`]: @ref google::cloud::NoAwaitTag\n" +
 		methodCommentsSuffix
 }
 
-func formatAwaitMethodComments(methodName string, isDeprecated bool) string {
+func formatAwaitMethodComments(methodName string, isDeprecated bool, opType string) string {
 	var dep string
 	if isDeprecated {
 		dep = deprecationComment
 	}
+	if opType == "" {
+		opType = "google::longrunning::Operation"
+	}
 	return methodCommentsPrefix + dep + " @copybrief " + methodName + "\n" +
 		"  ///\n" +
-		"  /// This method accepts a `google::longrunning::Operation` that corresponds\n" +
+		"  /// This method accepts a `" + opType + "` that corresponds\n" +
 		"  /// to a previously started Long Running Operation (LRO) and polls the status\n" +
 		"  /// of the LRO in the background.\n" +
 		methodCommentsSuffix

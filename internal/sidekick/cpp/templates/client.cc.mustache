@@ -151,7 +151,7 @@ StatusOr<{{{IamUpdaterResponse}}}>
 }
 
 {{{LroFutureReturnType}}}
-{{Codec.ClientClassName}}::{{Name}}(google::longrunning::Operation const& operation, Options opts) {
+{{Codec.ClientClassName}}::{{Name}}({{{LroOperationType}}} const& operation, Options opts) {
   internal::OptionsSpan span(internal::MergeOptions(std::move(opts), options_));
   return connection_->{{Name}}(operation);
 }

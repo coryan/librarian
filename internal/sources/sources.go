@@ -52,23 +52,27 @@ func NewSourceConfig(sources *Sources, activeRoots []string) *SourceConfig {
 
 // Root returns the directory path for the given root name.
 func (c *SourceConfig) Root(name string) string {
-	if c == nil || c.Sources == nil {
+	if c == nil {
 		return ""
 	}
-	switch name {
-	case "googleapis":
-		return c.Sources.Googleapis
-	case "discovery":
-		return c.Sources.Discovery
-	case "showcase":
-		return c.Sources.Showcase
-	case "protobuf-src":
-		return c.Sources.ProtobufSrc
-	case "conformance":
-		return c.Sources.Conformance
-	default:
-		return ""
+	if c.Sources != nil {
+		switch name {
+		case "googleapis":
+			return c.Sources.Googleapis
+		case "discovery":
+			return c.Sources.Discovery
+		case "showcase":
+			return c.Sources.Showcase
+		case "protobuf-src":
+			return c.Sources.ProtobufSrc
+		case "conformance":
+			return c.Sources.Conformance
+		}
 	}
+	if stat, err := os.Stat(name); err == nil && stat.IsDir() {
+		return name
+	}
+	return ""
 }
 
 // Resolve returns an absolute path for the given relative path if it is found

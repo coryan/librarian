@@ -52,7 +52,7 @@ Options {{Codec.Name}}DefaultOptions({{#Codec.HasEndpointLocation}}std::string c
         ExponentialBackoffPolicy(std::chrono::seconds(0), std::chrono::seconds(1),
             std::chrono::minutes(5), kBackoffScaling, kBackoffScaling).clone());
   }
-{{#Codec.HasGrpcLRO}}
+{{#Codec.HasLRO}}
   if (!options.has<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>()) {
     options.set<{{Codec.PackageNamespace}}::{{Codec.PollingPolicyOptionClassName}}>(
         GenericPollingPolicy<
@@ -62,7 +62,7 @@ Options {{Codec.Name}}DefaultOptions({{#Codec.HasEndpointLocation}}std::string c
             ExponentialBackoffPolicy(std::chrono::seconds(1),
             std::chrono::minutes(5), kBackoffScaling).clone()).clone());
   }
-{{/Codec.HasGrpcLRO}}
+{{/Codec.HasLRO}}
   if (!options.has<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>()) {
     options.set<{{Codec.PackageNamespace}}::{{Codec.ConnectionIdempotencyPolicyOptionClassName}}>(
         {{Codec.PackageNamespace}}::MakeDefault{{Codec.IdempotencyPolicyClassName}}());

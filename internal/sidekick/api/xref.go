@@ -364,8 +364,8 @@ func sortOneOfFieldForExamples(f1, f2 *Field) int {
 }
 
 func enrichMethodSamples(m *Method) {
-	// Methods with AIP-151 LRO annotations *OR* discovery LRO annotations are LROs.
-	m.IsLRO = m.OperationInfo != nil || m.DiscoveryLro != nil
+	// Methods with AIP-151 LRO annotations *OR* discovery LRO annotations *OR* operation_service extension are LROs.
+	m.IsLRO = m.OperationInfo != nil || m.DiscoveryLro != nil || m.OperationService != ""
 	m.IsStreaming = m.ClientSideStreaming || m.ServerSideStreaming
 	// A simple method is not paginated, not streaming and not an LRO.
 	m.IsSimple = m.Pagination == nil && !m.IsStreaming && !m.IsLRO

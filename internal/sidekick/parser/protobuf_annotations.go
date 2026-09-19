@@ -23,6 +23,7 @@ import (
 	"cloud.google.com/go/longrunning/autogen/longrunningpb"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/parser/httprule"
+	"google.golang.org/genproto/googleapis/cloud/extendedops"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -59,6 +60,17 @@ func parseOperationInfo(packagez string, m *descriptorpb.MethodDescriptorProto) 
 		ResponseTypeID: normalizeTypeID(packagez, protobufInfo.GetResponseType()),
 	}
 	return operationInfo
+}
+
+func parseOperationService(m *descriptorpb.MethodDescriptorProto) string {
+	if !proto.HasExtension(m.GetOptions(), extendedops.E_OperationService) {
+		return ""
+	}
+	val, ok := proto.GetExtension(m.GetOptions(), extendedops.E_OperationService).(string)
+	if !ok {
+		return ""
+	}
+	return val
 }
 
 func parsePathInfo(m *descriptorpb.MethodDescriptorProto, model *api.API) (*api.PathInfo, error) {

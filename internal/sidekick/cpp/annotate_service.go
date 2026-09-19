@@ -105,6 +105,9 @@ func (ann *serviceAnnotations) PbIncludeByTransport() string {
 }
 
 func (ann *serviceAnnotations) isDiscovery() bool {
+	if ann != nil && ann.Service != nil {
+		return strings.HasPrefix(ann.Service.Package, "google.cloud.cpp.") || ann.HasHttpLRO()
+	}
 	return false
 }
 
@@ -122,7 +125,21 @@ func (ann *serviceAnnotations) HasIamUpdater() bool {
 }
 
 func (ann *serviceAnnotations) HasGrpcLRO() bool {
-	return ann.HasGrpc && ann.HasLRO()
+	if ann.Service == nil {
+		return false
+	}
+	return ann.HasGrpc && slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
+		return m.IsLRO && m.OperationService == ""
+	})
+}
+
+func (ann *serviceAnnotations) HasHttpLRO() bool {
+	if ann.Service == nil {
+		return false
+	}
+	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
+		return m.OperationService != ""
+	})
 }
 
 func (ann *serviceAnnotations) StreamingReadMethods() []*methodAnnotations {
@@ -249,7 +266,7 @@ func (ann *serviceAnnotations) HasLRO() bool {
 		return false
 	}
 	return slices.ContainsFunc(ann.Service.Methods, func(m *api.Method) bool {
-		return m.OperationInfo != nil
+		return m.IsLRO
 	})
 }
 
@@ -1320,6 +1337,128 @@ func (ann *serviceAnnotations) HasRestAsyncMethods() bool {
 	return len(ann.RestAsyncMethods()) > 0
 }
 
+func (ann *serviceAnnotations) firstLroMethod() *api.Method {
+	if ann.Service == nil {
+		return nil
+	}
+	for _, m := range ann.Service.Methods {
+		if m.IsLRO {
+			return m
+		}
+	}
+	return nil
+}
+
+func (ann *serviceAnnotations) LroOperationIncludeHeader() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return "google/longrunning/operations.pb.h"
+	}
+	switch m.OperationService {
+	case "GlobalOperations":
+		return "google/cloud/compute/global_operations/v1/global_operations.pb.h"
+	case "GlobalOrganizationOperations":
+		return "google/cloud/compute/global_organization_operations/v1/global_organization_operations.pb.h"
+	case "RegionOperations":
+		return "google/cloud/compute/region_operations/v1/region_operations.pb.h"
+	case "ZoneOperations":
+		return "google/cloud/compute/zone_operations/v1/zone_operations.pb.h"
+	default:
+		return ""
+	}
+}
+
+func (ann *serviceAnnotations) LroResponseType() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return "google::longrunning::Operation"
+	}
+	return protoNameToCppName(m.OutputTypeID)
+}
+
+func (ann *serviceAnnotations) LroGetOperationRequestType() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return "google::longrunning::GetOperationRequest"
+	}
+	switch m.OperationService {
+	case "GlobalOperations":
+		return "google::cloud::cpp::compute::global_operations::v1::GetOperationRequest"
+	case "GlobalOrganizationOperations":
+		return "google::cloud::cpp::compute::global_organization_operations::v1::GetOperationRequest"
+	case "RegionOperations":
+		return "google::cloud::cpp::compute::region_operations::v1::GetOperationRequest"
+	case "ZoneOperations":
+		return "google::cloud::cpp::compute::zone_operations::v1::GetOperationRequest"
+	default:
+		return ""
+	}
+}
+
+func (ann *serviceAnnotations) LroCancelOperationRequestType() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return "google::longrunning::CancelOperationRequest"
+	}
+	switch m.OperationService {
+	case "GlobalOperations":
+		return "google::cloud::cpp::compute::global_operations::v1::DeleteOperationRequest"
+	case "GlobalOrganizationOperations":
+		return "google::cloud::cpp::compute::global_organization_operations::v1::DeleteOperationRequest"
+	case "RegionOperations":
+		return "google::cloud::cpp::compute::region_operations::v1::DeleteOperationRequest"
+	case "ZoneOperations":
+		return "google::cloud::cpp::compute::zone_operations::v1::DeleteOperationRequest"
+	default:
+		return ""
+	}
+}
+
+func (ann *serviceAnnotations) LroGetOperationPathRest() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name())`
+	}
+	switch m.OperationService {
+	case "GlobalOperations":
+		return `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/global/operations/", request.operation())`
+	case "GlobalOrganizationOperations":
+		return `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/locations/global/operations/", request.operation())`
+	case "RegionOperations":
+		return `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/regions/", request.region(), "/operations/", request.operation())`
+	case "ZoneOperations":
+		return `absl::StrCat("/compute/", rest_internal::DetermineApiVersion("v1", *options), "/projects/", request.project(), "/zones/", request.zone(), "/operations/", request.operation())`
+	default:
+		return ""
+	}
+}
+
+func (ann *serviceAnnotations) LroCancelOperationPathRest() string {
+	m := ann.firstLroMethod()
+	if m == nil {
+		return ""
+	}
+	if m.OperationService == "" {
+		return `absl::StrCat("/", rest_internal::DetermineApiVersion("v1", *options) ,"/", request.name(), ":cancel")`
+	}
+	return ann.LroGetOperationPathRest()
+}
+
 func (ann *serviceAnnotations) RestStubHeaderProtobufIncludes() []string {
 	var includes []string
 	if len(ann.AdditionalPbHeaderPaths) > 0 {
@@ -1337,6 +1476,9 @@ func (ann *serviceAnnotations) RestStubHeaderProtobufIncludes() []string {
 	if ann.ProtoHeaderPath() != "" {
 		includes = append(includes, ann.ProtoHeaderPath())
 	}
+	if ann.HasLRO() && !ann.HasOperationsMixin() {
+		includes = append(includes, ann.LroOperationIncludeHeader())
+	}
 	return includes
 }
 
@@ -1345,8 +1487,8 @@ func (ann *serviceAnnotations) RestStubCcProtobufIncludes() []string {
 	if ann.ProtoHeaderPath() != "" {
 		includes = append(includes, ann.ProtoHeaderPath())
 	}
-	if ann.HasGrpcLRO() {
-		includes = append(includes, "google/longrunning/operations.pb.h")
+	if ann.HasLRO() {
+		includes = append(includes, ann.LroOperationIncludeHeader())
 	}
 	return includes
 }

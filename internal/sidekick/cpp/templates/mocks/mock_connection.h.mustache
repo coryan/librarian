@@ -84,11 +84,11 @@ class {{Codec.MockConnectionClassName}} : public {{Codec.PackageNamespace}}::{{C
   /// @code
   /// using ::testing::_;
   /// using ::testing::Matcher;
-  /// EXPECT_CALL(*mock, {{Name}}(Matcher<google::longrunning::Operation const&>(_)))
+  /// EXPECT_CALL(*mock, {{Name}}(Matcher<{{{LroOperationType}}} const&>(_)))
   /// @endcode
   MOCK_METHOD({{{LroFutureReturnType}}},
   {{Name}}, (
-    google::longrunning::Operation const& operation), (override));
+    {{{LroOperationType}}} const& operation), (override));
 {{/IsLRO}}
 {{^IsLRO}}
 {{#IsPaginated}}
