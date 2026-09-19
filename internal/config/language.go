@@ -413,6 +413,14 @@ type RustDiscovery = CommonDiscovery
 // RustPoller defines how to find a suitable poller RPC for discovery APIs.
 type RustPoller = CommonPoller
 
+// Python generator identifiers.
+const (
+	// PythonGeneratorLegacy represents the legacy Python GAPIC generator.
+	PythonGeneratorLegacy = "legacy"
+	// PythonGeneratorSidekick represents the Sidekick Python generator.
+	PythonGeneratorSidekick = "sidekick"
+)
+
 // PythonPackage contains Python-specific library configuration. It inherits
 // from PythonDefault, allowing library-specific overrides of global settings.
 type PythonPackage struct {
@@ -453,6 +461,9 @@ type PythonPackage struct {
 
 // PythonDefault contains Python-specific default configuration.
 type PythonDefault struct {
+	// Generator specifies which generator to use (e.g., "legacy" or "sidekick").
+	Generator string `yaml:"generator,omitempty"`
+
 	// AllowedNamespaces contains the list of allowed GAPIC namespaces.
 	// If empty, all namespaces are allowed.
 	AllowedNamespaces []string `yaml:"allowed_namespaces,omitempty"`
