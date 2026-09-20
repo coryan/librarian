@@ -122,34 +122,3 @@ func TestPythonIdentifier(t *testing.T) {
 		})
 	}
 }
-
-func TestFormatDocLines(t *testing.T) {
-	for _, test := range []struct {
-		name  string
-		input string
-		want  []string
-	}{
-		{
-			name:  "empty",
-			input: "",
-			want:  nil,
-		},
-		{
-			name:  "single line with spaces",
-			input: "Hello world   ",
-			want:  []string{"Hello world"},
-		},
-		{
-			name:  "multi-line with trailing carriage return",
-			input: "Line 1\r\nLine 2 \r\nLine 3",
-			want:  []string{"Line 1", "Line 2", "Line 3"},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			got := formatDocLines(test.input)
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}

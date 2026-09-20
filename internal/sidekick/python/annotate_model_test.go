@@ -70,7 +70,7 @@ func TestAnnotateModel(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(want, ann,
-		cmpopts.IgnoreFields(ModelAnnotations{}, "BoilerPlate", "Messages", "Enums", "Services"),
+		cmpopts.IgnoreFields(ModelAnnotations{}, "BoilerPlate", "Messages", "Enums", "Services", "Protos", "TypesProtos", "AllTypes"),
 	); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
@@ -83,5 +83,8 @@ func TestAnnotateModel(t *testing.T) {
 	}
 	if len(ann.Services) != 1 || ann.Services[0].Name != "SecretManagerService" {
 		t.Errorf("unexpected Services in model annotation: %+v", ann.Services)
+	}
+	if len(ann.Protos) != 1 || ann.Protos[0].ModuleName != "test" {
+		t.Errorf("unexpected Protos in model annotation: %+v", ann.Protos)
 	}
 }

@@ -15,6 +15,7 @@
 package python
 
 import (
+	"cmp"
 	"slices"
 	"strings"
 
@@ -36,6 +37,9 @@ type ModelAnnotations struct {
 	Services         []*ServiceAnnotations
 	Messages         []*MessageAnnotations
 	Enums            []*EnumAnnotations
+	Protos           []*ProtoAnnotations
+	TypesProtos      []*ProtoAnnotations
+	AllTypes         []string
 }
 
 func (c *codec) annotateModel() error {
@@ -75,6 +79,11 @@ func (c *codec) annotateModel() error {
 		}
 	}
 
+	// Annotate protos after messages and enums are populated.
+	if err := c.annotateProtos(ann); err != nil {
+		return err
+	}
+
 	// Annotate services after messages and enums.
 	for _, service := range c.Model.Services {
 		if err := c.annotateService(service, ann); err != nil {
@@ -86,7 +95,7 @@ func (c *codec) annotateModel() error {
 	}
 
 	slices.SortFunc(ann.Services, func(a, b *ServiceAnnotations) int {
-		return strings.Compare(a.ProtoName, b.ProtoName)
+		return cmp.Compare(a.ProtoName, b.ProtoName)
 	})
 	for i, s := range ann.Services {
 		s.HasNext = (i < len(ann.Services)-1)

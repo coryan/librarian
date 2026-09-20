@@ -23,46 +23,47 @@ import (
 )
 
 func TestAnnotateOneOf(t *testing.T) {
-	for _, test := range []struct {
-		name  string
-		oneOf *api.OneOf
-		want  *OneOfAnnotations
-	}{
-		{
-			name: "basic oneof",
-			oneOf: api.NewTestOneOf("payload").
-				WithFields(
-					api.NewTestField("data").WithType(api.TypezBytes),
-					api.NewTestField("data_crc32c").WithType(api.TypezInt64),
-				),
-			want: &OneOfAnnotations{
-				Name: "payload",
-				Fields: []*FieldAnnotations{
-					{Name: "data"},
-					{Name: "data_crc32c"},
-				},
+	oneOf := api.NewTestOneOf("payload").
+		WithFields(
+			api.NewTestField("data").WithType(api.TypezBytes),
+			api.NewTestField("data_crc32c").WithType(api.TypezInt64),
+		)
+	want := &OneOfAnnotations{
+		Name: "payload",
+		Fields: []*FieldAnnotations{
+			{
+				Name:           "data",
+				ProtoType:      "BYTES",
+				TypeAnnotation: "bytes",
+				SphinxType:     "bytes",
+				OneOf:          "payload",
+				OneOfDoc:       "payload",
+			},
+			{
+				Name:           "data_crc32c",
+				ProtoType:      "INT64",
+				TypeAnnotation: "int",
+				SphinxType:     "int",
+				OneOf:          "payload",
+				OneOfDoc:       "payload",
 			},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			msg := api.NewTestMessage("SecretPayload").
-				WithOneOfs(test.oneOf).
-				WithFields(test.oneOf.Fields...)
-			model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
-			codec := newTestCodec(t, model, nil)
-			if err := codec.annotateModel(); err != nil {
-				t.Fatalf("annotateModel() failed: %v", err)
-			}
-			ann, ok := test.oneOf.Codec.(*OneOfAnnotations)
-			if !ok {
-				t.Fatalf("expected OneOfAnnotations, got %T", test.oneOf.Codec)
-			}
-			if diff := cmp.Diff(test.want, ann,
-				cmpopts.IgnoreFields(OneOfAnnotations{}, "Message"),
-				cmpopts.IgnoreFields(FieldAnnotations{}, "Message", "TypeName"),
-			); diff != "" {
-				t.Errorf("mismatch (-want +got):\n%s", diff)
-			}
-		})
+	}
+	msg := api.NewTestMessage("SecretPayload").
+		WithOneOfs(oneOf)
+	model := api.NewTestAPI([]*api.Message{msg}, nil, nil)
+	codec := newTestCodec(t, model, nil)
+	if err := codec.annotateModel(); err != nil {
+		t.Fatalf("annotateModel() failed: %v", err)
+	}
+	ann, ok := oneOf.Codec.(*OneOfAnnotations)
+	if !ok {
+		t.Fatalf("expected OneOfAnnotations, got %T", oneOf.Codec)
+	}
+	if diff := cmp.Diff(want, ann,
+		cmpopts.IgnoreFields(OneOfAnnotations{}, "Message"),
+		cmpopts.IgnoreFields(FieldAnnotations{}, "Message", "Field"),
+	); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }

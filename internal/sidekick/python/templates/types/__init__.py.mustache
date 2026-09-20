@@ -1,0 +1,17 @@
+{{> prologue}}
+{{#Codec.TypesProtos}}
+from .{{ModuleName}} import (
+{{#SortedMessages}}
+    {{Name}},
+{{/SortedMessages}}
+{{#SortedEnums}}
+    {{Name}},
+{{/SortedEnums}}
+)
+{{/Codec.TypesProtos}}
+
+__all__ = (
+{{#Codec.AllTypes}}
+    '{{.}}',
+{{/Codec.AllTypes}}
+)

@@ -1,0 +1,33 @@
+{{Indent}}class {{Name}}(proto.Enum):
+{{#FirstDocLine}}
+{{Indent}}    r"""{{{FirstDocLine}}}
+{{#RemainingDocLines}}
+{{#.}}
+{{Indent}}    {{{.}}}
+{{/.}}
+{{^.}}
+
+{{/.}}
+{{/RemainingDocLines}}
+
+{{/FirstDocLine}}
+{{^FirstDocLine}}
+{{Indent}}    r"""
+
+{{/FirstDocLine}}
+{{Indent}}    Values:
+{{#Values}}
+{{Indent}}        {{Name}} ({{Number}}):
+{{#DocLines}}
+{{#.}}
+{{Indent}}            {{{.}}}
+{{/.}}
+{{^.}}
+
+{{/.}}
+{{/DocLines}}
+{{/Values}}
+{{Indent}}    """
+{{#Values}}
+{{Indent}}    {{Name}} = {{Number}}
+{{/Values}}

@@ -21,43 +21,68 @@ import (
 	"github.com/iancoleman/strcase"
 )
 
-// pythonKeywords contains keywords reserved in Python 3.
+// pythonKeywords contains keywords and names reserved in Python/proto-plus.
 var pythonKeywords = map[string]bool{
-	"False":    true,
-	"None":     true,
-	"True":     true,
-	"and":      true,
-	"as":       true,
-	"assert":   true,
-	"async":    true,
-	"await":    true,
-	"break":    true,
-	"class":    true,
-	"continue": true,
-	"def":      true,
-	"del":      true,
-	"elif":     true,
-	"else":     true,
-	"except":   true,
-	"finally":  true,
-	"for":      true,
-	"from":     true,
-	"global":   true,
-	"if":       true,
-	"import":   true,
-	"in":       true,
-	"is":       true,
-	"lambda":   true,
-	"nonlocal": true,
-	"not":      true,
-	"or":       true,
-	"pass":     true,
-	"raise":    true,
-	"return":   true,
-	"try":      true,
-	"while":    true,
-	"with":     true,
-	"yield":    true,
+	"False":                 true,
+	"None":                  true,
+	"True":                  true,
+	"__peg_parser__":        true,
+	"all":                   true,
+	"and":                   true,
+	"any":                   true,
+	"as":                    true,
+	"assert":                true,
+	"async":                 true,
+	"await":                 true,
+	"break":                 true,
+	"breakpoint":            true,
+	"class":                 true,
+	"cls":                   true,
+	"continue":              true,
+	"def":                   true,
+	"del":                   true,
+	"dir":                   true,
+	"elif":                  true,
+	"else":                  true,
+	"except":                true,
+	"exec":                  true,
+	"finally":               true,
+	"for":                   true,
+	"format":                true,
+	"from":                  true,
+	"global":                true,
+	"hash":                  true,
+	"help":                  true,
+	"if":                    true,
+	"ignore_unknown_fields": true,
+	"import":                true,
+	"in":                    true,
+	"is":                    true,
+	"lambda":                true,
+	"license":               true,
+	"list":                  true,
+	"locals":                true,
+	"mapping":               true,
+	"max":                   true,
+	"min":                   true,
+	"next":                  true,
+	"nonlocal":              true,
+	"not":                   true,
+	"object":                true,
+	"open":                  true,
+	"or":                    true,
+	"pass":                  true,
+	"raise":                 true,
+	"range":                 true,
+	"return":                true,
+	"self":                  true,
+	"slice":                 true,
+	"try":                   true,
+	"type":                  true,
+	"while":                 true,
+	"with":                  true,
+	"yield":                 true,
+	"zip":                   true,
 }
 
 // snakeCase converts a string to snake_case.
@@ -79,17 +104,4 @@ func pythonIdentifier(s string) string {
 		return s + "_"
 	}
 	return s
-}
-
-// formatDocLines splits documentation into lines, trimming trailing whitespace.
-func formatDocLines(doc string) []string {
-	if doc == "" {
-		return nil
-	}
-	lines := strings.Split(doc, "\n")
-	result := make([]string, 0, len(lines))
-	for _, line := range lines {
-		result = append(result, strings.TrimRight(line, " \t\r"))
-	}
-	return result
 }

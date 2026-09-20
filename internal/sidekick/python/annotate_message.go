@@ -15,24 +15,55 @@
 package python
 
 import (
+	"strings"
+
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
 // MessageAnnotations decorates api.Message with Python-specific metadata.
 type MessageAnnotations struct {
-	Model    *ModelAnnotations
-	Name     string
-	DocLines []string
-	Fields   []*FieldAnnotations
-	OneOfs   []*OneOfAnnotations
+	Model                         *ModelAnnotations
+	Message                       *api.Message
+	Name                          string
+	DocLines                      []string
+	FirstDocLine                  string
+	RemainingDocLines             []string
+	Fields                        []*FieldAnnotations
+	OneOfs                        []*OneOfAnnotations
+	NestedMessages                []*MessageAnnotations
+	NestedEnums                   []*EnumAnnotations
+	Indent                        string
+	HasOneOfs                     bool
+	HasOneOfsMultiple             bool
+	HasOneOfsSingle               bool
+	HasNextPageToken              bool
+	HasFields                     bool
+	HasNestedEnums                bool
+	HasNestedMessages             bool
+	HasNestedMessagesOnly         bool
+	HasNoNestedClasses            bool
+	HasNoNestedClassesWithContent bool
+	HasRemainingDocLines          bool
 }
 
 func (c *codec) annotateMessage(message *api.Message, model *ModelAnnotations) error {
-	docLines := formatDocLines(message.Documentation)
+	depth := 0
+	for p := message.Parent; p != nil; p = p.Parent {
+		depth++
+	}
+	indent := strings.Repeat("    ", depth)
+	docLines := formatRSTDocLines(message.Documentation, 72, 4)
 	ann := &MessageAnnotations{
 		Model:    model,
+		Message:  message,
 		Name:     pascalCase(message.Name),
 		DocLines: docLines,
+		Indent:   indent,
+	}
+	if len(docLines) > 0 {
+		ann.FirstDocLine = docLines[0]
+		ann.RemainingDocLines = docLines[1:]
+		ann.HasRemainingDocLines = len(ann.RemainingDocLines) > 0
 	}
 
 	for _, field := range message.Fields {
@@ -41,6 +72,12 @@ func (c *codec) annotateMessage(message *api.Message, model *ModelAnnotations) e
 		}
 		if fAnn, ok := field.Codec.(*FieldAnnotations); ok {
 			ann.Fields = append(ann.Fields, fAnn)
+			if field.Name == "next_page_token" {
+				ann.HasNextPageToken = true
+			}
+			if fAnn.OneOfDoc != "" {
+				ann.HasOneOfs = true
+			}
 		}
 	}
 
@@ -50,8 +87,43 @@ func (c *codec) annotateMessage(message *api.Message, model *ModelAnnotations) e
 		}
 		if oAnn, ok := oneOf.Codec.(*OneOfAnnotations); ok {
 			ann.OneOfs = append(ann.OneOfs, oAnn)
+			if len(oneOf.Fields) > 1 {
+				ann.HasOneOfsMultiple = true
+			}
 		}
 	}
+
+	ann.HasFields = len(ann.Fields) > 0
+
+	// Annotate nested enums
+	for _, nestedEnum := range message.Enums {
+		if err := c.annotateEnum(nestedEnum, model); err != nil {
+			return err
+		}
+		if eAnn, ok := nestedEnum.Codec.(*EnumAnnotations); ok {
+			ann.NestedEnums = append(ann.NestedEnums, eAnn)
+		}
+	}
+
+	// Annotate nested messages (excluding maps)
+	for _, nestedMsg := range message.Messages {
+		if nestedMsg.IsMap {
+			continue
+		}
+		if err := c.annotateMessage(nestedMsg, model); err != nil {
+			return err
+		}
+		if mAnn, ok := nestedMsg.Codec.(*MessageAnnotations); ok {
+			ann.NestedMessages = append(ann.NestedMessages, mAnn)
+		}
+	}
+
+	ann.HasNestedEnums = len(ann.NestedEnums) > 0
+	ann.HasNestedMessages = len(ann.NestedMessages) > 0
+	ann.HasNestedMessagesOnly = ann.HasNestedMessages && !ann.HasNestedEnums
+	ann.HasOneOfsSingle = ann.HasOneOfs && !ann.HasOneOfsMultiple
+	ann.HasNoNestedClasses = !ann.HasNestedEnums && !ann.HasNestedMessages
+	ann.HasNoNestedClassesWithContent = ann.HasNoNestedClasses && (ann.HasFields || ann.HasNextPageToken)
 
 	message.Codec = ann
 	return nil

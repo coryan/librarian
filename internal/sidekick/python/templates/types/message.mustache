@@ -1,0 +1,106 @@
+{{Indent}}class {{Name}}(proto.Message):
+{{#FirstDocLine}}
+{{Indent}}    r"""{{{FirstDocLine}}}
+{{#RemainingDocLines}}
+{{#.}}
+{{Indent}}    {{{.}}}
+{{/.}}
+{{^.}}
+
+{{/.}}
+{{/RemainingDocLines}}
+{{/FirstDocLine}}
+{{^FirstDocLine}}
+{{Indent}}    r"""
+{{/FirstDocLine}}
+{{#HasOneOfsMultiple}}
+
+{{Indent}}    This message has `oneof`_ fields (mutually exclusive fields).
+{{Indent}}    For each oneof, at most one member field can be set at the same time.
+{{Indent}}    Setting any member of the oneof automatically clears all other
+{{Indent}}    members.
+
+{{Indent}}    .. _oneof: https://proto-plus-python.readthedocs.io/en/stable/fields.html#oneofs-mutually-exclusive-fields
+{{/HasOneOfsMultiple}}
+{{#HasOneOfsSingle}}
+{{#HasRemainingDocLines}}
+
+{{/HasRemainingDocLines}}
+
+{{Indent}}    .. _oneof: https://proto-plus-python.readthedocs.io/en/stable/fields.html#oneofs-mutually-exclusive-fields
+{{/HasOneOfsSingle}}
+{{#HasFields}}
+
+{{Indent}}    Attributes:
+{{#Fields}}
+{{Indent}}        {{Name}} ({{SphinxType}}):
+{{#DocLines}}
+{{#.}}
+{{Indent}}            {{{.}}}
+{{/.}}
+{{^.}}
+
+{{/.}}
+{{/DocLines}}
+{{#OneOfDoc}}
+
+{{Indent}}            This field is a member of `oneof`_ ``{{OneOfDoc}}``.
+{{/OneOfDoc}}
+{{/Fields}}
+{{/HasFields}}
+{{^HasFields}}
+{{#HasRemainingDocLines}}
+
+{{/HasRemainingDocLines}}
+{{/HasFields}}
+{{Indent}}    """
+{{#NestedEnums}}
+{{> enum}}
+
+{{/NestedEnums}}
+{{#HasNestedMessagesOnly}}
+
+{{/HasNestedMessagesOnly}}
+{{#NestedMessages}}
+{{> message}}
+
+{{/NestedMessages}}
+{{#HasNoNestedClassesWithContent}}
+
+{{/HasNoNestedClassesWithContent}}
+{{#HasNextPageToken}}
+{{Indent}}    @property
+{{Indent}}    def raw_page(self):
+{{Indent}}        return self
+
+{{/HasNextPageToken}}
+{{#Fields}}
+{{#IsMap}}
+{{Indent}}    {{Name}}: {{{TypeAnnotation}}} = proto.MapField(
+{{Indent}}        proto.{{KeyProtoType}},
+{{Indent}}        proto.{{ValProtoType}},
+{{Indent}}        number={{Number}},{{#ValFieldArg}}
+{{Indent}}        {{ValFieldArg}}={{{ValTypeRef}}},{{/ValFieldArg}}
+{{Indent}}    )
+{{/IsMap}}
+{{^IsMap}}
+{{#IsRepeated}}
+{{Indent}}    {{Name}}: {{{TypeAnnotation}}} = proto.RepeatedField(
+{{Indent}}        proto.{{ProtoType}},
+{{Indent}}        number={{Number}},{{#OneOf}}
+{{Indent}}        oneof='{{OneOf}}',{{/OneOf}}{{#IsOptional}}
+{{Indent}}        optional=True,{{/IsOptional}}{{#FieldArg}}
+{{Indent}}        {{FieldArg}}={{{TypeRef}}},{{/FieldArg}}
+{{Indent}}    )
+{{/IsRepeated}}
+{{^IsRepeated}}
+{{Indent}}    {{Name}}: {{{TypeAnnotation}}} = proto.Field(
+{{Indent}}        proto.{{ProtoType}},
+{{Indent}}        number={{Number}},{{#OneOf}}
+{{Indent}}        oneof='{{OneOf}}',{{/OneOf}}{{#IsOptional}}
+{{Indent}}        optional=True,{{/IsOptional}}{{#FieldArg}}
+{{Indent}}        {{FieldArg}}={{{TypeRef}}},{{/FieldArg}}
+{{Indent}}    )
+{{/IsRepeated}}
+{{/IsMap}}
+{{/Fields}}

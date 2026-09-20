@@ -23,45 +23,35 @@ import (
 )
 
 func TestAnnotateEnum(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		enum *api.Enum
-		want *EnumAnnotations
-	}{
-		{
-			name: "basic enum with values",
-			enum: api.NewTestEnum("SecretStatus").
-				WithDocumentation("Status of secret.").
-				WithValues(
-					api.NewTestEnumValue("STATUS_UNSPECIFIED", 0),
-					api.NewTestEnumValue("ENABLED", 1),
-				),
-			want: &EnumAnnotations{
-				Name:     "SecretStatus",
-				DocLines: []string{"Status of secret."},
-				Values: []*EnumValueAnnotations{
-					{Name: "STATUS_UNSPECIFIED", Number: 0},
-					{Name: "ENABLED", Number: 1},
-				},
-			},
+	enum := api.NewTestEnum("SecretStatus").
+		WithDocumentation("Status of secret.").
+		WithValues(
+			api.NewTestEnumValue("STATUS_UNSPECIFIED", 0),
+			api.NewTestEnumValue("ENABLED", 1),
+		)
+	want := &EnumAnnotations{
+		Name:              "SecretStatus",
+		DocLines:          []string{"Status of secret."},
+		FirstDocLine:      "Status of secret.",
+		RemainingDocLines: []string{},
+		Values: []*EnumValueAnnotations{
+			{Name: "STATUS_UNSPECIFIED", Number: 0},
+			{Name: "ENABLED", Number: 1},
 		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			model := api.NewTestAPI(nil, []*api.Enum{test.enum}, nil)
-			codec := newTestCodec(t, model, nil)
-			if err := codec.annotateModel(); err != nil {
-				t.Fatalf("annotateModel() failed: %v", err)
-			}
-			ann, ok := test.enum.Codec.(*EnumAnnotations)
-			if !ok {
-				t.Fatalf("expected EnumAnnotations, got %T", test.enum.Codec)
-			}
-			if diff := cmp.Diff(test.want, ann,
-				cmpopts.IgnoreFields(EnumAnnotations{}, "Model"),
-				cmpopts.IgnoreFields(EnumValueAnnotations{}, "Enum"),
-			); diff != "" {
-				t.Errorf("mismatch (-want +got):\n%s", diff)
-			}
-		})
+	}
+	model := api.NewTestAPI(nil, []*api.Enum{enum}, nil)
+	codec := newTestCodec(t, model, nil)
+	if err := codec.annotateModel(); err != nil {
+		t.Fatalf("annotateModel() failed: %v", err)
+	}
+	ann, ok := enum.Codec.(*EnumAnnotations)
+	if !ok {
+		t.Fatalf("expected EnumAnnotations, got %T", enum.Codec)
+	}
+	if diff := cmp.Diff(want, ann,
+		cmpopts.IgnoreFields(EnumAnnotations{}, "Model", "Enum"),
+		cmpopts.IgnoreFields(EnumValueAnnotations{}, "Enum"),
+	); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }

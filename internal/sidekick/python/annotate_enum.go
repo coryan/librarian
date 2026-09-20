@@ -15,23 +15,40 @@
 package python
 
 import (
+	"strings"
+
 	"github.com/googleapis/librarian/internal/sidekick/api"
 )
 
 // EnumAnnotations decorates api.Enum with Python-specific metadata.
 type EnumAnnotations struct {
-	Model    *ModelAnnotations
-	Name     string
-	DocLines []string
-	Values   []*EnumValueAnnotations
+	Model             *ModelAnnotations
+	Enum              *api.Enum
+	Name              string
+	DocLines          []string
+	FirstDocLine      string
+	RemainingDocLines []string
+	Values            []*EnumValueAnnotations
+	Indent            string
 }
 
 func (c *codec) annotateEnum(enum *api.Enum, model *ModelAnnotations) error {
-	docLines := formatDocLines(enum.Documentation)
+	depth := 0
+	for p := enum.Parent; p != nil; p = p.Parent {
+		depth++
+	}
+	indent := strings.Repeat("    ", depth)
+	docLines := formatRSTDocLines(enum.Documentation, 72, 4)
 	ann := &EnumAnnotations{
 		Model:    model,
+		Enum:     enum,
 		Name:     pascalCase(enum.Name),
 		DocLines: docLines,
+		Indent:   indent,
+	}
+	if len(docLines) > 0 {
+		ann.FirstDocLine = docLines[0]
+		ann.RemainingDocLines = docLines[1:]
 	}
 
 	for _, ev := range enum.Values {

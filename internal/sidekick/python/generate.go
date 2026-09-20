@@ -105,6 +105,31 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 		})
 	}
 
+	modelAnn, _ := model.Codec.(*ModelAnnotations)
+	if modelAnn != nil && len(modelAnn.TypesProtos) > 0 {
+		modelFiles = append(modelFiles, language.GeneratedFile{
+			TemplatePath: "templates/types/__init__.py.mustache",
+			OutputPath:   filepath.Join(pkgDir, "types", "__init__.py"),
+		})
+	}
+
+	type protoFile struct {
+		proto *ProtoAnnotations
+		file  language.GeneratedFile
+	}
+	var protoFiles []protoFile
+	if modelAnn != nil {
+		for _, p := range modelAnn.Protos {
+			protoFiles = append(protoFiles, protoFile{
+				proto: p,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/types/proto.py.mustache",
+					OutputPath:   filepath.Join(pkgDir, "types", p.ModuleName+".py"),
+				},
+			})
+		}
+	}
+
 	type serviceFile struct {
 		service *api.Service
 		file    language.GeneratedFile
@@ -135,10 +160,13 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 		)
 	}
 
-	allFiles := make([]language.GeneratedFile, 0, len(modelFiles)+len(serviceFiles))
+	allFiles := make([]language.GeneratedFile, 0, len(modelFiles)+len(serviceFiles)+len(protoFiles))
 	allFiles = append(allFiles, modelFiles...)
 	for _, sf := range serviceFiles {
 		allFiles = append(allFiles, sf.file)
+	}
+	for _, pf := range protoFiles {
+		allFiles = append(allFiles, pf.file)
 	}
 
 	if err := validateOutputContainment(outdir, allFiles); err != nil {
@@ -151,6 +179,12 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 
 	for _, sf := range serviceFiles {
 		if err := language.GenerateService(outdir, sf.service, provider, sf.file); err != nil {
+			return err
+		}
+	}
+
+	for _, pf := range protoFiles {
+		if err := language.GenerateElement(outdir, pf.proto, provider, pf.file); err != nil {
 			return err
 		}
 	}
