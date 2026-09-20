@@ -471,8 +471,15 @@ func isMixinMethod(m *api.Method, service *api.Service) bool {
 
 func (c *codec) resolveTypeModule(typeID string, service *api.Service) string {
 	if c.Model != nil {
-		if loc, ok := c.Model.DefinitionLocation(typeID); ok && loc.Filename != "" {
-			return strings.TrimSuffix(filepath.Base(loc.Filename), ".proto")
+		for curID := typeID; curID != ""; {
+			if loc, ok := c.Model.DefinitionLocation(curID); ok && loc.Filename != "" {
+				return strings.TrimSuffix(filepath.Base(loc.Filename), ".proto")
+			}
+			idx := strings.LastIndex(curID, ".")
+			if idx <= 0 {
+				break
+			}
+			curID = curID[:idx]
 		}
 	}
 	if service != nil {

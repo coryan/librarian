@@ -16,6 +16,7 @@ package python
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -429,6 +430,71 @@ __all__ = (
 	}
 	if !strings.Contains(string(grpcAsyncBytes), "class SecretManagerServiceGrpcAsyncIOTransport(") {
 		t.Errorf("expected %s to contain class SecretManagerServiceGrpcAsyncIOTransport", grpcAsyncFile)
+	}
+
+	// Verify services/secret_manager_service/pagers.py is not emitted when there are no pagers
+	pagersFile := filepath.Join(outdir, "google", "cloud", "secretmanager_v1", "services", "secret_manager_service", "pagers.py")
+	if _, err := os.Stat(pagersFile); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected %s not to exist when service has no pagers", pagersFile)
+	}
+}
+
+func TestGenerate_WithPagers(t *testing.T) {
+	outdir := t.TempDir()
+
+	itemMsg := api.NewTestMessage("Secret").WithPackage("google.cloud.secretmanager.v1")
+
+	pageToken := api.NewTestField("page_token").WithType(api.TypezString)
+	nextPageToken := api.NewTestField("next_page_token").WithType(api.TypezString)
+	secretsField := api.NewTestField("secrets").WithMessageType(itemMsg).WithRepeated()
+
+	reqMsg := api.NewTestMessage("ListSecretsRequest").WithPackage("google.cloud.secretmanager.v1").WithFields(pageToken)
+
+	respMsg := api.NewTestMessage("ListSecretsResponse").WithPackage("google.cloud.secretmanager.v1").WithFields(secretsField, nextPageToken)
+	respMsg.Pagination = &api.PaginationInfo{
+		NextPageToken: nextPageToken,
+		PageableItem:  secretsField,
+	}
+
+	method := api.NewTestMethod("ListSecrets").
+		WithInput(reqMsg).
+		WithOutput(respMsg)
+	method.Pagination = pageToken
+
+	svc := api.NewTestService("SecretManagerService").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{itemMsg, reqMsg, respMsg}, nil, []*api.Service{svc}).
+		WithDefinitionLocation(reqMsg.ID, "google/cloud/secretmanager/v1/service.proto", 10).
+		WithDefinitionLocation(respMsg.ID, "google/cloud/secretmanager/v1/service.proto", 20).
+		WithDefinitionLocation(itemMsg.ID, "google/cloud/secretmanager/v1/resources.proto", 30)
+	model.Name = "google-cloud-secretmanager"
+
+	lib := &config.Library{
+		Name:          "google-cloud-secretmanager",
+		Version:       "2.1.0",
+		CopyrightYear: "2026",
+		APIs: []*config.API{
+			{Path: "google/cloud/secretmanager/v1"},
+		},
+		Python: &config.PythonPackage{
+			DefaultVersion: "v1",
+		},
+	}
+
+	if err := Generate(t.Context(), model, outdir, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	pagersFile := filepath.Join(outdir, "google", "cloud", "secretmanager_v1", "services", "secret_manager_service", "pagers.py")
+	pagersBytes, err := os.ReadFile(pagersFile)
+	if err != nil {
+		t.Fatalf("reading pagers.py: %v", err)
+	}
+	content := string(pagersBytes)
+	if !strings.Contains(content, "class ListSecretsPager:") {
+		t.Errorf("expected %s to contain class ListSecretsPager", pagersFile)
+	}
+	if !strings.Contains(content, "class ListSecretsAsyncPager:") {
+		t.Errorf("expected %s to contain class ListSecretsAsyncPager", pagersFile)
 	}
 }
 
