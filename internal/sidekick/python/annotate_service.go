@@ -36,6 +36,7 @@ type ServiceAnnotations struct {
 	Methods         []*MethodAnnotations
 	OwnMethods      []*MethodAnnotations
 	HasNext         bool
+	Transport       *TransportAnnotations
 }
 
 func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) error {
@@ -88,6 +89,12 @@ func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) e
 	for i, m := range ann.OwnMethods {
 		m.HasNextOwn = (i < len(ann.OwnMethods)-1)
 	}
+
+	tAnn, err := c.annotateTransport(service)
+	if err != nil {
+		return err
+	}
+	ann.Transport = tAnn
 
 	service.Codec = ann
 	return nil

@@ -41,7 +41,7 @@ func TestGoldenParity(t *testing.T) {
 	protosDir := filepath.Join(testdataDir, "protos")
 	goldenBaseDir := filepath.Join(testdataDir, "golden")
 
-	for _, tc := range []struct {
+	for _, test := range []struct {
 		name           string
 		specSource     string
 		serviceConfig  string
@@ -78,14 +78,14 @@ func TestGoldenParity(t *testing.T) {
 			goldenRelDir:   "asset",
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			outDir := t.TempDir()
 
 			cfg := &parser.ModelConfig{
 				Language:            config.LanguagePython,
 				SpecificationFormat: config.SpecProtobuf,
-				ServiceConfig:       tc.serviceConfig,
-				SpecificationSource: tc.specSource,
+				ServiceConfig:       test.serviceConfig,
+				SpecificationSource: test.specSource,
 				Source: &sources.SourceConfig{
 					Sources: &sources.Sources{
 						Googleapis: protosDir,
@@ -96,19 +96,20 @@ func TestGoldenParity(t *testing.T) {
 
 			model, err := parser.CreateModel(cfg)
 			if err != nil {
-				t.Fatalf("parser.CreateModel failed: %v", err)
+				t.Fatal(err)
 			}
 
 			lib := &config.Library{
-				Name:          tc.libraryName,
+				Name:          test.libraryName,
 				Output:        outDir,
-				Version:       tc.packageVersion,
+				Version:       test.packageVersion,
 				CopyrightYear: "2026",
+				Roots:         []string{protosDir},
 				APIs: []*config.API{
-					{Path: tc.specSource},
+					{Path: test.specSource},
 				},
 				Python: &config.PythonPackage{
-					DefaultVersion: tc.defaultVersion,
+					DefaultVersion: test.defaultVersion,
 					PythonDefault: config.PythonDefault{
 						Generator: config.PythonGeneratorSidekick,
 					},
@@ -116,10 +117,10 @@ func TestGoldenParity(t *testing.T) {
 			}
 
 			if err := Generate(t.Context(), model, outDir, lib); err != nil {
-				t.Fatalf("Generate failed: %v", err)
+				t.Fatal(err)
 			}
 
-			goldenDir := filepath.Join(goldenBaseDir, tc.goldenRelDir)
+			goldenDir := filepath.Join(goldenBaseDir, test.goldenRelDir)
 			emittedCount := 0
 			err = filepath.WalkDir(outDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
@@ -150,17 +151,18 @@ func TestGoldenParity(t *testing.T) {
 				}
 
 				if diff := cmp.Diff(string(wantBytes), string(gotBytes)); diff != "" {
-					t.Errorf("diff in emitted file %s (-golden +got):\n%s", relPath, diff)
+					t.Logf("[%s] file %s", test.name, relPath)
+					t.Errorf("mismatch (-want +got):\n%s", diff)
 				}
 				return nil
 			})
 			if err != nil {
-				t.Fatalf("WalkDir failed: %v", err)
+				t.Fatal(err)
 			}
-			if emittedCount < 6 {
-				t.Errorf("expected at least 6 emitted files for %s, got %d", tc.name, emittedCount)
+			if emittedCount < 13 {
+				t.Errorf("expected at least 13 emitted files for %s, got %d", test.name, emittedCount)
 			}
-			t.Logf("[%s] Successfully verified %d emitted files against golden", tc.name, emittedCount)
+			t.Logf("[%s] Successfully verified %d emitted files against golden", test.name, emittedCount)
 		})
 	}
 }

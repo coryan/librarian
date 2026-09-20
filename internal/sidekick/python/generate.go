@@ -157,6 +157,20 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 					OutputPath:   filepath.Join(serviceDir, "transports", "README.rst"),
 				},
 			},
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/transports/base.py.mustache",
+					OutputPath:   filepath.Join(serviceDir, "transports", "base.py"),
+				},
+			},
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/transports/__init__.py.mustache",
+					OutputPath:   filepath.Join(serviceDir, "transports", "__init__.py"),
+				},
+			},
 		)
 	}
 
