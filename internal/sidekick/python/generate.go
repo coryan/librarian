@@ -18,11 +18,24 @@ package python
 import (
 	"context"
 	"embed"
+	"errors"
+	"fmt"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/googleapis/librarian/internal/config"
 	"github.com/googleapis/librarian/internal/sidekick/api"
 	"github.com/googleapis/librarian/internal/sidekick/language"
+)
+
+var (
+	// ErrEscapeOutputDir indicates that a generated file output path escapes the output directory.
+	ErrEscapeOutputDir = errors.New("output path escapes output directory")
+	// ErrDuplicateOutputPath indicates that multiple generated files target the exact same output path.
+	ErrDuplicateOutputPath = errors.New("duplicate output path")
+	// ErrInvalidOutputPath indicates that a generated file output path is empty, root, or absolute.
+	ErrInvalidOutputPath = errors.New("invalid output path")
 )
 
 //go:embed all:templates
@@ -39,14 +52,18 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 	}
 	provider := func(name string) (string, error) {
 		contents, err := templates.ReadFile(name)
-		if err != nil {
-			return "", err
+		if err == nil {
+			return string(contents), nil
 		}
-		return string(contents), nil
+		base := filepath.Base(name)
+		if partial, err2 := templates.ReadFile(path.Join("templates", "partials", base)); err2 == nil {
+			return string(partial), nil
+		}
+		return "", err
 	}
 
 	pkgDir := c.packageDir()
-	files := []language.GeneratedFile{
+	modelFiles := []language.GeneratedFile{
 		{
 			TemplatePath: "templates/gapic_version.py.mustache",
 			OutputPath:   filepath.Join(pkgDir, "gapic_version.py"),
@@ -68,7 +85,7 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 	if c.isDefaultVersion() {
 		rootDir := c.rootPackageDir()
 		if rootDir != "" && rootDir != pkgDir {
-			files = append(files,
+			modelFiles = append(modelFiles,
 				language.GeneratedFile{
 					TemplatePath: "templates/gapic_version.py.mustache",
 					OutputPath:   filepath.Join(rootDir, "gapic_version.py"),
@@ -81,5 +98,89 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 		}
 	}
 
-	return language.GenerateFromModel(outdir, model, provider, files)
+	if model.HasServices() {
+		modelFiles = append(modelFiles, language.GeneratedFile{
+			TemplatePath: "templates/services/__init__.py.mustache",
+			OutputPath:   filepath.Join(pkgDir, "services", "__init__.py"),
+		})
+	}
+
+	type serviceFile struct {
+		service *api.Service
+		file    language.GeneratedFile
+	}
+	var serviceFiles []serviceFile
+
+	for _, service := range model.Services {
+		ann, ok := service.Codec.(*ServiceAnnotations)
+		if !ok || ann == nil {
+			continue
+		}
+		serviceDir := filepath.Join(pkgDir, "services", ann.DirectoryName)
+		serviceFiles = append(serviceFiles,
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/__init__.py.mustache",
+					OutputPath:   filepath.Join(serviceDir, "__init__.py"),
+				},
+			},
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/transports/README.rst.mustache",
+					OutputPath:   filepath.Join(serviceDir, "transports", "README.rst"),
+				},
+			},
+		)
+	}
+
+	allFiles := make([]language.GeneratedFile, 0, len(modelFiles)+len(serviceFiles))
+	allFiles = append(allFiles, modelFiles...)
+	for _, sf := range serviceFiles {
+		allFiles = append(allFiles, sf.file)
+	}
+
+	if err := validateOutputContainment(outdir, allFiles); err != nil {
+		return err
+	}
+
+	if err := language.GenerateFromModel(outdir, model, provider, modelFiles); err != nil {
+		return err
+	}
+
+	for _, sf := range serviceFiles {
+		if err := language.GenerateService(outdir, sf.service, provider, sf.file); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateOutputContainment(outdir string, files []language.GeneratedFile) error {
+	absOutdir, err := filepath.Abs(outdir)
+	if err != nil {
+		return fmt.Errorf("resolving outdir %q: %w", outdir, err)
+	}
+	seen := make(map[string]bool, len(files))
+	for _, gen := range files {
+		if gen.OutputPath == "" || filepath.IsAbs(gen.OutputPath) {
+			return fmt.Errorf("%w: %q", ErrInvalidOutputPath, gen.OutputPath)
+		}
+		cleanPath := filepath.Clean(gen.OutputPath)
+		if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("%w: %q", ErrEscapeOutputDir, gen.OutputPath)
+		}
+		target := filepath.Join(absOutdir, gen.OutputPath)
+		rel, err := filepath.Rel(absOutdir, target)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("%w: %q", ErrEscapeOutputDir, gen.OutputPath)
+		}
+		if seen[rel] {
+			return fmt.Errorf("%w: %q", ErrDuplicateOutputPath, gen.OutputPath)
+		}
+		seen[rel] = true
+	}
+	return nil
 }

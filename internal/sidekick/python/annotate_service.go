@@ -25,9 +25,11 @@ import (
 type ServiceAnnotations struct {
 	Model           *ModelAnnotations
 	Service         *api.Service
+	CopyrightYear   string
 	Name            string
 	ProtoName       string
 	ServiceName     string
+	DirectoryName   string
 	ClientName      string
 	AsyncClientName string
 	DocLines        []string
@@ -44,12 +46,18 @@ func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) e
 		clientName = name + "Client"
 	}
 	asyncClientName := strings.TrimSuffix(clientName, "Client") + "AsyncClient"
+	copyrightYear := ""
+	if model != nil {
+		copyrightYear = model.CopyrightYear
+	}
 	ann := &ServiceAnnotations{
 		Model:           model,
 		Service:         service,
+		CopyrightYear:   copyrightYear,
 		Name:            name,
 		ProtoName:       service.Name,
 		ServiceName:     service.Name,
+		DirectoryName:   snakeCase(name),
 		ClientName:      clientName,
 		AsyncClientName: asyncClientName,
 		DocLines:        docLines,
@@ -84,4 +92,3 @@ func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) e
 	service.Codec = ann
 	return nil
 }
-
