@@ -38,6 +38,7 @@ type ServiceAnnotations struct {
 	HasNext         bool
 	Transport       *TransportAnnotations
 	Pagers          *PagersAnnotations
+	Client          *ClientAnnotations
 }
 
 func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) error {
@@ -101,6 +102,8 @@ func (c *codec) annotateService(service *api.Service, model *ModelAnnotations) e
 	if len(pAnn.Pagers) > 0 {
 		ann.Pagers = pAnn
 	}
+
+	ann.Client = c.annotateClient(service, ann)
 
 	service.Codec = ann
 	return nil

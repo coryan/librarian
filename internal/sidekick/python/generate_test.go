@@ -498,6 +498,52 @@ func TestGenerate_WithPagers(t *testing.T) {
 	}
 }
 
+func TestGenerate_Client(t *testing.T) {
+	outdir := t.TempDir()
+
+	itemMsg := api.NewTestMessage("Secret").WithPackage("google.cloud.secretmanager.v1")
+	reqMsg := api.NewTestMessage("GetSecretRequest").WithPackage("google.cloud.secretmanager.v1")
+
+	method := api.NewTestMethod("GetSecret").
+		WithInput(reqMsg).
+		WithOutput(itemMsg)
+
+	svc := api.NewTestService("SecretManagerService").WithMethods(method)
+	model := api.NewTestAPI([]*api.Message{itemMsg, reqMsg}, nil, []*api.Service{svc}).
+		WithDefinitionLocation(reqMsg.ID, "google/cloud/secretmanager/v1/service.proto", 10).
+		WithDefinitionLocation(itemMsg.ID, "google/cloud/secretmanager/v1/resources.proto", 20)
+	model.Name = "google-cloud-secretmanager"
+
+	lib := &config.Library{
+		Name:          "google-cloud-secretmanager",
+		Version:       "2.1.0",
+		CopyrightYear: "2026",
+		APIs: []*config.API{
+			{Path: "google/cloud/secretmanager/v1"},
+		},
+		Python: &config.PythonPackage{
+			DefaultVersion: "v1",
+		},
+	}
+
+	if err := Generate(t.Context(), model, outdir, lib); err != nil {
+		t.Fatal(err)
+	}
+
+	clientFile := filepath.Join(outdir, "google", "cloud", "secretmanager_v1", "services", "secret_manager_service", "client.py")
+	clientBytes, err := os.ReadFile(clientFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(clientBytes)
+	if !strings.Contains(content, "class SecretManagerServiceClient(metaclass=SecretManagerServiceClientMeta):") {
+		t.Errorf("expected %s to contain class SecretManagerServiceClient", clientFile)
+	}
+	if !strings.Contains(content, "def get_secret(") {
+		t.Errorf("expected %s to contain def get_secret(", clientFile)
+	}
+}
+
 func TestValidateOutputContainment(t *testing.T) {
 	outdir := t.TempDir()
 	files := []language.GeneratedFile{
