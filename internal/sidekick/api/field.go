@@ -26,6 +26,8 @@ type Field struct {
 	Name string
 	// ID is a unique identifier.
 	ID string
+	// Number is the protobuf tag number or specification position.
+	Number int32
 	// Typez is the datatype of the field.
 	Typez Typez
 	// TypezID is the ID of the type the field refers to. This value is populated

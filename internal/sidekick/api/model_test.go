@@ -422,3 +422,10 @@ func TestService_HasServerSideStreaming(t *testing.T) {
 		})
 	}
 }
+
+func TestFieldNumber(t *testing.T) {
+	f := NewTestField("test_field").WithNumber(42)
+	if f.Number != 42 {
+		t.Errorf("f.Number = %d, want 42", f.Number)
+	}
+}

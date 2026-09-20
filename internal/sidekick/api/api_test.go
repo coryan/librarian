@@ -15,6 +15,7 @@
 package api
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -134,10 +135,7 @@ func TestAPIDefinitionLocation(t *testing.T) {
 			t.Errorf("DefinitionLocationCount() = %d, want 2", got)
 		}
 
-		seen := make(map[string]SourceLocation)
-		for name, loc := range a.AllDefinitionLocations() {
-			seen[name] = loc
-		}
+		seen := maps.Collect(a.AllDefinitionLocations())
 		wantSeen := map[string]SourceLocation{
 			".test.Foo": {Filename: "foo.proto", Line: 10},
 			".test.Bar": {Filename: "bar.proto", Line: 20},

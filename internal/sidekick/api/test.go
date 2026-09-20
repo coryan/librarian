@@ -450,6 +450,12 @@ func (f *Field) WithChildTypeReference(childType string) *Field {
 	return f
 }
 
+// WithNumber sets the number on a field.
+func (f *Field) WithNumber(number int32) *Field {
+	f.Number = number
+	return f
+}
+
 // NewTestResource creates a resource with defaults.
 func NewTestResource(typez string) *Resource {
 	return &Resource{
