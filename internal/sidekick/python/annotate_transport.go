@@ -45,6 +45,7 @@ type TransportImport struct {
 type TransportAnnotations struct {
 	Name               string
 	TransportClassName string
+	ServiceFQN         string
 	DefaultHost        string
 	VersionPackage     string
 	Scopes             []string
@@ -52,6 +53,9 @@ type TransportAnnotations struct {
 	HasLocationMixin   bool
 	HasOperationsMixin bool
 	RestAsyncIOEnabled bool
+
+	DocLines    []string
+	HasDocLines bool
 
 	// Mixin method availability for property stubs
 	HasListOperations  bool
@@ -81,9 +85,20 @@ type WrappedMethodAnnotations struct {
 
 // TransportMethodAnnotations decorates an abstract property callable signature.
 type TransportMethodAnnotations struct {
-	Name            string
-	InputTypeIdent  string
-	OutputTypeIdent string
+	Name                 string
+	InputTypeIdent       string
+	OutputTypeIdent      string
+	InputTypeShortIdent  string
+	OutputTypeShortIdent string
+	RPCPath              string
+	GRPCStubType         string
+	RequestSerializer    string
+	ResponseDeserializer string
+	DocSummaryLead       string
+	DocSummaryRest       string
+	DocSummaryWrap       bool
+	DocLines             []string
+	HasDocLines          bool
 }
 
 type methodConfigName struct {
@@ -159,6 +174,11 @@ func (c *codec) annotateTransport(service *api.Service) (*TransportAnnotations, 
 	transportClassName := name + "Transport"
 	versionPackage := strings.ReplaceAll(c.packageDir(), "/", ".")
 	defaultHost := service.DefaultHost
+	serviceFQN := service.Package + "." + service.Name
+	if fqn, ok := strings.CutPrefix(service.ID, "."); ok {
+		serviceFQN = fqn
+	}
+	docLines := formatRSTDocLines(service.Documentation, 72, 4)
 	svcConfig, err := c.loadServiceConfig(service)
 	if err != nil {
 		return nil, fmt.Errorf("loading service config for %s: %w", service.Name, err)
@@ -236,13 +256,21 @@ func (c *codec) annotateTransport(service *api.Service) (*TransportAnnotations, 
 			inTypeName = m.InputType.Name
 		}
 		inputIdent := inModule + "." + inTypeName
+		inputTypeShortIdent := "~." + inTypeName
+		outputTypeShortIdent := ""
+		requestSerializer := inputIdent + ".serialize"
+		responseDeserializer := ""
 
 		outIdent := ""
 		if m.ReturnsEmpty || m.OutputTypeID == api.WktEmptyID {
 			outIdent = "empty_pb2.Empty"
+			outputTypeShortIdent = "~.Empty"
+			responseDeserializer = "empty_pb2.Empty.FromString"
 			usesEmpty = true
 		} else if m.OperationInfo != nil || m.OutputTypeID == ".google.longrunning.Operation" {
 			outIdent = "operations_pb2.Operation"
+			outputTypeShortIdent = "~.Operation"
+			responseDeserializer = "operations_pb2.Operation.FromString"
 			usesOperations = true
 		} else {
 			outModule := c.resolveTypeModule(m.OutputTypeID, service)
@@ -254,12 +282,29 @@ func (c *codec) annotateTransport(service *api.Service) (*TransportAnnotations, 
 				outTypeName = m.OutputType.Name
 			}
 			outIdent = outModule + "." + outTypeName
+			outputTypeShortIdent = "~." + outTypeName
+			responseDeserializer = outIdent + ".deserialize"
 		}
 
+		rpcPath := "/" + serviceFQN + "/" + m.Name
+		docSummary := formatMethodDocSummary(m.Name)
+		mDocLines := formatRSTDocLines(m.Documentation, 72, 8)
+
 		serviceMethods = append(serviceMethods, &TransportMethodAnnotations{
-			Name:            snakeCase(m.Name),
-			InputTypeIdent:  inputIdent,
-			OutputTypeIdent: outIdent,
+			Name:                 snakeCase(m.Name),
+			InputTypeIdent:       inputIdent,
+			OutputTypeIdent:      outIdent,
+			InputTypeShortIdent:  inputTypeShortIdent,
+			OutputTypeShortIdent: outputTypeShortIdent,
+			RPCPath:              rpcPath,
+			GRPCStubType:         getGRPCStubType(m),
+			RequestSerializer:    requestSerializer,
+			ResponseDeserializer: responseDeserializer,
+			DocSummaryLead:       docSummary.Lead,
+			DocSummaryRest:       docSummary.Rest,
+			DocSummaryWrap:       docSummary.Wrap,
+			DocLines:             mDocLines,
+			HasDocLines:          len(mDocLines) > 0,
 		})
 	}
 
@@ -327,6 +372,7 @@ func (c *codec) annotateTransport(service *api.Service) (*TransportAnnotations, 
 	return &TransportAnnotations{
 		Name:               name,
 		TransportClassName: transportClassName,
+		ServiceFQN:         serviceFQN,
 		DefaultHost:        defaultHost,
 		VersionPackage:     versionPackage,
 		Scopes:             scopes,
@@ -334,6 +380,8 @@ func (c *codec) annotateTransport(service *api.Service) (*TransportAnnotations, 
 		HasLocationMixin:   hasLocationMixin,
 		HasOperationsMixin: hasOperationsMixin,
 		RestAsyncIOEnabled: restAsyncIOEnabled,
+		DocLines:           docLines,
+		HasDocLines:        len(docLines) > 0,
 		HasListOperations:  hasListOperations,
 		HasGetOperation:    hasGetOperation,
 		HasCancelOperation: hasCancelOperation,
@@ -556,4 +604,17 @@ func formatFloat(val float64) string {
 func typeNameFromID(id string) string {
 	parts := strings.Split(id, ".")
 	return parts[len(parts)-1]
+}
+
+func getGRPCStubType(m *api.Method) string {
+	if m.ClientSideStreaming && m.ServerSideStreaming {
+		return "stream_stream"
+	}
+	if m.ClientSideStreaming {
+		return "stream_unary"
+	}
+	if m.ServerSideStreaming {
+		return "unary_stream"
+	}
+	return "unary_unary"
 }

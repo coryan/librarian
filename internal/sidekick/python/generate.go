@@ -167,6 +167,20 @@ func Generate(ctx context.Context, model *api.API, outdir string, library *confi
 			serviceFile{
 				service: service,
 				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/transports/grpc.py.mustache",
+					OutputPath:   filepath.Join(serviceDir, "transports", "grpc.py"),
+				},
+			},
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
+					TemplatePath: "templates/services/service/transports/grpc_asyncio.py.mustache",
+					OutputPath:   filepath.Join(serviceDir, "transports", "grpc_asyncio.py"),
+				},
+			},
+			serviceFile{
+				service: service,
+				file: language.GeneratedFile{
 					TemplatePath: "templates/services/service/transports/__init__.py.mustache",
 					OutputPath:   filepath.Join(serviceDir, "transports", "__init__.py"),
 				},

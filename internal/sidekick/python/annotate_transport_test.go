@@ -31,9 +31,11 @@ func TestAnnotateTransport_Basic(t *testing.T) {
 	meth := api.NewTestMethod("CreateFoo").
 		WithInput(reqMsg).
 		WithOutput(respMsg)
+	meth.Documentation = "Creates a new Foo."
 	svc := api.NewTestService("FooService").
 		WithPackage("google.cloud.foo.v1").
 		WithMethods(meth)
+	svc.Documentation = "Foo service documentation."
 	svc.DefaultHost = "foo.googleapis.com"
 	model := api.NewTestAPI([]*api.Message{reqMsg, respMsg}, nil, []*api.Service{svc}).
 		WithDefinitionLocation(reqMsg.ID, "foo_service.proto", 1).
@@ -55,9 +57,12 @@ func TestAnnotateTransport_Basic(t *testing.T) {
 	want := &TransportAnnotations{
 		Name:               "FooService",
 		TransportClassName: "FooServiceTransport",
+		ServiceFQN:         "google.cloud.foo.v1.FooService",
 		DefaultHost:        "foo.googleapis.com",
 		VersionPackage:     "google.cloud.foo_v1",
 		Scopes:             []string{"https://www.googleapis.com/auth/cloud-platform"},
+		DocLines:           []string{"Foo service documentation."},
+		HasDocLines:        true,
 		Imports: []*TransportImport{
 			{
 				From:   "google.cloud.foo_v1.types",
@@ -72,9 +77,18 @@ func TestAnnotateTransport_Basic(t *testing.T) {
 		},
 		ServiceMethods: []*TransportMethodAnnotations{
 			{
-				Name:            "create_foo",
-				InputTypeIdent:  "foo_service.CreateFooRequest",
-				OutputTypeIdent: "foo_service.Foo",
+				Name:                 "create_foo",
+				InputTypeIdent:       "foo_service.CreateFooRequest",
+				OutputTypeIdent:      "foo_service.Foo",
+				InputTypeShortIdent:  "~.CreateFooRequest",
+				OutputTypeShortIdent: "~.Foo",
+				RPCPath:              "/google.cloud.foo.v1.FooService/CreateFoo",
+				GRPCStubType:         "unary_unary",
+				RequestSerializer:    "foo_service.CreateFooRequest.serialize",
+				ResponseDeserializer: "foo_service.Foo.deserialize",
+				DocSummaryLead:       "create foo",
+				DocLines:             []string{"Creates a new Foo."},
+				HasDocLines:          true,
 			},
 		},
 	}
@@ -132,6 +146,7 @@ func TestAnnotateTransport_MixinsAndLRO(t *testing.T) {
 	want := &TransportAnnotations{
 		Name:               "BarService",
 		TransportClassName: "BarServiceTransport",
+		ServiceFQN:         "google.cloud.bar.v1.BarService",
 		DefaultHost:        "bar.googleapis.com",
 		VersionPackage:     "google.cloud.bar_v1",
 		Scopes:             []string{"https://www.googleapis.com/auth/cloud-platform"},
@@ -181,14 +196,28 @@ func TestAnnotateTransport_MixinsAndLRO(t *testing.T) {
 		},
 		ServiceMethods: []*TransportMethodAnnotations{
 			{
-				Name:            "do_something",
-				InputTypeIdent:  "bar.DoSomethingRequest",
-				OutputTypeIdent: "operations_pb2.Operation",
+				Name:                 "do_something",
+				InputTypeIdent:       "bar.DoSomethingRequest",
+				OutputTypeIdent:      "operations_pb2.Operation",
+				InputTypeShortIdent:  "~.DoSomethingRequest",
+				OutputTypeShortIdent: "~.Operation",
+				RPCPath:              "/google.cloud.bar.v1.BarService/DoSomething",
+				GRPCStubType:         "unary_unary",
+				RequestSerializer:    "bar.DoSomethingRequest.serialize",
+				ResponseDeserializer: "operations_pb2.Operation.FromString",
+				DocSummaryLead:       "do something",
 			},
 			{
-				Name:            "delete_something",
-				InputTypeIdent:  "bar.DoSomethingRequest",
-				OutputTypeIdent: "empty_pb2.Empty",
+				Name:                 "delete_something",
+				InputTypeIdent:       "bar.DoSomethingRequest",
+				OutputTypeIdent:      "empty_pb2.Empty",
+				InputTypeShortIdent:  "~.DoSomethingRequest",
+				OutputTypeShortIdent: "~.Empty",
+				RPCPath:              "/google.cloud.bar.v1.BarService/DeleteSomething",
+				GRPCStubType:         "unary_unary",
+				RequestSerializer:    "bar.DoSomethingRequest.serialize",
+				ResponseDeserializer: "empty_pb2.Empty.FromString",
+				DocSummaryLead:       "delete something",
 			},
 		},
 	}
@@ -591,6 +620,42 @@ func TestAnnotateTransport_Error(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), test.wantErr) {
 				t.Errorf("error %q does not contain %q", err.Error(), test.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetGRPCStubType(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		method *api.Method
+		want   string
+	}{
+		{
+			name:   "unary_unary",
+			method: api.NewTestMethod("Test"),
+			want:   "unary_unary",
+		},
+		{
+			name:   "unary_stream",
+			method: api.NewTestMethod("Test").WithServerSideStreaming(),
+			want:   "unary_stream",
+		},
+		{
+			name:   "stream_unary",
+			method: api.NewTestMethod("Test").WithClientSideStreaming(),
+			want:   "stream_unary",
+		},
+		{
+			name:   "stream_stream",
+			method: api.NewTestMethod("Test").WithBidiStreaming(),
+			want:   "stream_stream",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := getGRPCStubType(test.method)
+			if got != test.want {
+				t.Errorf("getGRPCStubType() = %q, want %q", got, test.want)
 			}
 		})
 	}

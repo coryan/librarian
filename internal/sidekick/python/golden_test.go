@@ -159,8 +159,8 @@ func TestGoldenParity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if emittedCount < 13 {
-				t.Errorf("expected at least 13 emitted files for %s, got %d", test.name, emittedCount)
+			if emittedCount < 15 {
+				t.Errorf("expected at least 15 emitted files for %s, got %d", test.name, emittedCount)
 			}
 			t.Logf("[%s] Successfully verified %d emitted files against golden", test.name, emittedCount)
 		})

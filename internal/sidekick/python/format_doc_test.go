@@ -160,3 +160,119 @@ func TestFormatRSTDocLines_Wrapping(t *testing.T) {
 		})
 	}
 }
+
+func TestTokenizeDocChunks(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		input string
+		want  []docChunk
+	}{
+		{
+			name:  "empty",
+			input: "",
+			want:  nil,
+		},
+		{
+			name:  "single word",
+			input: "hello",
+			want: []docChunk{
+				{Text: "hello", IsSpace: false},
+			},
+		},
+		{
+			name:  "words with multiple spaces",
+			input: "hello   world",
+			want: []docChunk{
+				{Text: "hello", IsSpace: false},
+				{Text: "   ", IsSpace: true},
+				{Text: "world", IsSpace: false},
+			},
+		},
+		{
+			name:  "non-breaking space is non-space",
+			input: "hello\x01world",
+			want: []docChunk{
+				{Text: "hello\x01world", IsSpace: false},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := tokenizeDocChunks(test.input)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestWrapDocChunks(t *testing.T) {
+	chunks := tokenizeDocChunks("one two three four five")
+	got := wrapDocChunks(chunks, 10, 10, 2)
+	want := []string{
+		"one two",
+		"  three",
+		"  four",
+		"  five",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+
+	if gotEmpty := wrapDocChunks(nil, 10, 10, 0); gotEmpty != nil {
+		t.Errorf("wrapDocChunks(nil) = %v, want nil", gotEmpty)
+	}
+}
+
+func TestWrapPlainWords_PreservesInterWordSpacing(t *testing.T) {
+	text := "Deletes a specific Redis instance.  Instance stops serving"
+	got := wrapPlainWords(text, 53)
+	want := []string{
+		"Deletes a specific Redis instance.  Instance stops",
+		"serving",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestFormatMethodDocSummary(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		methodName string
+		want       methodDocSummary
+	}{
+		{
+			name:       "short method name",
+			methodName: "CreateFoo",
+			want: methodDocSummary{
+				Lead: "create foo",
+				Wrap: false,
+			},
+		},
+		{
+			name:       "long method name wrapping to second line",
+			methodName: "AnalyzeOrgPolicyGovernedAssets",
+			want: methodDocSummary{
+				Lead: "analyze org policy governed",
+				Rest: "assets",
+				Wrap: true,
+			},
+		},
+		{
+			name:       "long method name with multiple words on rest",
+			methodName: "AnalyzeOrgPolicyGovernedAssetsResponse",
+			want: methodDocSummary{
+				Lead: "analyze org policy governed",
+				Rest: "assets response",
+				Wrap: true,
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := formatMethodDocSummary(test.methodName)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

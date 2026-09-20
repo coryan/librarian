@@ -18,6 +18,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -408,6 +409,26 @@ __all__ = (
 `
 	if diff := cmp.Diff(wantBase, string(baseBytes)); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+
+	// Verify services/secret_manager_service/transports/grpc.py
+	grpcFile := filepath.Join(outdir, "google", "cloud", "secretmanager_v1", "services", "secret_manager_service", "transports", "grpc.py")
+	grpcBytes, err := os.ReadFile(grpcFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(grpcBytes), "class SecretManagerServiceGrpcTransport(") {
+		t.Errorf("expected %s to contain class SecretManagerServiceGrpcTransport", grpcFile)
+	}
+
+	// Verify services/secret_manager_service/transports/grpc_asyncio.py
+	grpcAsyncFile := filepath.Join(outdir, "google", "cloud", "secretmanager_v1", "services", "secret_manager_service", "transports", "grpc_asyncio.py")
+	grpcAsyncBytes, err := os.ReadFile(grpcAsyncFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(grpcAsyncBytes), "class SecretManagerServiceGrpcAsyncIOTransport(") {
+		t.Errorf("expected %s to contain class SecretManagerServiceGrpcAsyncIOTransport", grpcAsyncFile)
 	}
 }
 

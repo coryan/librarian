@@ -90,7 +90,7 @@ func wrapPythonPlain(text string, width, offset, indent int) []string {
 	}
 
 	if len(first) > width-offset {
-		initial := wrapWords(first, width-offset)
+		initial := wrapPlainWords(first, width-offset)
 		if strings.Contains(text, "\n") {
 			remaining := strings.Join(lines[1:], "")
 			if !isListItem(strings.TrimSpace(remaining)) {
@@ -435,6 +435,151 @@ func getSubsequentLineIndentationLevel(listItem string) int {
 		return 4
 	}
 	return 0
+}
+
+type docChunk struct {
+	Text    string
+	IsSpace bool
+}
+
+func tokenizeDocChunks(text string) []docChunk {
+	var chunks []docChunk
+	var cur strings.Builder
+	inSpace := false
+	for _, r := range text {
+		isSpace := unicode.IsSpace(r) && r != '\x01'
+		if cur.Len() > 0 && isSpace != inSpace {
+			chunks = append(chunks, docChunk{Text: cur.String(), IsSpace: inSpace})
+			cur.Reset()
+		}
+		inSpace = isSpace
+		if isSpace {
+			cur.WriteByte(' ')
+		} else {
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		chunks = append(chunks, docChunk{Text: cur.String(), IsSpace: inSpace})
+	}
+	return chunks
+}
+
+func wrapDocChunks(chunks []docChunk, widthFirst, widthSubsequent, extraIndent int) []string {
+	if len(chunks) == 0 {
+		return nil
+	}
+	var lines []string
+	var current strings.Builder
+	indentStr := strings.Repeat(" ", extraIndent)
+	targetWidth := widthFirst
+	pendingSpace := ""
+
+	for _, c := range chunks {
+		if c.IsSpace {
+			if current.Len() > 0 {
+				pendingSpace = c.Text
+			}
+			continue
+		}
+
+		wClean := strings.ReplaceAll(c.Text, nonBreakingSpace, " ")
+		wLen := len(wClean)
+
+		if current.Len() == 0 {
+			if len(lines) > 0 {
+				current.WriteString(indentStr)
+			}
+			current.WriteString(wClean)
+			pendingSpace = ""
+		} else if current.Len()+len(pendingSpace)+wLen <= targetWidth {
+			current.WriteString(pendingSpace)
+			current.WriteString(wClean)
+			pendingSpace = ""
+		} else {
+			lines = append(lines, current.String())
+			current.Reset()
+			targetWidth = widthSubsequent
+			current.WriteString(indentStr)
+			current.WriteString(wClean)
+			pendingSpace = ""
+		}
+	}
+
+	if current.Len() > 0 {
+		lines = append(lines, current.String())
+	}
+	return lines
+}
+
+func wrapPlainWords(text string, width int) []string {
+	chunks := tokenizeDocChunks(text)
+	return wrapDocChunks(chunks, width, width, 0)
+}
+
+// methodDocSummary contains the lead and optional rest of a method docstring summary.
+// For short method names, Lead contains the entire humanized name and Wrap is false.
+// For longer method names that exceed the first line budget (30 chars = 70 total - 40 prefix),
+// Lead contains the first line and Rest contains the subsequent wrapped line(s).
+type methodDocSummary struct {
+	Lead string
+	Rest string
+	Wrap bool
+}
+
+func formatMethodDocSummary(methodName string) methodDocSummary {
+	humanized := strings.ReplaceAll(snakeCase(methodName), "_", " ")
+	const (
+		totalWidth         = 70
+		firstLinePrefixLen = 40 // 8 spaces indent + len(`r"""Return a callable for the `)
+		suffixLen          = 18 // len(" method over gRPC.")
+	)
+	firstLineAvail := totalWidth - firstLinePrefixLen // 30 chars
+	if len(humanized) <= firstLineAvail {
+		return methodDocSummary{
+			Lead: humanized,
+			Wrap: false,
+		}
+	}
+
+	words := strings.Fields(humanized)
+	var line1Words []string
+	currLen := 0
+	splitIdx := 0
+	for i, w := range words {
+		addedLen := len(w)
+		if len(line1Words) > 0 {
+			addedLen++ // space separator
+		}
+		if len(line1Words) > 0 && currLen+addedLen > firstLineAvail {
+			splitIdx = i
+			break
+		}
+		line1Words = append(line1Words, w)
+		currLen += addedLen
+	}
+	if splitIdx == 0 && len(words) > 0 {
+		line1Words = []string{words[0]}
+		splitIdx = 1
+	}
+
+	lead := strings.Join(line1Words, " ")
+	restWords := words[splitIdx:]
+	if len(restWords) == 0 {
+		return methodDocSummary{
+			Lead: lead,
+			Wrap: false,
+		}
+	}
+
+	restLines := wrapWords(strings.Join(restWords, " "), totalWidth-8-suffixLen)
+	rest := strings.Join(restLines, "\n        ")
+
+	return methodDocSummary{
+		Lead: lead,
+		Rest: rest,
+		Wrap: true,
+	}
 }
 
 func wrapWords(text string, width int) []string {
