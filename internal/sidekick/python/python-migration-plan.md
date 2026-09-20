@@ -58,66 +58,91 @@ flowchart LR
 
 ---
 
-### Phase 2: Hermetic Fixtures & Test Harness
-- **Goal**: Augment the shared parser if needed, import complete test protos and integration goldens, and establish the hermetic golden parity test harness.
-- **Staging & Commits (Commit After Each Step)**:
-  - **Step 2.1: Shared Parser Enhancements (`internal/sidekick/parser`, `internal/sidekick/api`)**:
-    1. Ensure `internal/sidekick/parser` extracts symbol comments, Python-relevant docstrings, and preserves routing parameter order from `FileDescriptorSet`.
-    2. Run cross-language regression checks (`go test ./internal/sidekick/parser/...`, `go test ./internal/sidekick/swift/...`, `go test ./internal/sidekick/rust/...`, `go test ./internal/sidekick/cpp/...`).
-    3. **Commit**: `feat(internal/sidekick/parser): extract Python symbol docstrings and parameter order`
-    4. Run `review-pr` subagent on commit.
-  - **Step 2.2: Hermetic Fixtures (`internal/sidekick/python/testdata`)**:
-    1. Verify all required source protos and integration goldens (`credentials`, `redis`, `asset`) are present in `internal/sidekick/python/testdata/`.
-    2. Ensure protos are in `internal/sidekick/python/testdata/protos/` and goldens in `internal/sidekick/python/testdata/golden/`.
-    3. **Commit**: `test(internal/sidekick/python): organize hermetic test protos and integration goldens`
-    4. Run `review-pr` subagent on commit.
-  - **Step 2.3: Hermetic Test Harness (`internal/sidekick/python/golden_test.go`)**:
-    1. Implement comprehensive test harness in `internal/sidekick/python/golden_test.go` parsing test protos into `api.API` and asserting byte-for-byte parity on emitted files under `google/**`.
-    2. Strictly forbid regex re-parsing, `proto_index.go`, hardcoded symbol tables, and fixture name branching.
-    3. **Commit**: `test(internal/sidekick/python): implement hermetic golden parity test harness`
-    4. Run `review-pr` subagent on commit.
-  - **Phase 2 Alignment Review**:
-    - Spawn architectural alignment subagent to review changes against `internal/sidekick/GEMINI.md`, `internal/sidekick/python/GEMINI.md`, and this plan. Address any findings.
+### Phase 2: Hermetic Fixtures & Test Harness [COMPLETED]
+- **Goal**: Augment the shared parser if needed, import complete test protos
+  and integration goldens, and establish the hermetic golden parity test
+  harness.
+- **Status**: Completed, tested, and committed in discrete single-directory
+  commits.
+- **Delivered Commits**:
+  - `6b1700d2` `feat(internal/sidekick/api)`: Added source location tracking
+    to API model.
+  - `64723a14` `feat(internal/sidekick/parser)`: Extracted SourceCodeInfo
+    definition locations and preserved routing parameter order.
+  - `bf642db2` `feat(internal/sidekick/api)`: Added Number field to api.Field.
+  - `a8d03b5c` `feat(internal/sidekick/parser)`: Extracted protobuf field tag
+    numbers into api.Field.
+  - `testdata` setup: Hermetic test protos and integration goldens organized
+    under `internal/sidekick/python/testdata/`.
+  - `golden_test.go`: Implemented hermetic golden parity test harness
+    asserting byte-for-byte parity across GAPIC surfaces.
+- **Verification**: All unit tests and golden parity tests pass across all
+  fixtures (`credentials`, `redis`, `asset`).
 
 ---
 
-### Phase 3: Layered Emission — Services, Clients & Transports (gRPC End-to-End)
-- **Goal**: Complete gRPC generation using Mustache templates and partials, achieving byte-for-byte parity on the gRPC subset of golden services (`credentials`, `redis`).
+### Phase 3: Layered Emission — Services, Clients & Transports (gRPC End-to-End) [IN PROGRESS]
+- **Goal**: Complete gRPC generation using Mustache templates and partials,
+  achieving byte-for-byte parity on the gRPC subset of golden services
+  (`credentials`, `redis`).
 - **Layers & Commits (Commit After Each Step)**:
-  - **Step 3.1: Output Paths & Package Layout**:
-    1. Emit file shells and directory structure (`google/<namespace>/<name>_<version>/`) ensuring strict `outdir` containment.
-    2. **Commit**: `feat(internal/sidekick/python): emit GAPIC output package layout`
+  - **Step 3.1: Output Paths & Package Layout [COMPLETED]**:
+    1. Emit file shells and directory structure
+       (`google/<namespace>/<name>_<version>/`) ensuring strict `outdir`
+       containment.
+    2. **Commit**: `65efb9fb`
+       `feat(internal/sidekick/python): emit GAPIC output package layout`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.2: Types Wrappers [COMPLETED]**:
+    1. Emit `types/__init__.py` and `types/%proto.py` wrapping proto messages
+       and enums via Mustache templates. Assert via `extractBlock()`.
+    2. **Commit**: `99c5450a`
+       `feat(internal/sidekick/python): emit types package wrappers`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.3: Base Transports [COMPLETED]**:
+    1. Emit `transports/base.py` and `transports/__init__.py` declaring
+       abstract transport classes, method stubs, and credentials handling.
+       Assert via `extractBlock()`.
+    2. **Commit**: `c5b6b1a0`
+       `feat(internal/sidekick/python): emit base transport classes and stubs`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.4: gRPC Transports [COMPLETED]**:
+    1. Emit `transports/grpc.py` and async `transports/grpc_asyncio.py`
+       including channel initialization, method descriptors, and gRPC
+       interceptors. Assert via `extractBlock()`.
+    2. **Commit**: `34577379`
+       `feat(internal/sidekick/python): emit gRPC and gRPC-AsyncIO transports`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.5: Paging & Helpers [COMPLETED]**:
+    1. Emit `pagers.py` supporting synchronous and asynchronous page
+       iterators. Assert via `extractBlock()`.
+    2. **Commit**: `df6535f0`
+       `feat(internal/sidekick/python): emit sync and async pagers`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.6: Synchronous Client (`client.py`) [COMPLETED]**:
+    1. Emit client class, initialization, client options, context managers,
+       and method wrappers for unary, paged, streaming, and LRO methods.
+       Assert via `extractBlock()`.
+    2. **Commit**: `ccca6c41`
+       `feat(internal/sidekick/python): emit synchronous service client`
+    3. Review subagent completed and findings addressed.
+  - **Step 3.7: Asynchronous Client (`async_client.py`) [PENDING]**:
+    1. Emit async client coroutines, async context managers, and transport
+       wiring. Assert via `extractBlock()`.
+    2. **Commit**:
+       `feat(internal/sidekick/python): emit asynchronous service client`
     3. Run `review-pr` subagent on commit.
-  - **Step 3.2: Types Wrappers**:
-    1. Emit `types/__init__.py` and `types/%proto.py` wrapping proto messages and enums via Mustache templates. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit types package wrappers`
+  - **Step 3.8: gRPC Parity Verification [PENDING]**:
+    1. Assert zero diff against gRPC components of golden fixtures
+       (`credentials`, `redis`).
+    2. **Commit**:
+       `test(internal/sidekick/python): verify gRPC client and transport`
+       `golden parity`
     3. Run `review-pr` subagent on commit.
-  - **Step 3.3: Base Transports**:
-    1. Emit `transports/base.py` and `transports/__init__.py` declaring abstract transport classes, method stubs, and credentials handling. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit base transport classes and stubs`
-    3. Run `review-pr` subagent on commit.
-  - **Step 3.4: gRPC Transports**:
-    1. Emit `transports/grpc.py` and async `transports/grpc_asyncio.py` including channel initialization, method descriptors, and gRPC interceptors. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit gRPC and gRPC-AsyncIO transports`
-    3. Run `review-pr` subagent on commit.
-  - **Step 3.5: Paging & Helpers**:
-    1. Emit `pagers.py` supporting synchronous and asynchronous page iterators. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit sync and async pagers`
-    3. Run `review-pr` subagent on commit.
-  - **Step 3.6: Synchronous Client (`client.py`)**:
-    1. Emit client class, initialization, client options, context managers, and method wrappers for unary, paged, streaming, and LRO methods. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit synchronous service client`
-    3. Run `review-pr` subagent on commit.
-  - **Step 3.7: Asynchronous Client (`async_client.py`)**:
-    1. Emit async client coroutines, async context managers, and transport wiring. Assert via `extractBlock()`.
-    2. **Commit**: `feat(internal/sidekick/python): emit asynchronous service client`
-    3. Run `review-pr` subagent on commit.
-  - **Step 3.8: gRPC Parity Verification**:
-    1. Assert zero diff against gRPC components of golden fixtures (`credentials`, `redis`).
-    2. **Commit**: `test(internal/sidekick/python): verify gRPC client and transport golden parity`
-    3. Run `review-pr` subagent on commit.
-  - **Phase 3 Alignment Review**:
-    - Spawn architectural alignment subagent to review changes against `internal/sidekick/GEMINI.md`, `internal/sidekick/python/GEMINI.md`, and this plan.
+  - **Phase 3 Alignment Review [PENDING]**:
+    - Spawn architectural alignment subagent to review changes against
+      `internal/sidekick/GEMINI.md`, `internal/sidekick/python/GEMINI.md`,
+      and this plan.
 
 ---
 
