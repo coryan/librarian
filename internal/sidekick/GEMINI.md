@@ -151,7 +151,7 @@ The following builders are defined in `internal/sidekick/api/test.go`:
 | `api.NewTestMessage(name)` | `.WithPackage()`, `.WithFields()`, `.WithOneOfs()`, `.WithPagination()`, `.WithResource()` |
 | `api.NewTestService(name)` | `.WithPackage()`, `.WithMethods()` |
 | `api.NewTestMethod(name)` | `.WithVerb()`, `.WithInput()`, `.WithOutput()`, `.WithPathTemplate()`, `.WithSignatures()`, `.WithOperationInfo()`, `.WithPagination()`, `.WithBidiStreaming()` |
-| `api.NewTestField(name)` | `.WithType()`, `.WithRepeated()`, `.WithOptional()`, `.WithMap()`, `.WithBehavior()`, `.WithMessageType()`, `.WithResourceReference()` |
+| `api.NewTestField(name)` | `.WithType()`, `.WithNumber()`, `.WithRepeated()`, `.WithOptional()`, `.WithMap()`, `.WithBehavior()`, `.WithMessageType()`, `.WithResourceReference()` |
 | `api.NewTestOneOf(name)` | `.WithFields()` |
 | `api.NewTestResource(typez)` | `.WithPatterns()`, `.WithSingular()`, `.WithPlural()` |
 
