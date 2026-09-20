@@ -680,6 +680,7 @@ func processMessage(model *api.API, m *descriptorpb.DescriptorProto, mFQN, packa
 		field := &api.Field{
 			Name:          mf.GetName(),
 			ID:            mFQN + "." + mf.GetName(),
+			Number:        mf.GetNumber(),
 			JSONName:      mf.GetJsonName(),
 			Deprecated:    mf.GetOptions().GetDeprecated(),
 			Optional:      isProtoOptional,
