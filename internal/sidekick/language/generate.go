@@ -72,6 +72,11 @@ func GenerateEnum(outDir string, enum *api.Enum, provider TemplateProvider, gen 
 	return generateElement(outDir, enum, provider, gen)
 }
 
+// GenerateElement generates a single file using any model or annotation element.
+func GenerateElement(outDir string, element any, provider TemplateProvider, gen GeneratedFile) error {
+	return generateElement(outDir, element, provider, gen)
+}
+
 func generateElement(outDir string, element any, provider TemplateProvider, gen GeneratedFile) error {
 	templateContents, err := provider(gen.TemplatePath)
 	if err != nil {

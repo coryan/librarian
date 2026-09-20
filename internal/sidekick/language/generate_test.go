@@ -101,6 +101,23 @@ func TestGenerateEnum(t *testing.T) {
 	verifyElementOutput(t, outDir)
 }
 
+func TestGenerateElement(t *testing.T) {
+	data := map[string]string{
+		"Name": "ExpectedName",
+	}
+	outDir := t.TempDir()
+
+	gen := GeneratedFile{
+		TemplatePath: "testTemplates/test002.mustache",
+		OutputPath:   "test002.txt",
+	}
+	err := GenerateElement(outDir, data, provider, gen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyElementOutput(t, outDir)
+}
+
 func verifyElementOutput(t *testing.T, outDir string) {
 	t.Helper()
 	for _, expected := range []string{"test002.txt"} {
