@@ -279,67 +279,81 @@ func (c *codec) annotateMethod(method *api.Method, modelAnn *modelAnnotations) e
 	// Extract routing parameters for gRPC per AIP-4222:
 	// - Prefer explicit google.api.routing annotations if present.
 	// - Fall back to extracting path parameters across all google.api.http bindings.
-	if method.HasRouting() {
-		routingParams = c.routingParamsFromRouting(method.Routing())
-	} else if len(bindings) > 0 {
-		routingParams = c.routingParamsFromBindings(bindings)
+	if c.isGrpc() {
+		if method.HasRouting() {
+			routingParams, err = c.routingParamsFromRouting(method.InputType(), method.Routing())
+			if err != nil {
+				return err
+			}
+		} else if len(bindings) > 0 {
+			routingParams, err = c.routingParamsFromBindings(method.InputType(), bindings)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// In Protobuf APIs (such as Storage Control or pure gRPC services), some RPC
 	// methods do not define google.api.http annotations.
 	// - HTTP/REST methods: Extract httpMethod, pathExpressionStr, bodyField,
 	//   queryParams, and pathVariables as before.
-	// - Pure gRPC methods (without HTTP annotations): Safely bypass the HTTP
-	//   extraction without crashing, leaving those fields as their default zero values.
+	// - Pure gRPC methods (or gRPC clients): Safely bypass REST path binding
+	//   extraction, while preserving primary HTTPMethod for idempotency checks.
 	var pathBindings []*pathBindingAnnotations
 	if len(bindings) > 0 {
-		hasBody = method.PathInfo().BodyFieldPath() != ""
-		isBodyWildcard = method.PathInfo().BodyFieldPath() == "*"
-		if hasBody && !isBodyWildcard {
-			bodyField = camelCase(method.PathInfo().BodyFieldPath())
-			// Wrapper requests (or body: "*" rules resolved by the protobuf parser)
-			// point BodyFieldPath at a top-level google.api.HttpBody field.
-			if method.InputType() != nil {
-				isHTTPBodyRequest = slices.ContainsFunc(method.InputType().Fields(), func(f *api.Field) bool {
-					return f.Name() == method.PathInfo().BodyFieldPath() && f.Typez() == api.TypezMessage && f.TypezID() == ".google.api.HttpBody"
+		if c.isGrpc() {
+			if bindings[0] != nil {
+				httpMethod = bindings[0].Verb()
+			}
+		} else {
+			hasBody = method.PathInfo().BodyFieldPath() != ""
+			isBodyWildcard = method.PathInfo().BodyFieldPath() == "*"
+			if hasBody && !isBodyWildcard {
+				bodyField = camelCase(method.PathInfo().BodyFieldPath())
+				// Wrapper requests (or body: "*" rules resolved by the protobuf parser)
+				// point BodyFieldPath at a top-level google.api.HttpBody field.
+				if method.InputType() != nil {
+					isHTTPBodyRequest = slices.ContainsFunc(method.InputType().Fields(), func(f *api.Field) bool {
+						return f.Name() == method.PathInfo().BodyFieldPath() && f.Typez() == api.TypezMessage && f.TypezID() == ".google.api.HttpBody"
+					})
+				}
+			} else if isBodyWildcard && method.InputType() != nil && method.InputType().ID() == ".google.api.HttpBody" {
+				// When the request message itself is google.api.HttpBody, BodyFieldPath
+				// remains "*".
+				isHTTPBodyRequest = true
+			}
+			for _, binding := range bindings {
+				pVars, err := c.pathVariables(method.InputType(), binding.PathTemplate())
+				if err != nil {
+					return err
+				}
+				pExpr := pathExpression(binding.PathTemplate())
+				qParams := language.QueryParams(method, binding)
+				// With `body: "*"` the request body only contains the fields not bound by the path
+				// template.
+				var omittedBodyFields []string
+				if isBodyWildcard && !isHTTPBodyRequest {
+					for _, pVar := range pVars {
+						omittedBodyFields = append(omittedBodyFields, pVar.JSONFieldPath)
+					}
+				}
+				pathBindings = append(pathBindings, &pathBindingAnnotations{
+					HTTPMethod:        binding.Verb(),
+					PathExpression:    pExpr,
+					PathVariables:     pVars,
+					QueryParams:       qParams,
+					HasQueryParams:    len(qParams) > 0,
+					HasPathVariables:  len(pVars) > 0,
+					ResponseEncoding:  c.ResponseEncoding,
+					OmittedBodyFields: omittedBodyFields,
 				})
 			}
-		} else if isBodyWildcard && method.InputType() != nil && method.InputType().ID() == ".google.api.HttpBody" {
-			// When the request message itself is google.api.HttpBody, BodyFieldPath
-			// remains "*".
-			isHTTPBodyRequest = true
+			primary := pathBindings[0]
+			pathVariables = primary.PathVariables
+			pathExpressionStr = primary.PathExpression
+			httpMethod = primary.HTTPMethod
+			queryParams = primary.QueryParams
 		}
-		for _, binding := range bindings {
-			pVars, err := c.pathVariables(method.InputType(), binding.PathTemplate())
-			if err != nil {
-				return err
-			}
-			pExpr := pathExpression(binding.PathTemplate())
-			qParams := language.QueryParams(method, binding)
-			// With `body: "*"` the request body only contains the fields not bound by the path
-			// template.
-			var omittedBodyFields []string
-			if isBodyWildcard && !isHTTPBodyRequest {
-				for _, pVar := range pVars {
-					omittedBodyFields = append(omittedBodyFields, pVar.JSONFieldPath)
-				}
-			}
-			pathBindings = append(pathBindings, &pathBindingAnnotations{
-				HTTPMethod:        binding.Verb(),
-				PathExpression:    pExpr,
-				PathVariables:     pVars,
-				QueryParams:       qParams,
-				HasQueryParams:    len(qParams) > 0,
-				HasPathVariables:  len(pVars) > 0,
-				ResponseEncoding:  c.ResponseEncoding,
-				OmittedBodyFields: omittedBodyFields,
-			})
-		}
-		primary := pathBindings[0]
-		pathVariables = primary.PathVariables
-		pathExpressionStr = primary.PathExpression
-		httpMethod = primary.HTTPMethod
-		queryParams = primary.QueryParams
 	}
 
 	// The pagination and LRO signatures name a type that is neither the input
